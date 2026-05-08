@@ -103,15 +103,18 @@ export type ModCDPEvaluateParams = z.infer<typeof ModCDPEvaluateParamsSchema>;
 
 export const ModCDPAddCustomCommandParamsSchema = z.object({
   name: ModCDPNameSchema,
-  expression: z.string(),
+  expression: z.string().nullable().optional(),
   paramsSchema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
+  params_schema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
   resultSchema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
+  result_schema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
 });
 export type ModCDPAddCustomCommandParams = z.infer<typeof ModCDPAddCustomCommandParamsSchema>;
 
 export const ModCDPAddCustomEventObjectParamsSchema = z.object({
   name: ModCDPNameSchema,
   eventSchema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
+  event_schema: ModCDPPayloadSchemaSpecSchema.nullable().optional(),
 });
 export type ModCDPAddCustomEventObjectParams = z.infer<typeof ModCDPAddCustomEventObjectParamsSchema>;
 export const ModCDPAddCustomEventParamsSchema = z.union([ModCDPZodTypeSchema, ModCDPAddCustomEventObjectParamsSchema]);

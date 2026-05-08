@@ -17,6 +17,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from modcdp import ModCDPClient
@@ -38,10 +39,10 @@ CHROME = os.environ.get("CHROME_PATH") or (
 )
 
 
-def expect_object(value: JsonValue, label: str) -> ProtocolPayload:
+def expect_object(value: object, label: str) -> ProtocolPayload:
     if not isinstance(value, dict):
         raise RuntimeError(f"{label} returned non-object value: {value!r}")
-    return value
+    return cast(ProtocolPayload, value)
 
 
 def server_routes_for(mode: str) -> ProtocolPayload:

@@ -1,7 +1,10 @@
 // Code generated from Chrome DevTools Protocol JSON. DO NOT EDIT.
 package modcdp
 
-type AccessibilityDomain struct{ client *ModCDPClient }
+type AccessibilityDomain struct {
+	client *ModCDPClient
+	On     AccessibilityEvents
+}
 
 func (d AccessibilityDomain) Disable(params ...AccessibilityDisableParams) (AccessibilityDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -63,15 +66,10 @@ func (d AccessibilityDomain) QueryAXTree(params ...AccessibilityQueryAXTreeParam
 	return sendCDPCommand[AccessibilityQueryAXTreeResult](d.client, "Accessibility.queryAXTree", p)
 }
 
-func (d AccessibilityDomain) OnLoadComplete(handler func(AccessibilityLoadCompleteEvent)) {
-	onCDPEvent(d.client, "Accessibility.loadComplete", handler)
+type AnimationDomain struct {
+	client *ModCDPClient
+	On     AnimationEvents
 }
-
-func (d AccessibilityDomain) OnNodesUpdated(handler func(AccessibilityNodesUpdatedEvent)) {
-	onCDPEvent(d.client, "Accessibility.nodesUpdated", handler)
-}
-
-type AnimationDomain struct{ client *ModCDPClient }
 
 func (d AnimationDomain) Disable(params ...AnimationDisableParams) (AnimationDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -125,23 +123,10 @@ func (d AnimationDomain) SetTiming(params AnimationSetTimingParams) (AnimationSe
 	return sendCDPCommand[AnimationSetTimingResult](d.client, "Animation.setTiming", params)
 }
 
-func (d AnimationDomain) OnAnimationCanceled(handler func(AnimationAnimationCanceledEvent)) {
-	onCDPEvent(d.client, "Animation.animationCanceled", handler)
+type AuditsDomain struct {
+	client *ModCDPClient
+	On     AuditsEvents
 }
-
-func (d AnimationDomain) OnAnimationCreated(handler func(AnimationAnimationCreatedEvent)) {
-	onCDPEvent(d.client, "Animation.animationCreated", handler)
-}
-
-func (d AnimationDomain) OnAnimationStarted(handler func(AnimationAnimationStartedEvent)) {
-	onCDPEvent(d.client, "Animation.animationStarted", handler)
-}
-
-func (d AnimationDomain) OnAnimationUpdated(handler func(AnimationAnimationUpdatedEvent)) {
-	onCDPEvent(d.client, "Animation.animationUpdated", handler)
-}
-
-type AuditsDomain struct{ client *ModCDPClient }
 
 func (d AuditsDomain) GetEncodedResponse(params AuditsGetEncodedResponseParams) (AuditsGetEncodedResponseResult, error) {
 	return sendCDPCommand[AuditsGetEncodedResponseResult](d.client, "Audits.getEncodedResponse", params)
@@ -171,11 +156,10 @@ func (d AuditsDomain) CheckFormsIssues(params ...AuditsCheckFormsIssuesParams) (
 	return sendCDPCommand[AuditsCheckFormsIssuesResult](d.client, "Audits.checkFormsIssues", p)
 }
 
-func (d AuditsDomain) OnIssueAdded(handler func(AuditsIssueAddedEvent)) {
-	onCDPEvent(d.client, "Audits.issueAdded", handler)
+type AutofillDomain struct {
+	client *ModCDPClient
+	On     AutofillEvents
 }
-
-type AutofillDomain struct{ client *ModCDPClient }
 
 func (d AutofillDomain) Trigger(params AutofillTriggerParams) (AutofillTriggerResult, error) {
 	return sendCDPCommand[AutofillTriggerResult](d.client, "Autofill.trigger", params)
@@ -201,11 +185,10 @@ func (d AutofillDomain) Enable(params ...AutofillEnableParams) (AutofillEnableRe
 	return sendCDPCommand[AutofillEnableResult](d.client, "Autofill.enable", p)
 }
 
-func (d AutofillDomain) OnAddressFormFilled(handler func(AutofillAddressFormFilledEvent)) {
-	onCDPEvent(d.client, "Autofill.addressFormFilled", handler)
+type BackgroundServiceDomain struct {
+	client *ModCDPClient
+	On     BackgroundServiceEvents
 }
-
-type BackgroundServiceDomain struct{ client *ModCDPClient }
 
 func (d BackgroundServiceDomain) StartObserving(params BackgroundServiceStartObservingParams) (BackgroundServiceStartObservingResult, error) {
 	return sendCDPCommand[BackgroundServiceStartObservingResult](d.client, "BackgroundService.startObserving", params)
@@ -223,15 +206,10 @@ func (d BackgroundServiceDomain) ClearEvents(params BackgroundServiceClearEvents
 	return sendCDPCommand[BackgroundServiceClearEventsResult](d.client, "BackgroundService.clearEvents", params)
 }
 
-func (d BackgroundServiceDomain) OnRecordingStateChanged(handler func(BackgroundServiceRecordingStateChangedEvent)) {
-	onCDPEvent(d.client, "BackgroundService.recordingStateChanged", handler)
+type BluetoothEmulationDomain struct {
+	client *ModCDPClient
+	On     BluetoothEmulationEvents
 }
-
-func (d BackgroundServiceDomain) OnBackgroundServiceEventReceived(handler func(BackgroundServiceBackgroundServiceEventReceivedEvent)) {
-	onCDPEvent(d.client, "BackgroundService.backgroundServiceEventReceived", handler)
-}
-
-type BluetoothEmulationDomain struct{ client *ModCDPClient }
 
 func (d BluetoothEmulationDomain) Enable(params BluetoothEmulationEnableParams) (BluetoothEmulationEnableResult, error) {
 	return sendCDPCommand[BluetoothEmulationEnableResult](d.client, "BluetoothEmulation.enable", params)
@@ -297,19 +275,10 @@ func (d BluetoothEmulationDomain) SimulateGATTDisconnection(params BluetoothEmul
 	return sendCDPCommand[BluetoothEmulationSimulateGATTDisconnectionResult](d.client, "BluetoothEmulation.simulateGATTDisconnection", params)
 }
 
-func (d BluetoothEmulationDomain) OnGattOperationReceived(handler func(BluetoothEmulationGattOperationReceivedEvent)) {
-	onCDPEvent(d.client, "BluetoothEmulation.gattOperationReceived", handler)
+type BrowserDomain struct {
+	client *ModCDPClient
+	On     BrowserEvents
 }
-
-func (d BluetoothEmulationDomain) OnCharacteristicOperationReceived(handler func(BluetoothEmulationCharacteristicOperationReceivedEvent)) {
-	onCDPEvent(d.client, "BluetoothEmulation.characteristicOperationReceived", handler)
-}
-
-func (d BluetoothEmulationDomain) OnDescriptorOperationReceived(handler func(BluetoothEmulationDescriptorOperationReceivedEvent)) {
-	onCDPEvent(d.client, "BluetoothEmulation.descriptorOperationReceived", handler)
-}
-
-type BrowserDomain struct{ client *ModCDPClient }
 
 func (d BrowserDomain) SetPermission(params BrowserSetPermissionParams) (BrowserSetPermissionResult, error) {
 	return sendCDPCommand[BrowserSetPermissionResult](d.client, "Browser.setPermission", params)
@@ -427,15 +396,10 @@ func (d BrowserDomain) AddPrivacySandboxCoordinatorKeyConfig(params BrowserAddPr
 	return sendCDPCommand[BrowserAddPrivacySandboxCoordinatorKeyConfigResult](d.client, "Browser.addPrivacySandboxCoordinatorKeyConfig", params)
 }
 
-func (d BrowserDomain) OnDownloadWillBegin(handler func(BrowserDownloadWillBeginEvent)) {
-	onCDPEvent(d.client, "Browser.downloadWillBegin", handler)
+type CSSDomain struct {
+	client *ModCDPClient
+	On     CSSEvents
 }
-
-func (d BrowserDomain) OnDownloadProgress(handler func(BrowserDownloadProgressEvent)) {
-	onCDPEvent(d.client, "Browser.downloadProgress", handler)
-}
-
-type CSSDomain struct{ client *ModCDPClient }
 
 func (d CSSDomain) AddRule(params CSSAddRuleParams) (CSSAddRuleResult, error) {
 	return sendCDPCommand[CSSAddRuleResult](d.client, "CSS.addRule", params)
@@ -625,30 +589,6 @@ func (d CSSDomain) SetLocalFontsEnabled(params CSSSetLocalFontsEnabledParams) (C
 	return sendCDPCommand[CSSSetLocalFontsEnabledResult](d.client, "CSS.setLocalFontsEnabled", params)
 }
 
-func (d CSSDomain) OnFontsUpdated(handler func(CSSFontsUpdatedEvent)) {
-	onCDPEvent(d.client, "CSS.fontsUpdated", handler)
-}
-
-func (d CSSDomain) OnMediaQueryResultChanged(handler func(CSSMediaQueryResultChangedEvent)) {
-	onCDPEvent(d.client, "CSS.mediaQueryResultChanged", handler)
-}
-
-func (d CSSDomain) OnStyleSheetAdded(handler func(CSSStyleSheetAddedEvent)) {
-	onCDPEvent(d.client, "CSS.styleSheetAdded", handler)
-}
-
-func (d CSSDomain) OnStyleSheetChanged(handler func(CSSStyleSheetChangedEvent)) {
-	onCDPEvent(d.client, "CSS.styleSheetChanged", handler)
-}
-
-func (d CSSDomain) OnStyleSheetRemoved(handler func(CSSStyleSheetRemovedEvent)) {
-	onCDPEvent(d.client, "CSS.styleSheetRemoved", handler)
-}
-
-func (d CSSDomain) OnComputedStyleUpdated(handler func(CSSComputedStyleUpdatedEvent)) {
-	onCDPEvent(d.client, "CSS.computedStyleUpdated", handler)
-}
-
 type CacheStorageDomain struct{ client *ModCDPClient }
 
 func (d CacheStorageDomain) DeleteCache(params CacheStorageDeleteCacheParams) (CacheStorageDeleteCacheResult, error) {
@@ -675,7 +615,10 @@ func (d CacheStorageDomain) RequestEntries(params CacheStorageRequestEntriesPara
 	return sendCDPCommand[CacheStorageRequestEntriesResult](d.client, "CacheStorage.requestEntries", params)
 }
 
-type CastDomain struct{ client *ModCDPClient }
+type CastDomain struct {
+	client *ModCDPClient
+	On     CastEvents
+}
 
 func (d CastDomain) Enable(params ...CastEnableParams) (CastEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -709,15 +652,10 @@ func (d CastDomain) StopCasting(params CastStopCastingParams) (CastStopCastingRe
 	return sendCDPCommand[CastStopCastingResult](d.client, "Cast.stopCasting", params)
 }
 
-func (d CastDomain) OnSinksUpdated(handler func(CastSinksUpdatedEvent)) {
-	onCDPEvent(d.client, "Cast.sinksUpdated", handler)
+type ConsoleDomain struct {
+	client *ModCDPClient
+	On     ConsoleEvents
 }
-
-func (d CastDomain) OnIssueUpdated(handler func(CastIssueUpdatedEvent)) {
-	onCDPEvent(d.client, "Cast.issueUpdated", handler)
-}
-
-type ConsoleDomain struct{ client *ModCDPClient }
 
 func (d ConsoleDomain) ClearMessages(params ...ConsoleClearMessagesParams) (ConsoleClearMessagesResult, error) {
 	p, err := optionalCDPParams(params)
@@ -743,11 +681,10 @@ func (d ConsoleDomain) Enable(params ...ConsoleEnableParams) (ConsoleEnableResul
 	return sendCDPCommand[ConsoleEnableResult](d.client, "Console.enable", p)
 }
 
-func (d ConsoleDomain) OnMessageAdded(handler func(ConsoleMessageAddedEvent)) {
-	onCDPEvent(d.client, "Console.messageAdded", handler)
+type DOMDomain struct {
+	client *ModCDPClient
+	On     DOMEvents
 }
-
-type DOMDomain struct{ client *ModCDPClient }
 
 func (d DOMDomain) CollectClassNamesFromSubtree(params DOMCollectClassNamesFromSubtreeParams) (DOMCollectClassNamesFromSubtreeResult, error) {
 	return sendCDPCommand[DOMCollectClassNamesFromSubtreeResult](d.client, "DOM.collectClassNamesFromSubtree", params)
@@ -1037,82 +974,6 @@ func (d DOMDomain) ForceShowPopover(params DOMForceShowPopoverParams) (DOMForceS
 	return sendCDPCommand[DOMForceShowPopoverResult](d.client, "DOM.forceShowPopover", params)
 }
 
-func (d DOMDomain) OnAttributeModified(handler func(DOMAttributeModifiedEvent)) {
-	onCDPEvent(d.client, "DOM.attributeModified", handler)
-}
-
-func (d DOMDomain) OnAdoptedStyleSheetsModified(handler func(DOMAdoptedStyleSheetsModifiedEvent)) {
-	onCDPEvent(d.client, "DOM.adoptedStyleSheetsModified", handler)
-}
-
-func (d DOMDomain) OnAttributeRemoved(handler func(DOMAttributeRemovedEvent)) {
-	onCDPEvent(d.client, "DOM.attributeRemoved", handler)
-}
-
-func (d DOMDomain) OnCharacterDataModified(handler func(DOMCharacterDataModifiedEvent)) {
-	onCDPEvent(d.client, "DOM.characterDataModified", handler)
-}
-
-func (d DOMDomain) OnChildNodeCountUpdated(handler func(DOMChildNodeCountUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.childNodeCountUpdated", handler)
-}
-
-func (d DOMDomain) OnChildNodeInserted(handler func(DOMChildNodeInsertedEvent)) {
-	onCDPEvent(d.client, "DOM.childNodeInserted", handler)
-}
-
-func (d DOMDomain) OnChildNodeRemoved(handler func(DOMChildNodeRemovedEvent)) {
-	onCDPEvent(d.client, "DOM.childNodeRemoved", handler)
-}
-
-func (d DOMDomain) OnDistributedNodesUpdated(handler func(DOMDistributedNodesUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.distributedNodesUpdated", handler)
-}
-
-func (d DOMDomain) OnDocumentUpdated(handler func(DOMDocumentUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.documentUpdated", handler)
-}
-
-func (d DOMDomain) OnInlineStyleInvalidated(handler func(DOMInlineStyleInvalidatedEvent)) {
-	onCDPEvent(d.client, "DOM.inlineStyleInvalidated", handler)
-}
-
-func (d DOMDomain) OnPseudoElementAdded(handler func(DOMPseudoElementAddedEvent)) {
-	onCDPEvent(d.client, "DOM.pseudoElementAdded", handler)
-}
-
-func (d DOMDomain) OnTopLayerElementsUpdated(handler func(DOMTopLayerElementsUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.topLayerElementsUpdated", handler)
-}
-
-func (d DOMDomain) OnScrollableFlagUpdated(handler func(DOMScrollableFlagUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.scrollableFlagUpdated", handler)
-}
-
-func (d DOMDomain) OnAdRelatedStateUpdated(handler func(DOMAdRelatedStateUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.adRelatedStateUpdated", handler)
-}
-
-func (d DOMDomain) OnAffectedByStartingStylesFlagUpdated(handler func(DOMAffectedByStartingStylesFlagUpdatedEvent)) {
-	onCDPEvent(d.client, "DOM.affectedByStartingStylesFlagUpdated", handler)
-}
-
-func (d DOMDomain) OnPseudoElementRemoved(handler func(DOMPseudoElementRemovedEvent)) {
-	onCDPEvent(d.client, "DOM.pseudoElementRemoved", handler)
-}
-
-func (d DOMDomain) OnSetChildNodes(handler func(DOMSetChildNodesEvent)) {
-	onCDPEvent(d.client, "DOM.setChildNodes", handler)
-}
-
-func (d DOMDomain) OnShadowRootPopped(handler func(DOMShadowRootPoppedEvent)) {
-	onCDPEvent(d.client, "DOM.shadowRootPopped", handler)
-}
-
-func (d DOMDomain) OnShadowRootPushed(handler func(DOMShadowRootPushedEvent)) {
-	onCDPEvent(d.client, "DOM.shadowRootPushed", handler)
-}
-
 type DOMDebuggerDomain struct{ client *ModCDPClient }
 
 func (d DOMDebuggerDomain) GetEventListeners(params DOMDebuggerGetEventListenersParams) (DOMDebuggerGetEventListenersResult, error) {
@@ -1181,7 +1042,10 @@ func (d DOMSnapshotDomain) CaptureSnapshot(params DOMSnapshotCaptureSnapshotPara
 	return sendCDPCommand[DOMSnapshotCaptureSnapshotResult](d.client, "DOMSnapshot.captureSnapshot", params)
 }
 
-type DOMStorageDomain struct{ client *ModCDPClient }
+type DOMStorageDomain struct {
+	client *ModCDPClient
+	On     DOMStorageEvents
+}
 
 func (d DOMStorageDomain) Clear(params DOMStorageClearParams) (DOMStorageClearResult, error) {
 	return sendCDPCommand[DOMStorageClearResult](d.client, "DOMStorage.clear", params)
@@ -1215,23 +1079,10 @@ func (d DOMStorageDomain) SetDOMStorageItem(params DOMStorageSetDOMStorageItemPa
 	return sendCDPCommand[DOMStorageSetDOMStorageItemResult](d.client, "DOMStorage.setDOMStorageItem", params)
 }
 
-func (d DOMStorageDomain) OnDOMStorageItemAdded(handler func(DOMStorageDOMStorageItemAddedEvent)) {
-	onCDPEvent(d.client, "DOMStorage.domStorageItemAdded", handler)
+type DebuggerDomain struct {
+	client *ModCDPClient
+	On     DebuggerEvents
 }
-
-func (d DOMStorageDomain) OnDOMStorageItemRemoved(handler func(DOMStorageDOMStorageItemRemovedEvent)) {
-	onCDPEvent(d.client, "DOMStorage.domStorageItemRemoved", handler)
-}
-
-func (d DOMStorageDomain) OnDOMStorageItemUpdated(handler func(DOMStorageDOMStorageItemUpdatedEvent)) {
-	onCDPEvent(d.client, "DOMStorage.domStorageItemUpdated", handler)
-}
-
-func (d DOMStorageDomain) OnDOMStorageItemsCleared(handler func(DOMStorageDOMStorageItemsClearedEvent)) {
-	onCDPEvent(d.client, "DOMStorage.domStorageItemsCleared", handler)
-}
-
-type DebuggerDomain struct{ client *ModCDPClient }
 
 func (d DebuggerDomain) ContinueToLocation(params DebuggerContinueToLocationParams) (DebuggerContinueToLocationResult, error) {
 	return sendCDPCommand[DebuggerContinueToLocationResult](d.client, "Debugger.continueToLocation", params)
@@ -1393,27 +1244,10 @@ func (d DebuggerDomain) StepOver(params ...DebuggerStepOverParams) (DebuggerStep
 	return sendCDPCommand[DebuggerStepOverResult](d.client, "Debugger.stepOver", p)
 }
 
-func (d DebuggerDomain) OnBreakpointResolved(handler func(DebuggerBreakpointResolvedEvent)) {
-	onCDPEvent(d.client, "Debugger.breakpointResolved", handler)
+type DeviceAccessDomain struct {
+	client *ModCDPClient
+	On     DeviceAccessEvents
 }
-
-func (d DebuggerDomain) OnPaused(handler func(DebuggerPausedEvent)) {
-	onCDPEvent(d.client, "Debugger.paused", handler)
-}
-
-func (d DebuggerDomain) OnResumed(handler func(DebuggerResumedEvent)) {
-	onCDPEvent(d.client, "Debugger.resumed", handler)
-}
-
-func (d DebuggerDomain) OnScriptFailedToParse(handler func(DebuggerScriptFailedToParseEvent)) {
-	onCDPEvent(d.client, "Debugger.scriptFailedToParse", handler)
-}
-
-func (d DebuggerDomain) OnScriptParsed(handler func(DebuggerScriptParsedEvent)) {
-	onCDPEvent(d.client, "Debugger.scriptParsed", handler)
-}
-
-type DeviceAccessDomain struct{ client *ModCDPClient }
 
 func (d DeviceAccessDomain) Enable(params ...DeviceAccessEnableParams) (DeviceAccessEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -1439,10 +1273,6 @@ func (d DeviceAccessDomain) CancelPrompt(params DeviceAccessCancelPromptParams) 
 	return sendCDPCommand[DeviceAccessCancelPromptResult](d.client, "DeviceAccess.cancelPrompt", params)
 }
 
-func (d DeviceAccessDomain) OnDeviceRequestPrompted(handler func(DeviceAccessDeviceRequestPromptedEvent)) {
-	onCDPEvent(d.client, "DeviceAccess.deviceRequestPrompted", handler)
-}
-
 type DeviceOrientationDomain struct{ client *ModCDPClient }
 
 func (d DeviceOrientationDomain) ClearDeviceOrientationOverride(params ...DeviceOrientationClearDeviceOrientationOverrideParams) (DeviceOrientationClearDeviceOrientationOverrideResult, error) {
@@ -1457,7 +1287,10 @@ func (d DeviceOrientationDomain) SetDeviceOrientationOverride(params DeviceOrien
 	return sendCDPCommand[DeviceOrientationSetDeviceOrientationOverrideResult](d.client, "DeviceOrientation.setDeviceOrientationOverride", params)
 }
 
-type EmulationDomain struct{ client *ModCDPClient }
+type EmulationDomain struct {
+	client *ModCDPClient
+	On     EmulationEvents
+}
 
 func (d EmulationDomain) CanEmulate(params ...EmulationCanEmulateParams) (EmulationCanEmulateResult, error) {
 	p, err := optionalCDPParams(params)
@@ -1711,14 +1544,6 @@ func (d EmulationDomain) SetPrimaryScreen(params EmulationSetPrimaryScreenParams
 	return sendCDPCommand[EmulationSetPrimaryScreenResult](d.client, "Emulation.setPrimaryScreen", params)
 }
 
-func (d EmulationDomain) OnVirtualTimeBudgetExpired(handler func(EmulationVirtualTimeBudgetExpiredEvent)) {
-	onCDPEvent(d.client, "Emulation.virtualTimeBudgetExpired", handler)
-}
-
-func (d EmulationDomain) OnScreenOrientationLockChanged(handler func(EmulationScreenOrientationLockChangedEvent)) {
-	onCDPEvent(d.client, "Emulation.screenOrientationLockChanged", handler)
-}
-
 type EventBreakpointsDomain struct{ client *ModCDPClient }
 
 func (d EventBreakpointsDomain) SetInstrumentationBreakpoint(params EventBreakpointsSetInstrumentationBreakpointParams) (EventBreakpointsSetInstrumentationBreakpointResult, error) {
@@ -1775,7 +1600,10 @@ func (d ExtensionsDomain) SetStorageItems(params ExtensionsSetStorageItemsParams
 	return sendCDPCommand[ExtensionsSetStorageItemsResult](d.client, "Extensions.setStorageItems", params)
 }
 
-type FedCmDomain struct{ client *ModCDPClient }
+type FedCmDomain struct {
+	client *ModCDPClient
+	On     FedCmEvents
+}
 
 func (d FedCmDomain) Enable(params ...FedCmEnableParams) (FedCmEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -1817,15 +1645,10 @@ func (d FedCmDomain) ResetCooldown(params ...FedCmResetCooldownParams) (FedCmRes
 	return sendCDPCommand[FedCmResetCooldownResult](d.client, "FedCm.resetCooldown", p)
 }
 
-func (d FedCmDomain) OnDialogShown(handler func(FedCmDialogShownEvent)) {
-	onCDPEvent(d.client, "FedCm.dialogShown", handler)
+type FetchDomain struct {
+	client *ModCDPClient
+	On     FetchEvents
 }
-
-func (d FedCmDomain) OnDialogClosed(handler func(FedCmDialogClosedEvent)) {
-	onCDPEvent(d.client, "FedCm.dialogClosed", handler)
-}
-
-type FetchDomain struct{ client *ModCDPClient }
 
 func (d FetchDomain) Disable(params ...FetchDisableParams) (FetchDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -1871,14 +1694,6 @@ func (d FetchDomain) TakeResponseBodyAsStream(params FetchTakeResponseBodyAsStre
 	return sendCDPCommand[FetchTakeResponseBodyAsStreamResult](d.client, "Fetch.takeResponseBodyAsStream", params)
 }
 
-func (d FetchDomain) OnRequestPaused(handler func(FetchRequestPausedEvent)) {
-	onCDPEvent(d.client, "Fetch.requestPaused", handler)
-}
-
-func (d FetchDomain) OnAuthRequired(handler func(FetchAuthRequiredEvent)) {
-	onCDPEvent(d.client, "Fetch.authRequired", handler)
-}
-
 type FileSystemDomain struct{ client *ModCDPClient }
 
 func (d FileSystemDomain) GetDirectory(params FileSystemGetDirectoryParams) (FileSystemGetDirectoryResult, error) {
@@ -1911,7 +1726,10 @@ func (d HeadlessExperimentalDomain) Enable(params ...HeadlessExperimentalEnableP
 	return sendCDPCommand[HeadlessExperimentalEnableResult](d.client, "HeadlessExperimental.enable", p)
 }
 
-type HeapProfilerDomain struct{ client *ModCDPClient }
+type HeapProfilerDomain struct {
+	client *ModCDPClient
+	On     HeapProfilerEvents
+}
 
 func (d HeapProfilerDomain) AddInspectedHeapObject(params HeapProfilerAddInspectedHeapObjectParams) (HeapProfilerAddInspectedHeapObjectResult, error) {
 	return sendCDPCommand[HeapProfilerAddInspectedHeapObjectResult](d.client, "HeapProfiler.addInspectedHeapObject", params)
@@ -1997,26 +1815,6 @@ func (d HeapProfilerDomain) TakeHeapSnapshot(params ...HeapProfilerTakeHeapSnaps
 	return sendCDPCommand[HeapProfilerTakeHeapSnapshotResult](d.client, "HeapProfiler.takeHeapSnapshot", p)
 }
 
-func (d HeapProfilerDomain) OnAddHeapSnapshotChunk(handler func(HeapProfilerAddHeapSnapshotChunkEvent)) {
-	onCDPEvent(d.client, "HeapProfiler.addHeapSnapshotChunk", handler)
-}
-
-func (d HeapProfilerDomain) OnHeapStatsUpdate(handler func(HeapProfilerHeapStatsUpdateEvent)) {
-	onCDPEvent(d.client, "HeapProfiler.heapStatsUpdate", handler)
-}
-
-func (d HeapProfilerDomain) OnLastSeenObjectID(handler func(HeapProfilerLastSeenObjectIDEvent)) {
-	onCDPEvent(d.client, "HeapProfiler.lastSeenObjectId", handler)
-}
-
-func (d HeapProfilerDomain) OnReportHeapSnapshotProgress(handler func(HeapProfilerReportHeapSnapshotProgressEvent)) {
-	onCDPEvent(d.client, "HeapProfiler.reportHeapSnapshotProgress", handler)
-}
-
-func (d HeapProfilerDomain) OnResetProfiles(handler func(HeapProfilerResetProfilesEvent)) {
-	onCDPEvent(d.client, "HeapProfiler.resetProfiles", handler)
-}
-
 type IODomain struct{ client *ModCDPClient }
 
 func (d IODomain) Close(params IOCloseParams) (IOCloseResult, error) {
@@ -2081,7 +1879,10 @@ func (d IndexedDBDomain) RequestDatabaseNames(params ...IndexedDBRequestDatabase
 	return sendCDPCommand[IndexedDBRequestDatabaseNamesResult](d.client, "IndexedDB.requestDatabaseNames", p)
 }
 
-type InputDomain struct{ client *ModCDPClient }
+type InputDomain struct {
+	client *ModCDPClient
+	On     InputEvents
+}
 
 func (d InputDomain) DispatchDragEvent(params InputDispatchDragEventParams) (InputDispatchDragEventResult, error) {
 	return sendCDPCommand[InputDispatchDragEventResult](d.client, "Input.dispatchDragEvent", params)
@@ -2139,11 +1940,10 @@ func (d InputDomain) SynthesizeTapGesture(params InputSynthesizeTapGestureParams
 	return sendCDPCommand[InputSynthesizeTapGestureResult](d.client, "Input.synthesizeTapGesture", params)
 }
 
-func (d InputDomain) OnDragIntercepted(handler func(InputDragInterceptedEvent)) {
-	onCDPEvent(d.client, "Input.dragIntercepted", handler)
+type InspectorDomain struct {
+	client *ModCDPClient
+	On     InspectorEvents
 }
-
-type InspectorDomain struct{ client *ModCDPClient }
 
 func (d InspectorDomain) Disable(params ...InspectorDisableParams) (InspectorDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -2161,23 +1961,10 @@ func (d InspectorDomain) Enable(params ...InspectorEnableParams) (InspectorEnabl
 	return sendCDPCommand[InspectorEnableResult](d.client, "Inspector.enable", p)
 }
 
-func (d InspectorDomain) OnDetached(handler func(InspectorDetachedEvent)) {
-	onCDPEvent(d.client, "Inspector.detached", handler)
+type LayerTreeDomain struct {
+	client *ModCDPClient
+	On     LayerTreeEvents
 }
-
-func (d InspectorDomain) OnTargetCrashed(handler func(InspectorTargetCrashedEvent)) {
-	onCDPEvent(d.client, "Inspector.targetCrashed", handler)
-}
-
-func (d InspectorDomain) OnTargetReloadedAfterCrash(handler func(InspectorTargetReloadedAfterCrashEvent)) {
-	onCDPEvent(d.client, "Inspector.targetReloadedAfterCrash", handler)
-}
-
-func (d InspectorDomain) OnWorkerScriptLoaded(handler func(InspectorWorkerScriptLoadedEvent)) {
-	onCDPEvent(d.client, "Inspector.workerScriptLoaded", handler)
-}
-
-type LayerTreeDomain struct{ client *ModCDPClient }
 
 func (d LayerTreeDomain) CompositingReasons(params LayerTreeCompositingReasonsParams) (LayerTreeCompositingReasonsResult, error) {
 	return sendCDPCommand[LayerTreeCompositingReasonsResult](d.client, "LayerTree.compositingReasons", params)
@@ -2223,15 +2010,10 @@ func (d LayerTreeDomain) SnapshotCommandLog(params LayerTreeSnapshotCommandLogPa
 	return sendCDPCommand[LayerTreeSnapshotCommandLogResult](d.client, "LayerTree.snapshotCommandLog", params)
 }
 
-func (d LayerTreeDomain) OnLayerPainted(handler func(LayerTreeLayerPaintedEvent)) {
-	onCDPEvent(d.client, "LayerTree.layerPainted", handler)
+type LogDomain struct {
+	client *ModCDPClient
+	On     LogEvents
 }
-
-func (d LayerTreeDomain) OnLayerTreeDidChange(handler func(LayerTreeLayerTreeDidChangeEvent)) {
-	onCDPEvent(d.client, "LayerTree.layerTreeDidChange", handler)
-}
-
-type LogDomain struct{ client *ModCDPClient }
 
 func (d LogDomain) Clear(params ...LogClearParams) (LogClearResult, error) {
 	p, err := optionalCDPParams(params)
@@ -2269,11 +2051,10 @@ func (d LogDomain) StopViolationsReport(params ...LogStopViolationsReportParams)
 	return sendCDPCommand[LogStopViolationsReportResult](d.client, "Log.stopViolationsReport", p)
 }
 
-func (d LogDomain) OnEntryAdded(handler func(LogEntryAddedEvent)) {
-	onCDPEvent(d.client, "Log.entryAdded", handler)
+type MediaDomain struct {
+	client *ModCDPClient
+	On     MediaEvents
 }
-
-type MediaDomain struct{ client *ModCDPClient }
 
 func (d MediaDomain) Enable(params ...MediaEnableParams) (MediaEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -2289,26 +2070,6 @@ func (d MediaDomain) Disable(params ...MediaDisableParams) (MediaDisableResult, 
 		return MediaDisableResult{}, err
 	}
 	return sendCDPCommand[MediaDisableResult](d.client, "Media.disable", p)
-}
-
-func (d MediaDomain) OnPlayerPropertiesChanged(handler func(MediaPlayerPropertiesChangedEvent)) {
-	onCDPEvent(d.client, "Media.playerPropertiesChanged", handler)
-}
-
-func (d MediaDomain) OnPlayerEventsAdded(handler func(MediaPlayerEventsAddedEvent)) {
-	onCDPEvent(d.client, "Media.playerEventsAdded", handler)
-}
-
-func (d MediaDomain) OnPlayerMessagesLogged(handler func(MediaPlayerMessagesLoggedEvent)) {
-	onCDPEvent(d.client, "Media.playerMessagesLogged", handler)
-}
-
-func (d MediaDomain) OnPlayerErrorsRaised(handler func(MediaPlayerErrorsRaisedEvent)) {
-	onCDPEvent(d.client, "Media.playerErrorsRaised", handler)
-}
-
-func (d MediaDomain) OnPlayerCreated(handler func(MediaPlayerCreatedEvent)) {
-	onCDPEvent(d.client, "Media.playerCreated", handler)
 }
 
 type MemoryDomain struct{ client *ModCDPClient }
@@ -2393,7 +2154,10 @@ func (d MemoryDomain) GetSamplingProfile(params ...MemoryGetSamplingProfileParam
 	return sendCDPCommand[MemoryGetSamplingProfileResult](d.client, "Memory.getSamplingProfile", p)
 }
 
-type NetworkDomain struct{ client *ModCDPClient }
+type NetworkDomain struct {
+	client *ModCDPClient
+	On     NetworkEvents
+}
 
 func (d NetworkDomain) SetAcceptedEncodings(params NetworkSetAcceptedEncodingsParams) (NetworkSetAcceptedEncodingsResult, error) {
 	return sendCDPCommand[NetworkSetAcceptedEncodingsResult](d.client, "Network.setAcceptedEncodings", params)
@@ -2607,183 +2371,10 @@ func (d NetworkDomain) SetCookieControls(params NetworkSetCookieControlsParams) 
 	return sendCDPCommand[NetworkSetCookieControlsResult](d.client, "Network.setCookieControls", params)
 }
 
-func (d NetworkDomain) OnDataReceived(handler func(NetworkDataReceivedEvent)) {
-	onCDPEvent(d.client, "Network.dataReceived", handler)
+type OverlayDomain struct {
+	client *ModCDPClient
+	On     OverlayEvents
 }
-
-func (d NetworkDomain) OnEventSourceMessageReceived(handler func(NetworkEventSourceMessageReceivedEvent)) {
-	onCDPEvent(d.client, "Network.eventSourceMessageReceived", handler)
-}
-
-func (d NetworkDomain) OnLoadingFailed(handler func(NetworkLoadingFailedEvent)) {
-	onCDPEvent(d.client, "Network.loadingFailed", handler)
-}
-
-func (d NetworkDomain) OnLoadingFinished(handler func(NetworkLoadingFinishedEvent)) {
-	onCDPEvent(d.client, "Network.loadingFinished", handler)
-}
-
-func (d NetworkDomain) OnRequestIntercepted(handler func(NetworkRequestInterceptedEvent)) {
-	onCDPEvent(d.client, "Network.requestIntercepted", handler)
-}
-
-func (d NetworkDomain) OnRequestServedFromCache(handler func(NetworkRequestServedFromCacheEvent)) {
-	onCDPEvent(d.client, "Network.requestServedFromCache", handler)
-}
-
-func (d NetworkDomain) OnRequestWillBeSent(handler func(NetworkRequestWillBeSentEvent)) {
-	onCDPEvent(d.client, "Network.requestWillBeSent", handler)
-}
-
-func (d NetworkDomain) OnResourceChangedPriority(handler func(NetworkResourceChangedPriorityEvent)) {
-	onCDPEvent(d.client, "Network.resourceChangedPriority", handler)
-}
-
-func (d NetworkDomain) OnSignedExchangeReceived(handler func(NetworkSignedExchangeReceivedEvent)) {
-	onCDPEvent(d.client, "Network.signedExchangeReceived", handler)
-}
-
-func (d NetworkDomain) OnResponseReceived(handler func(NetworkResponseReceivedEvent)) {
-	onCDPEvent(d.client, "Network.responseReceived", handler)
-}
-
-func (d NetworkDomain) OnWebSocketClosed(handler func(NetworkWebSocketClosedEvent)) {
-	onCDPEvent(d.client, "Network.webSocketClosed", handler)
-}
-
-func (d NetworkDomain) OnWebSocketCreated(handler func(NetworkWebSocketCreatedEvent)) {
-	onCDPEvent(d.client, "Network.webSocketCreated", handler)
-}
-
-func (d NetworkDomain) OnWebSocketFrameError(handler func(NetworkWebSocketFrameErrorEvent)) {
-	onCDPEvent(d.client, "Network.webSocketFrameError", handler)
-}
-
-func (d NetworkDomain) OnWebSocketFrameReceived(handler func(NetworkWebSocketFrameReceivedEvent)) {
-	onCDPEvent(d.client, "Network.webSocketFrameReceived", handler)
-}
-
-func (d NetworkDomain) OnWebSocketFrameSent(handler func(NetworkWebSocketFrameSentEvent)) {
-	onCDPEvent(d.client, "Network.webSocketFrameSent", handler)
-}
-
-func (d NetworkDomain) OnWebSocketHandshakeResponseReceived(handler func(NetworkWebSocketHandshakeResponseReceivedEvent)) {
-	onCDPEvent(d.client, "Network.webSocketHandshakeResponseReceived", handler)
-}
-
-func (d NetworkDomain) OnWebSocketWillSendHandshakeRequest(handler func(NetworkWebSocketWillSendHandshakeRequestEvent)) {
-	onCDPEvent(d.client, "Network.webSocketWillSendHandshakeRequest", handler)
-}
-
-func (d NetworkDomain) OnWebTransportCreated(handler func(NetworkWebTransportCreatedEvent)) {
-	onCDPEvent(d.client, "Network.webTransportCreated", handler)
-}
-
-func (d NetworkDomain) OnWebTransportConnectionEstablished(handler func(NetworkWebTransportConnectionEstablishedEvent)) {
-	onCDPEvent(d.client, "Network.webTransportConnectionEstablished", handler)
-}
-
-func (d NetworkDomain) OnWebTransportClosed(handler func(NetworkWebTransportClosedEvent)) {
-	onCDPEvent(d.client, "Network.webTransportClosed", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketCreated(handler func(NetworkDirectTCPSocketCreatedEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketCreated", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketOpened(handler func(NetworkDirectTCPSocketOpenedEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketOpened", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketAborted(handler func(NetworkDirectTCPSocketAbortedEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketAborted", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketClosed(handler func(NetworkDirectTCPSocketClosedEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketClosed", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketChunkSent(handler func(NetworkDirectTCPSocketChunkSentEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketChunkSent", handler)
-}
-
-func (d NetworkDomain) OnDirectTCPSocketChunkReceived(handler func(NetworkDirectTCPSocketChunkReceivedEvent)) {
-	onCDPEvent(d.client, "Network.directTCPSocketChunkReceived", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketJoinedMulticastGroup(handler func(NetworkDirectUDPSocketJoinedMulticastGroupEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketJoinedMulticastGroup", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketLeftMulticastGroup(handler func(NetworkDirectUDPSocketLeftMulticastGroupEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketLeftMulticastGroup", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketCreated(handler func(NetworkDirectUDPSocketCreatedEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketCreated", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketOpened(handler func(NetworkDirectUDPSocketOpenedEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketOpened", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketAborted(handler func(NetworkDirectUDPSocketAbortedEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketAborted", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketClosed(handler func(NetworkDirectUDPSocketClosedEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketClosed", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketChunkSent(handler func(NetworkDirectUDPSocketChunkSentEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketChunkSent", handler)
-}
-
-func (d NetworkDomain) OnDirectUDPSocketChunkReceived(handler func(NetworkDirectUDPSocketChunkReceivedEvent)) {
-	onCDPEvent(d.client, "Network.directUDPSocketChunkReceived", handler)
-}
-
-func (d NetworkDomain) OnRequestWillBeSentExtraInfo(handler func(NetworkRequestWillBeSentExtraInfoEvent)) {
-	onCDPEvent(d.client, "Network.requestWillBeSentExtraInfo", handler)
-}
-
-func (d NetworkDomain) OnResponseReceivedExtraInfo(handler func(NetworkResponseReceivedExtraInfoEvent)) {
-	onCDPEvent(d.client, "Network.responseReceivedExtraInfo", handler)
-}
-
-func (d NetworkDomain) OnResponseReceivedEarlyHints(handler func(NetworkResponseReceivedEarlyHintsEvent)) {
-	onCDPEvent(d.client, "Network.responseReceivedEarlyHints", handler)
-}
-
-func (d NetworkDomain) OnTrustTokenOperationDone(handler func(NetworkTrustTokenOperationDoneEvent)) {
-	onCDPEvent(d.client, "Network.trustTokenOperationDone", handler)
-}
-
-func (d NetworkDomain) OnPolicyUpdated(handler func(NetworkPolicyUpdatedEvent)) {
-	onCDPEvent(d.client, "Network.policyUpdated", handler)
-}
-
-func (d NetworkDomain) OnReportingAPIReportAdded(handler func(NetworkReportingAPIReportAddedEvent)) {
-	onCDPEvent(d.client, "Network.reportingApiReportAdded", handler)
-}
-
-func (d NetworkDomain) OnReportingAPIReportUpdated(handler func(NetworkReportingAPIReportUpdatedEvent)) {
-	onCDPEvent(d.client, "Network.reportingApiReportUpdated", handler)
-}
-
-func (d NetworkDomain) OnReportingAPIEndpointsChangedForOrigin(handler func(NetworkReportingAPIEndpointsChangedForOriginEvent)) {
-	onCDPEvent(d.client, "Network.reportingApiEndpointsChangedForOrigin", handler)
-}
-
-func (d NetworkDomain) OnDeviceBoundSessionsAdded(handler func(NetworkDeviceBoundSessionsAddedEvent)) {
-	onCDPEvent(d.client, "Network.deviceBoundSessionsAdded", handler)
-}
-
-func (d NetworkDomain) OnDeviceBoundSessionEventOccurred(handler func(NetworkDeviceBoundSessionEventOccurredEvent)) {
-	onCDPEvent(d.client, "Network.deviceBoundSessionEventOccurred", handler)
-}
-
-type OverlayDomain struct{ client *ModCDPClient }
 
 func (d OverlayDomain) Disable(params ...OverlayDisableParams) (OverlayDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -2929,30 +2520,6 @@ func (d OverlayDomain) SetShowWindowControlsOverlay(params ...OverlaySetShowWind
 	return sendCDPCommand[OverlaySetShowWindowControlsOverlayResult](d.client, "Overlay.setShowWindowControlsOverlay", p)
 }
 
-func (d OverlayDomain) OnInspectNodeRequested(handler func(OverlayInspectNodeRequestedEvent)) {
-	onCDPEvent(d.client, "Overlay.inspectNodeRequested", handler)
-}
-
-func (d OverlayDomain) OnNodeHighlightRequested(handler func(OverlayNodeHighlightRequestedEvent)) {
-	onCDPEvent(d.client, "Overlay.nodeHighlightRequested", handler)
-}
-
-func (d OverlayDomain) OnScreenshotRequested(handler func(OverlayScreenshotRequestedEvent)) {
-	onCDPEvent(d.client, "Overlay.screenshotRequested", handler)
-}
-
-func (d OverlayDomain) OnInspectPanelShowRequested(handler func(OverlayInspectPanelShowRequestedEvent)) {
-	onCDPEvent(d.client, "Overlay.inspectPanelShowRequested", handler)
-}
-
-func (d OverlayDomain) OnInspectedElementWindowRestored(handler func(OverlayInspectedElementWindowRestoredEvent)) {
-	onCDPEvent(d.client, "Overlay.inspectedElementWindowRestored", handler)
-}
-
-func (d OverlayDomain) OnInspectModeCanceled(handler func(OverlayInspectModeCanceledEvent)) {
-	onCDPEvent(d.client, "Overlay.inspectModeCanceled", handler)
-}
-
 type PWADomain struct{ client *ModCDPClient }
 
 func (d PWADomain) GetOsAppState(params PWAGetOsAppStateParams) (PWAGetOsAppStateResult, error) {
@@ -2983,7 +2550,10 @@ func (d PWADomain) ChangeAppUserSettings(params PWAChangeAppUserSettingsParams) 
 	return sendCDPCommand[PWAChangeAppUserSettingsResult](d.client, "PWA.changeAppUserSettings", params)
 }
 
-type PageDomain struct{ client *ModCDPClient }
+type PageDomain struct {
+	client *ModCDPClient
+	On     PageEvents
+}
 
 func (d PageDomain) AddScriptToEvaluateOnLoad(params PageAddScriptToEvaluateOnLoadParams) (PageAddScriptToEvaluateOnLoadResult, error) {
 	return sendCDPCommand[PageAddScriptToEvaluateOnLoadResult](d.client, "Page.addScriptToEvaluateOnLoad", params)
@@ -3341,119 +2911,10 @@ func (d PageDomain) GetAnnotatedPageContent(params ...PageGetAnnotatedPageConten
 	return sendCDPCommand[PageGetAnnotatedPageContentResult](d.client, "Page.getAnnotatedPageContent", p)
 }
 
-func (d PageDomain) OnDOMContentEventFired(handler func(PageDOMContentEventFiredEvent)) {
-	onCDPEvent(d.client, "Page.domContentEventFired", handler)
+type PerformanceDomain struct {
+	client *ModCDPClient
+	On     PerformanceEvents
 }
-
-func (d PageDomain) OnFileChooserOpened(handler func(PageFileChooserOpenedEvent)) {
-	onCDPEvent(d.client, "Page.fileChooserOpened", handler)
-}
-
-func (d PageDomain) OnFrameAttached(handler func(PageFrameAttachedEvent)) {
-	onCDPEvent(d.client, "Page.frameAttached", handler)
-}
-
-func (d PageDomain) OnFrameClearedScheduledNavigation(handler func(PageFrameClearedScheduledNavigationEvent)) {
-	onCDPEvent(d.client, "Page.frameClearedScheduledNavigation", handler)
-}
-
-func (d PageDomain) OnFrameDetached(handler func(PageFrameDetachedEvent)) {
-	onCDPEvent(d.client, "Page.frameDetached", handler)
-}
-
-func (d PageDomain) OnFrameSubtreeWillBeDetached(handler func(PageFrameSubtreeWillBeDetachedEvent)) {
-	onCDPEvent(d.client, "Page.frameSubtreeWillBeDetached", handler)
-}
-
-func (d PageDomain) OnFrameNavigated(handler func(PageFrameNavigatedEvent)) {
-	onCDPEvent(d.client, "Page.frameNavigated", handler)
-}
-
-func (d PageDomain) OnDocumentOpened(handler func(PageDocumentOpenedEvent)) {
-	onCDPEvent(d.client, "Page.documentOpened", handler)
-}
-
-func (d PageDomain) OnFrameResized(handler func(PageFrameResizedEvent)) {
-	onCDPEvent(d.client, "Page.frameResized", handler)
-}
-
-func (d PageDomain) OnFrameStartedNavigating(handler func(PageFrameStartedNavigatingEvent)) {
-	onCDPEvent(d.client, "Page.frameStartedNavigating", handler)
-}
-
-func (d PageDomain) OnFrameRequestedNavigation(handler func(PageFrameRequestedNavigationEvent)) {
-	onCDPEvent(d.client, "Page.frameRequestedNavigation", handler)
-}
-
-func (d PageDomain) OnFrameScheduledNavigation(handler func(PageFrameScheduledNavigationEvent)) {
-	onCDPEvent(d.client, "Page.frameScheduledNavigation", handler)
-}
-
-func (d PageDomain) OnFrameStartedLoading(handler func(PageFrameStartedLoadingEvent)) {
-	onCDPEvent(d.client, "Page.frameStartedLoading", handler)
-}
-
-func (d PageDomain) OnFrameStoppedLoading(handler func(PageFrameStoppedLoadingEvent)) {
-	onCDPEvent(d.client, "Page.frameStoppedLoading", handler)
-}
-
-func (d PageDomain) OnDownloadWillBegin(handler func(PageDownloadWillBeginEvent)) {
-	onCDPEvent(d.client, "Page.downloadWillBegin", handler)
-}
-
-func (d PageDomain) OnDownloadProgress(handler func(PageDownloadProgressEvent)) {
-	onCDPEvent(d.client, "Page.downloadProgress", handler)
-}
-
-func (d PageDomain) OnInterstitialHidden(handler func(PageInterstitialHiddenEvent)) {
-	onCDPEvent(d.client, "Page.interstitialHidden", handler)
-}
-
-func (d PageDomain) OnInterstitialShown(handler func(PageInterstitialShownEvent)) {
-	onCDPEvent(d.client, "Page.interstitialShown", handler)
-}
-
-func (d PageDomain) OnJavascriptDialogClosed(handler func(PageJavascriptDialogClosedEvent)) {
-	onCDPEvent(d.client, "Page.javascriptDialogClosed", handler)
-}
-
-func (d PageDomain) OnJavascriptDialogOpening(handler func(PageJavascriptDialogOpeningEvent)) {
-	onCDPEvent(d.client, "Page.javascriptDialogOpening", handler)
-}
-
-func (d PageDomain) OnLifecycleEvent(handler func(PageLifecycleEventEvent)) {
-	onCDPEvent(d.client, "Page.lifecycleEvent", handler)
-}
-
-func (d PageDomain) OnBackForwardCacheNotUsed(handler func(PageBackForwardCacheNotUsedEvent)) {
-	onCDPEvent(d.client, "Page.backForwardCacheNotUsed", handler)
-}
-
-func (d PageDomain) OnLoadEventFired(handler func(PageLoadEventFiredEvent)) {
-	onCDPEvent(d.client, "Page.loadEventFired", handler)
-}
-
-func (d PageDomain) OnNavigatedWithinDocument(handler func(PageNavigatedWithinDocumentEvent)) {
-	onCDPEvent(d.client, "Page.navigatedWithinDocument", handler)
-}
-
-func (d PageDomain) OnScreencastFrame(handler func(PageScreencastFrameEvent)) {
-	onCDPEvent(d.client, "Page.screencastFrame", handler)
-}
-
-func (d PageDomain) OnScreencastVisibilityChanged(handler func(PageScreencastVisibilityChangedEvent)) {
-	onCDPEvent(d.client, "Page.screencastVisibilityChanged", handler)
-}
-
-func (d PageDomain) OnWindowOpen(handler func(PageWindowOpenEvent)) {
-	onCDPEvent(d.client, "Page.windowOpen", handler)
-}
-
-func (d PageDomain) OnCompilationCacheProduced(handler func(PageCompilationCacheProducedEvent)) {
-	onCDPEvent(d.client, "Page.compilationCacheProduced", handler)
-}
-
-type PerformanceDomain struct{ client *ModCDPClient }
 
 func (d PerformanceDomain) Disable(params ...PerformanceDisableParams) (PerformanceDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -3483,21 +2944,19 @@ func (d PerformanceDomain) GetMetrics(params ...PerformanceGetMetricsParams) (Pe
 	return sendCDPCommand[PerformanceGetMetricsResult](d.client, "Performance.getMetrics", p)
 }
 
-func (d PerformanceDomain) OnMetrics(handler func(PerformanceMetricsEvent)) {
-	onCDPEvent(d.client, "Performance.metrics", handler)
+type PerformanceTimelineDomain struct {
+	client *ModCDPClient
+	On     PerformanceTimelineEvents
 }
-
-type PerformanceTimelineDomain struct{ client *ModCDPClient }
 
 func (d PerformanceTimelineDomain) Enable(params PerformanceTimelineEnableParams) (PerformanceTimelineEnableResult, error) {
 	return sendCDPCommand[PerformanceTimelineEnableResult](d.client, "PerformanceTimeline.enable", params)
 }
 
-func (d PerformanceTimelineDomain) OnTimelineEventAdded(handler func(PerformanceTimelineTimelineEventAddedEvent)) {
-	onCDPEvent(d.client, "PerformanceTimeline.timelineEventAdded", handler)
+type PreloadDomain struct {
+	client *ModCDPClient
+	On     PreloadEvents
 }
-
-type PreloadDomain struct{ client *ModCDPClient }
 
 func (d PreloadDomain) Enable(params ...PreloadEnableParams) (PreloadEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -3515,31 +2974,10 @@ func (d PreloadDomain) Disable(params ...PreloadDisableParams) (PreloadDisableRe
 	return sendCDPCommand[PreloadDisableResult](d.client, "Preload.disable", p)
 }
 
-func (d PreloadDomain) OnRuleSetUpdated(handler func(PreloadRuleSetUpdatedEvent)) {
-	onCDPEvent(d.client, "Preload.ruleSetUpdated", handler)
+type ProfilerDomain struct {
+	client *ModCDPClient
+	On     ProfilerEvents
 }
-
-func (d PreloadDomain) OnRuleSetRemoved(handler func(PreloadRuleSetRemovedEvent)) {
-	onCDPEvent(d.client, "Preload.ruleSetRemoved", handler)
-}
-
-func (d PreloadDomain) OnPreloadEnabledStateUpdated(handler func(PreloadPreloadEnabledStateUpdatedEvent)) {
-	onCDPEvent(d.client, "Preload.preloadEnabledStateUpdated", handler)
-}
-
-func (d PreloadDomain) OnPrefetchStatusUpdated(handler func(PreloadPrefetchStatusUpdatedEvent)) {
-	onCDPEvent(d.client, "Preload.prefetchStatusUpdated", handler)
-}
-
-func (d PreloadDomain) OnPrerenderStatusUpdated(handler func(PreloadPrerenderStatusUpdatedEvent)) {
-	onCDPEvent(d.client, "Preload.prerenderStatusUpdated", handler)
-}
-
-func (d PreloadDomain) OnPreloadingAttemptSourcesUpdated(handler func(PreloadPreloadingAttemptSourcesUpdatedEvent)) {
-	onCDPEvent(d.client, "Preload.preloadingAttemptSourcesUpdated", handler)
-}
-
-type ProfilerDomain struct{ client *ModCDPClient }
 
 func (d ProfilerDomain) Disable(params ...ProfilerDisableParams) (ProfilerDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -3609,19 +3047,10 @@ func (d ProfilerDomain) TakePreciseCoverage(params ...ProfilerTakePreciseCoverag
 	return sendCDPCommand[ProfilerTakePreciseCoverageResult](d.client, "Profiler.takePreciseCoverage", p)
 }
 
-func (d ProfilerDomain) OnConsoleProfileFinished(handler func(ProfilerConsoleProfileFinishedEvent)) {
-	onCDPEvent(d.client, "Profiler.consoleProfileFinished", handler)
+type RuntimeDomain struct {
+	client *ModCDPClient
+	On     RuntimeEvents
 }
-
-func (d ProfilerDomain) OnConsoleProfileStarted(handler func(ProfilerConsoleProfileStartedEvent)) {
-	onCDPEvent(d.client, "Profiler.consoleProfileStarted", handler)
-}
-
-func (d ProfilerDomain) OnPreciseCoverageDeltaUpdate(handler func(ProfilerPreciseCoverageDeltaUpdateEvent)) {
-	onCDPEvent(d.client, "Profiler.preciseCoverageDeltaUpdate", handler)
-}
-
-type RuntimeDomain struct{ client *ModCDPClient }
 
 func (d RuntimeDomain) AwaitPromise(params RuntimeAwaitPromiseParams) (RuntimeAwaitPromiseResult, error) {
 	return sendCDPCommand[RuntimeAwaitPromiseResult](d.client, "Runtime.awaitPromise", params)
@@ -3747,38 +3176,6 @@ func (d RuntimeDomain) GetExceptionDetails(params RuntimeGetExceptionDetailsPara
 	return sendCDPCommand[RuntimeGetExceptionDetailsResult](d.client, "Runtime.getExceptionDetails", params)
 }
 
-func (d RuntimeDomain) OnBindingCalled(handler func(RuntimeBindingCalledEvent)) {
-	onCDPEvent(d.client, "Runtime.bindingCalled", handler)
-}
-
-func (d RuntimeDomain) OnConsoleAPICalled(handler func(RuntimeConsoleAPICalledEvent)) {
-	onCDPEvent(d.client, "Runtime.consoleAPICalled", handler)
-}
-
-func (d RuntimeDomain) OnExceptionRevoked(handler func(RuntimeExceptionRevokedEvent)) {
-	onCDPEvent(d.client, "Runtime.exceptionRevoked", handler)
-}
-
-func (d RuntimeDomain) OnExceptionThrown(handler func(RuntimeExceptionThrownEvent)) {
-	onCDPEvent(d.client, "Runtime.exceptionThrown", handler)
-}
-
-func (d RuntimeDomain) OnExecutionContextCreated(handler func(RuntimeExecutionContextCreatedEvent)) {
-	onCDPEvent(d.client, "Runtime.executionContextCreated", handler)
-}
-
-func (d RuntimeDomain) OnExecutionContextDestroyed(handler func(RuntimeExecutionContextDestroyedEvent)) {
-	onCDPEvent(d.client, "Runtime.executionContextDestroyed", handler)
-}
-
-func (d RuntimeDomain) OnExecutionContextsCleared(handler func(RuntimeExecutionContextsClearedEvent)) {
-	onCDPEvent(d.client, "Runtime.executionContextsCleared", handler)
-}
-
-func (d RuntimeDomain) OnInspectRequested(handler func(RuntimeInspectRequestedEvent)) {
-	onCDPEvent(d.client, "Runtime.inspectRequested", handler)
-}
-
 type SchemaDomain struct{ client *ModCDPClient }
 
 func (d SchemaDomain) GetDomains(params ...SchemaGetDomainsParams) (SchemaGetDomainsResult, error) {
@@ -3789,7 +3186,10 @@ func (d SchemaDomain) GetDomains(params ...SchemaGetDomainsParams) (SchemaGetDom
 	return sendCDPCommand[SchemaGetDomainsResult](d.client, "Schema.getDomains", p)
 }
 
-type SecurityDomain struct{ client *ModCDPClient }
+type SecurityDomain struct {
+	client *ModCDPClient
+	On     SecurityEvents
+}
 
 func (d SecurityDomain) Disable(params ...SecurityDisableParams) (SecurityDisableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -3819,19 +3219,10 @@ func (d SecurityDomain) SetOverrideCertificateErrors(params SecuritySetOverrideC
 	return sendCDPCommand[SecuritySetOverrideCertificateErrorsResult](d.client, "Security.setOverrideCertificateErrors", params)
 }
 
-func (d SecurityDomain) OnCertificateError(handler func(SecurityCertificateErrorEvent)) {
-	onCDPEvent(d.client, "Security.certificateError", handler)
+type ServiceWorkerDomain struct {
+	client *ModCDPClient
+	On     ServiceWorkerEvents
 }
-
-func (d SecurityDomain) OnVisibleSecurityStateChanged(handler func(SecurityVisibleSecurityStateChangedEvent)) {
-	onCDPEvent(d.client, "Security.visibleSecurityStateChanged", handler)
-}
-
-func (d SecurityDomain) OnSecurityStateChanged(handler func(SecuritySecurityStateChangedEvent)) {
-	onCDPEvent(d.client, "Security.securityStateChanged", handler)
-}
-
-type ServiceWorkerDomain struct{ client *ModCDPClient }
 
 func (d ServiceWorkerDomain) DeliverPushMessage(params ServiceWorkerDeliverPushMessageParams) (ServiceWorkerDeliverPushMessageResult, error) {
 	return sendCDPCommand[ServiceWorkerDeliverPushMessageResult](d.client, "ServiceWorker.deliverPushMessage", params)
@@ -3893,19 +3284,10 @@ func (d ServiceWorkerDomain) UpdateRegistration(params ServiceWorkerUpdateRegist
 	return sendCDPCommand[ServiceWorkerUpdateRegistrationResult](d.client, "ServiceWorker.updateRegistration", params)
 }
 
-func (d ServiceWorkerDomain) OnWorkerErrorReported(handler func(ServiceWorkerWorkerErrorReportedEvent)) {
-	onCDPEvent(d.client, "ServiceWorker.workerErrorReported", handler)
+type SmartCardEmulationDomain struct {
+	client *ModCDPClient
+	On     SmartCardEmulationEvents
 }
-
-func (d ServiceWorkerDomain) OnWorkerRegistrationUpdated(handler func(ServiceWorkerWorkerRegistrationUpdatedEvent)) {
-	onCDPEvent(d.client, "ServiceWorker.workerRegistrationUpdated", handler)
-}
-
-func (d ServiceWorkerDomain) OnWorkerVersionUpdated(handler func(ServiceWorkerWorkerVersionUpdatedEvent)) {
-	onCDPEvent(d.client, "ServiceWorker.workerVersionUpdated", handler)
-}
-
-type SmartCardEmulationDomain struct{ client *ModCDPClient }
 
 func (d SmartCardEmulationDomain) Enable(params ...SmartCardEmulationEnableParams) (SmartCardEmulationEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -3963,63 +3345,10 @@ func (d SmartCardEmulationDomain) ReportError(params SmartCardEmulationReportErr
 	return sendCDPCommand[SmartCardEmulationReportErrorResult](d.client, "SmartCardEmulation.reportError", params)
 }
 
-func (d SmartCardEmulationDomain) OnEstablishContextRequested(handler func(SmartCardEmulationEstablishContextRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.establishContextRequested", handler)
+type StorageDomain struct {
+	client *ModCDPClient
+	On     StorageEvents
 }
-
-func (d SmartCardEmulationDomain) OnReleaseContextRequested(handler func(SmartCardEmulationReleaseContextRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.releaseContextRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnListReadersRequested(handler func(SmartCardEmulationListReadersRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.listReadersRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnGetStatusChangeRequested(handler func(SmartCardEmulationGetStatusChangeRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.getStatusChangeRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnCancelRequested(handler func(SmartCardEmulationCancelRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.cancelRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnConnectRequested(handler func(SmartCardEmulationConnectRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.connectRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnDisconnectRequested(handler func(SmartCardEmulationDisconnectRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.disconnectRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnTransmitRequested(handler func(SmartCardEmulationTransmitRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.transmitRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnControlRequested(handler func(SmartCardEmulationControlRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.controlRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnGetAttribRequested(handler func(SmartCardEmulationGetAttribRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.getAttribRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnSetAttribRequested(handler func(SmartCardEmulationSetAttribRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.setAttribRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnStatusRequested(handler func(SmartCardEmulationStatusRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.statusRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnBeginTransactionRequested(handler func(SmartCardEmulationBeginTransactionRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.beginTransactionRequested", handler)
-}
-
-func (d SmartCardEmulationDomain) OnEndTransactionRequested(handler func(SmartCardEmulationEndTransactionRequestedEvent)) {
-	onCDPEvent(d.client, "SmartCardEmulation.endTransactionRequested", handler)
-}
-
-type StorageDomain struct{ client *ModCDPClient }
 
 func (d StorageDomain) GetStorageKeyForFrame(params StorageGetStorageKeyForFrameParams) (StorageGetStorageKeyForFrameResult, error) {
 	return sendCDPCommand[StorageGetStorageKeyForFrameResult](d.client, "Storage.getStorageKeyForFrame", params)
@@ -4201,66 +3530,6 @@ func (d StorageDomain) SetProtectedAudienceKAnonymity(params StorageSetProtected
 	return sendCDPCommand[StorageSetProtectedAudienceKAnonymityResult](d.client, "Storage.setProtectedAudienceKAnonymity", params)
 }
 
-func (d StorageDomain) OnCacheStorageContentUpdated(handler func(StorageCacheStorageContentUpdatedEvent)) {
-	onCDPEvent(d.client, "Storage.cacheStorageContentUpdated", handler)
-}
-
-func (d StorageDomain) OnCacheStorageListUpdated(handler func(StorageCacheStorageListUpdatedEvent)) {
-	onCDPEvent(d.client, "Storage.cacheStorageListUpdated", handler)
-}
-
-func (d StorageDomain) OnIndexedDBContentUpdated(handler func(StorageIndexedDBContentUpdatedEvent)) {
-	onCDPEvent(d.client, "Storage.indexedDBContentUpdated", handler)
-}
-
-func (d StorageDomain) OnIndexedDBListUpdated(handler func(StorageIndexedDBListUpdatedEvent)) {
-	onCDPEvent(d.client, "Storage.indexedDBListUpdated", handler)
-}
-
-func (d StorageDomain) OnInterestGroupAccessed(handler func(StorageInterestGroupAccessedEvent)) {
-	onCDPEvent(d.client, "Storage.interestGroupAccessed", handler)
-}
-
-func (d StorageDomain) OnInterestGroupAuctionEventOccurred(handler func(StorageInterestGroupAuctionEventOccurredEvent)) {
-	onCDPEvent(d.client, "Storage.interestGroupAuctionEventOccurred", handler)
-}
-
-func (d StorageDomain) OnInterestGroupAuctionNetworkRequestCreated(handler func(StorageInterestGroupAuctionNetworkRequestCreatedEvent)) {
-	onCDPEvent(d.client, "Storage.interestGroupAuctionNetworkRequestCreated", handler)
-}
-
-func (d StorageDomain) OnSharedStorageAccessed(handler func(StorageSharedStorageAccessedEvent)) {
-	onCDPEvent(d.client, "Storage.sharedStorageAccessed", handler)
-}
-
-func (d StorageDomain) OnSharedStorageWorkletOperationExecutionFinished(handler func(StorageSharedStorageWorkletOperationExecutionFinishedEvent)) {
-	onCDPEvent(d.client, "Storage.sharedStorageWorkletOperationExecutionFinished", handler)
-}
-
-func (d StorageDomain) OnStorageBucketCreatedOrUpdated(handler func(StorageStorageBucketCreatedOrUpdatedEvent)) {
-	onCDPEvent(d.client, "Storage.storageBucketCreatedOrUpdated", handler)
-}
-
-func (d StorageDomain) OnStorageBucketDeleted(handler func(StorageStorageBucketDeletedEvent)) {
-	onCDPEvent(d.client, "Storage.storageBucketDeleted", handler)
-}
-
-func (d StorageDomain) OnAttributionReportingSourceRegistered(handler func(StorageAttributionReportingSourceRegisteredEvent)) {
-	onCDPEvent(d.client, "Storage.attributionReportingSourceRegistered", handler)
-}
-
-func (d StorageDomain) OnAttributionReportingTriggerRegistered(handler func(StorageAttributionReportingTriggerRegisteredEvent)) {
-	onCDPEvent(d.client, "Storage.attributionReportingTriggerRegistered", handler)
-}
-
-func (d StorageDomain) OnAttributionReportingReportSent(handler func(StorageAttributionReportingReportSentEvent)) {
-	onCDPEvent(d.client, "Storage.attributionReportingReportSent", handler)
-}
-
-func (d StorageDomain) OnAttributionReportingVerboseDebugReportSent(handler func(StorageAttributionReportingVerboseDebugReportSentEvent)) {
-	onCDPEvent(d.client, "Storage.attributionReportingVerboseDebugReportSent", handler)
-}
-
 type SystemInfoDomain struct{ client *ModCDPClient }
 
 func (d SystemInfoDomain) GetInfo(params ...SystemInfoGetInfoParams) (SystemInfoGetInfoResult, error) {
@@ -4283,7 +3552,10 @@ func (d SystemInfoDomain) GetProcessInfo(params ...SystemInfoGetProcessInfoParam
 	return sendCDPCommand[SystemInfoGetProcessInfoResult](d.client, "SystemInfo.getProcessInfo", p)
 }
 
-type TargetDomain struct{ client *ModCDPClient }
+type TargetDomain struct {
+	client *ModCDPClient
+	On     TargetEvents
+}
 
 func (d TargetDomain) ActivateTarget(params TargetActivateTargetParams) (TargetActivateTargetResult, error) {
 	return sendCDPCommand[TargetActivateTargetResult](d.client, "Target.activateTarget", params)
@@ -4385,35 +3657,10 @@ func (d TargetDomain) OpenDevTools(params TargetOpenDevToolsParams) (TargetOpenD
 	return sendCDPCommand[TargetOpenDevToolsResult](d.client, "Target.openDevTools", params)
 }
 
-func (d TargetDomain) OnAttachedToTarget(handler func(TargetAttachedToTargetEvent)) {
-	onCDPEvent(d.client, "Target.attachedToTarget", handler)
+type TetheringDomain struct {
+	client *ModCDPClient
+	On     TetheringEvents
 }
-
-func (d TargetDomain) OnDetachedFromTarget(handler func(TargetDetachedFromTargetEvent)) {
-	onCDPEvent(d.client, "Target.detachedFromTarget", handler)
-}
-
-func (d TargetDomain) OnReceivedMessageFromTarget(handler func(TargetReceivedMessageFromTargetEvent)) {
-	onCDPEvent(d.client, "Target.receivedMessageFromTarget", handler)
-}
-
-func (d TargetDomain) OnTargetCreated(handler func(TargetTargetCreatedEvent)) {
-	onCDPEvent(d.client, "Target.targetCreated", handler)
-}
-
-func (d TargetDomain) OnTargetDestroyed(handler func(TargetTargetDestroyedEvent)) {
-	onCDPEvent(d.client, "Target.targetDestroyed", handler)
-}
-
-func (d TargetDomain) OnTargetCrashed(handler func(TargetTargetCrashedEvent)) {
-	onCDPEvent(d.client, "Target.targetCrashed", handler)
-}
-
-func (d TargetDomain) OnTargetInfoChanged(handler func(TargetTargetInfoChangedEvent)) {
-	onCDPEvent(d.client, "Target.targetInfoChanged", handler)
-}
-
-type TetheringDomain struct{ client *ModCDPClient }
 
 func (d TetheringDomain) Bind(params TetheringBindParams) (TetheringBindResult, error) {
 	return sendCDPCommand[TetheringBindResult](d.client, "Tethering.bind", params)
@@ -4423,11 +3670,10 @@ func (d TetheringDomain) Unbind(params TetheringUnbindParams) (TetheringUnbindRe
 	return sendCDPCommand[TetheringUnbindResult](d.client, "Tethering.unbind", params)
 }
 
-func (d TetheringDomain) OnAccepted(handler func(TetheringAcceptedEvent)) {
-	onCDPEvent(d.client, "Tethering.accepted", handler)
+type TracingDomain struct {
+	client *ModCDPClient
+	On     TracingEvents
 }
-
-type TracingDomain struct{ client *ModCDPClient }
 
 func (d TracingDomain) End(params ...TracingEndParams) (TracingEndResult, error) {
 	p, err := optionalCDPParams(params)
@@ -4473,19 +3719,10 @@ func (d TracingDomain) Start(params ...TracingStartParams) (TracingStartResult, 
 	return sendCDPCommand[TracingStartResult](d.client, "Tracing.start", p)
 }
 
-func (d TracingDomain) OnBufferUsage(handler func(TracingBufferUsageEvent)) {
-	onCDPEvent(d.client, "Tracing.bufferUsage", handler)
+type WebAudioDomain struct {
+	client *ModCDPClient
+	On     WebAudioEvents
 }
-
-func (d TracingDomain) OnDataCollected(handler func(TracingDataCollectedEvent)) {
-	onCDPEvent(d.client, "Tracing.dataCollected", handler)
-}
-
-func (d TracingDomain) OnTracingComplete(handler func(TracingTracingCompleteEvent)) {
-	onCDPEvent(d.client, "Tracing.tracingComplete", handler)
-}
-
-type WebAudioDomain struct{ client *ModCDPClient }
 
 func (d WebAudioDomain) Enable(params ...WebAudioEnableParams) (WebAudioEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -4507,59 +3744,10 @@ func (d WebAudioDomain) GetRealtimeData(params WebAudioGetRealtimeDataParams) (W
 	return sendCDPCommand[WebAudioGetRealtimeDataResult](d.client, "WebAudio.getRealtimeData", params)
 }
 
-func (d WebAudioDomain) OnContextCreated(handler func(WebAudioContextCreatedEvent)) {
-	onCDPEvent(d.client, "WebAudio.contextCreated", handler)
+type WebAuthnDomain struct {
+	client *ModCDPClient
+	On     WebAuthnEvents
 }
-
-func (d WebAudioDomain) OnContextWillBeDestroyed(handler func(WebAudioContextWillBeDestroyedEvent)) {
-	onCDPEvent(d.client, "WebAudio.contextWillBeDestroyed", handler)
-}
-
-func (d WebAudioDomain) OnContextChanged(handler func(WebAudioContextChangedEvent)) {
-	onCDPEvent(d.client, "WebAudio.contextChanged", handler)
-}
-
-func (d WebAudioDomain) OnAudioListenerCreated(handler func(WebAudioAudioListenerCreatedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioListenerCreated", handler)
-}
-
-func (d WebAudioDomain) OnAudioListenerWillBeDestroyed(handler func(WebAudioAudioListenerWillBeDestroyedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioListenerWillBeDestroyed", handler)
-}
-
-func (d WebAudioDomain) OnAudioNodeCreated(handler func(WebAudioAudioNodeCreatedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioNodeCreated", handler)
-}
-
-func (d WebAudioDomain) OnAudioNodeWillBeDestroyed(handler func(WebAudioAudioNodeWillBeDestroyedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioNodeWillBeDestroyed", handler)
-}
-
-func (d WebAudioDomain) OnAudioParamCreated(handler func(WebAudioAudioParamCreatedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioParamCreated", handler)
-}
-
-func (d WebAudioDomain) OnAudioParamWillBeDestroyed(handler func(WebAudioAudioParamWillBeDestroyedEvent)) {
-	onCDPEvent(d.client, "WebAudio.audioParamWillBeDestroyed", handler)
-}
-
-func (d WebAudioDomain) OnNodesConnected(handler func(WebAudioNodesConnectedEvent)) {
-	onCDPEvent(d.client, "WebAudio.nodesConnected", handler)
-}
-
-func (d WebAudioDomain) OnNodesDisconnected(handler func(WebAudioNodesDisconnectedEvent)) {
-	onCDPEvent(d.client, "WebAudio.nodesDisconnected", handler)
-}
-
-func (d WebAudioDomain) OnNodeParamConnected(handler func(WebAudioNodeParamConnectedEvent)) {
-	onCDPEvent(d.client, "WebAudio.nodeParamConnected", handler)
-}
-
-func (d WebAudioDomain) OnNodeParamDisconnected(handler func(WebAudioNodeParamDisconnectedEvent)) {
-	onCDPEvent(d.client, "WebAudio.nodeParamDisconnected", handler)
-}
-
-type WebAuthnDomain struct{ client *ModCDPClient }
 
 func (d WebAuthnDomain) Enable(params ...WebAuthnEnableParams) (WebAuthnEnableResult, error) {
 	p, err := optionalCDPParams(params)
@@ -4621,18 +3809,1030 @@ func (d WebAuthnDomain) SetCredentialProperties(params WebAuthnSetCredentialProp
 	return sendCDPCommand[WebAuthnSetCredentialPropertiesResult](d.client, "WebAuthn.setCredentialProperties", params)
 }
 
-func (d WebAuthnDomain) OnCredentialAdded(handler func(WebAuthnCredentialAddedEvent)) {
-	onCDPEvent(d.client, "WebAuthn.credentialAdded", handler)
+type AccessibilityEvents struct{ client *ModCDPClient }
+
+func (e AccessibilityEvents) LoadComplete(handler func(AccessibilityLoadCompleteEvent)) {
+	onCDPEvent(e.client, "Accessibility.loadComplete", handler)
 }
 
-func (d WebAuthnDomain) OnCredentialDeleted(handler func(WebAuthnCredentialDeletedEvent)) {
-	onCDPEvent(d.client, "WebAuthn.credentialDeleted", handler)
+func (e AccessibilityEvents) NodesUpdated(handler func(AccessibilityNodesUpdatedEvent)) {
+	onCDPEvent(e.client, "Accessibility.nodesUpdated", handler)
 }
 
-func (d WebAuthnDomain) OnCredentialUpdated(handler func(WebAuthnCredentialUpdatedEvent)) {
-	onCDPEvent(d.client, "WebAuthn.credentialUpdated", handler)
+type AnimationEvents struct{ client *ModCDPClient }
+
+func (e AnimationEvents) AnimationCanceled(handler func(AnimationAnimationCanceledEvent)) {
+	onCDPEvent(e.client, "Animation.animationCanceled", handler)
 }
 
-func (d WebAuthnDomain) OnCredentialAsserted(handler func(WebAuthnCredentialAssertedEvent)) {
-	onCDPEvent(d.client, "WebAuthn.credentialAsserted", handler)
+func (e AnimationEvents) AnimationCreated(handler func(AnimationAnimationCreatedEvent)) {
+	onCDPEvent(e.client, "Animation.animationCreated", handler)
+}
+
+func (e AnimationEvents) AnimationStarted(handler func(AnimationAnimationStartedEvent)) {
+	onCDPEvent(e.client, "Animation.animationStarted", handler)
+}
+
+func (e AnimationEvents) AnimationUpdated(handler func(AnimationAnimationUpdatedEvent)) {
+	onCDPEvent(e.client, "Animation.animationUpdated", handler)
+}
+
+type AuditsEvents struct{ client *ModCDPClient }
+
+func (e AuditsEvents) IssueAdded(handler func(AuditsIssueAddedEvent)) {
+	onCDPEvent(e.client, "Audits.issueAdded", handler)
+}
+
+type AutofillEvents struct{ client *ModCDPClient }
+
+func (e AutofillEvents) AddressFormFilled(handler func(AutofillAddressFormFilledEvent)) {
+	onCDPEvent(e.client, "Autofill.addressFormFilled", handler)
+}
+
+type BackgroundServiceEvents struct{ client *ModCDPClient }
+
+func (e BackgroundServiceEvents) RecordingStateChanged(handler func(BackgroundServiceRecordingStateChangedEvent)) {
+	onCDPEvent(e.client, "BackgroundService.recordingStateChanged", handler)
+}
+
+func (e BackgroundServiceEvents) BackgroundServiceEventReceived(handler func(BackgroundServiceBackgroundServiceEventReceivedEvent)) {
+	onCDPEvent(e.client, "BackgroundService.backgroundServiceEventReceived", handler)
+}
+
+type BluetoothEmulationEvents struct{ client *ModCDPClient }
+
+func (e BluetoothEmulationEvents) GattOperationReceived(handler func(BluetoothEmulationGattOperationReceivedEvent)) {
+	onCDPEvent(e.client, "BluetoothEmulation.gattOperationReceived", handler)
+}
+
+func (e BluetoothEmulationEvents) CharacteristicOperationReceived(handler func(BluetoothEmulationCharacteristicOperationReceivedEvent)) {
+	onCDPEvent(e.client, "BluetoothEmulation.characteristicOperationReceived", handler)
+}
+
+func (e BluetoothEmulationEvents) DescriptorOperationReceived(handler func(BluetoothEmulationDescriptorOperationReceivedEvent)) {
+	onCDPEvent(e.client, "BluetoothEmulation.descriptorOperationReceived", handler)
+}
+
+type BrowserEvents struct{ client *ModCDPClient }
+
+func (e BrowserEvents) DownloadWillBegin(handler func(BrowserDownloadWillBeginEvent)) {
+	onCDPEvent(e.client, "Browser.downloadWillBegin", handler)
+}
+
+func (e BrowserEvents) DownloadProgress(handler func(BrowserDownloadProgressEvent)) {
+	onCDPEvent(e.client, "Browser.downloadProgress", handler)
+}
+
+type CSSEvents struct{ client *ModCDPClient }
+
+func (e CSSEvents) FontsUpdated(handler func(CSSFontsUpdatedEvent)) {
+	onCDPEvent(e.client, "CSS.fontsUpdated", handler)
+}
+
+func (e CSSEvents) MediaQueryResultChanged(handler func(CSSMediaQueryResultChangedEvent)) {
+	onCDPEvent(e.client, "CSS.mediaQueryResultChanged", handler)
+}
+
+func (e CSSEvents) StyleSheetAdded(handler func(CSSStyleSheetAddedEvent)) {
+	onCDPEvent(e.client, "CSS.styleSheetAdded", handler)
+}
+
+func (e CSSEvents) StyleSheetChanged(handler func(CSSStyleSheetChangedEvent)) {
+	onCDPEvent(e.client, "CSS.styleSheetChanged", handler)
+}
+
+func (e CSSEvents) StyleSheetRemoved(handler func(CSSStyleSheetRemovedEvent)) {
+	onCDPEvent(e.client, "CSS.styleSheetRemoved", handler)
+}
+
+func (e CSSEvents) ComputedStyleUpdated(handler func(CSSComputedStyleUpdatedEvent)) {
+	onCDPEvent(e.client, "CSS.computedStyleUpdated", handler)
+}
+
+type CastEvents struct{ client *ModCDPClient }
+
+func (e CastEvents) SinksUpdated(handler func(CastSinksUpdatedEvent)) {
+	onCDPEvent(e.client, "Cast.sinksUpdated", handler)
+}
+
+func (e CastEvents) IssueUpdated(handler func(CastIssueUpdatedEvent)) {
+	onCDPEvent(e.client, "Cast.issueUpdated", handler)
+}
+
+type ConsoleEvents struct{ client *ModCDPClient }
+
+func (e ConsoleEvents) MessageAdded(handler func(ConsoleMessageAddedEvent)) {
+	onCDPEvent(e.client, "Console.messageAdded", handler)
+}
+
+type DOMEvents struct{ client *ModCDPClient }
+
+func (e DOMEvents) AttributeModified(handler func(DOMAttributeModifiedEvent)) {
+	onCDPEvent(e.client, "DOM.attributeModified", handler)
+}
+
+func (e DOMEvents) AdoptedStyleSheetsModified(handler func(DOMAdoptedStyleSheetsModifiedEvent)) {
+	onCDPEvent(e.client, "DOM.adoptedStyleSheetsModified", handler)
+}
+
+func (e DOMEvents) AttributeRemoved(handler func(DOMAttributeRemovedEvent)) {
+	onCDPEvent(e.client, "DOM.attributeRemoved", handler)
+}
+
+func (e DOMEvents) CharacterDataModified(handler func(DOMCharacterDataModifiedEvent)) {
+	onCDPEvent(e.client, "DOM.characterDataModified", handler)
+}
+
+func (e DOMEvents) ChildNodeCountUpdated(handler func(DOMChildNodeCountUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.childNodeCountUpdated", handler)
+}
+
+func (e DOMEvents) ChildNodeInserted(handler func(DOMChildNodeInsertedEvent)) {
+	onCDPEvent(e.client, "DOM.childNodeInserted", handler)
+}
+
+func (e DOMEvents) ChildNodeRemoved(handler func(DOMChildNodeRemovedEvent)) {
+	onCDPEvent(e.client, "DOM.childNodeRemoved", handler)
+}
+
+func (e DOMEvents) DistributedNodesUpdated(handler func(DOMDistributedNodesUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.distributedNodesUpdated", handler)
+}
+
+func (e DOMEvents) DocumentUpdated(handler func(DOMDocumentUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.documentUpdated", handler)
+}
+
+func (e DOMEvents) InlineStyleInvalidated(handler func(DOMInlineStyleInvalidatedEvent)) {
+	onCDPEvent(e.client, "DOM.inlineStyleInvalidated", handler)
+}
+
+func (e DOMEvents) PseudoElementAdded(handler func(DOMPseudoElementAddedEvent)) {
+	onCDPEvent(e.client, "DOM.pseudoElementAdded", handler)
+}
+
+func (e DOMEvents) TopLayerElementsUpdated(handler func(DOMTopLayerElementsUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.topLayerElementsUpdated", handler)
+}
+
+func (e DOMEvents) ScrollableFlagUpdated(handler func(DOMScrollableFlagUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.scrollableFlagUpdated", handler)
+}
+
+func (e DOMEvents) AdRelatedStateUpdated(handler func(DOMAdRelatedStateUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.adRelatedStateUpdated", handler)
+}
+
+func (e DOMEvents) AffectedByStartingStylesFlagUpdated(handler func(DOMAffectedByStartingStylesFlagUpdatedEvent)) {
+	onCDPEvent(e.client, "DOM.affectedByStartingStylesFlagUpdated", handler)
+}
+
+func (e DOMEvents) PseudoElementRemoved(handler func(DOMPseudoElementRemovedEvent)) {
+	onCDPEvent(e.client, "DOM.pseudoElementRemoved", handler)
+}
+
+func (e DOMEvents) SetChildNodes(handler func(DOMSetChildNodesEvent)) {
+	onCDPEvent(e.client, "DOM.setChildNodes", handler)
+}
+
+func (e DOMEvents) ShadowRootPopped(handler func(DOMShadowRootPoppedEvent)) {
+	onCDPEvent(e.client, "DOM.shadowRootPopped", handler)
+}
+
+func (e DOMEvents) ShadowRootPushed(handler func(DOMShadowRootPushedEvent)) {
+	onCDPEvent(e.client, "DOM.shadowRootPushed", handler)
+}
+
+type DOMStorageEvents struct{ client *ModCDPClient }
+
+func (e DOMStorageEvents) DOMStorageItemAdded(handler func(DOMStorageDOMStorageItemAddedEvent)) {
+	onCDPEvent(e.client, "DOMStorage.domStorageItemAdded", handler)
+}
+
+func (e DOMStorageEvents) DOMStorageItemRemoved(handler func(DOMStorageDOMStorageItemRemovedEvent)) {
+	onCDPEvent(e.client, "DOMStorage.domStorageItemRemoved", handler)
+}
+
+func (e DOMStorageEvents) DOMStorageItemUpdated(handler func(DOMStorageDOMStorageItemUpdatedEvent)) {
+	onCDPEvent(e.client, "DOMStorage.domStorageItemUpdated", handler)
+}
+
+func (e DOMStorageEvents) DOMStorageItemsCleared(handler func(DOMStorageDOMStorageItemsClearedEvent)) {
+	onCDPEvent(e.client, "DOMStorage.domStorageItemsCleared", handler)
+}
+
+type DebuggerEvents struct{ client *ModCDPClient }
+
+func (e DebuggerEvents) BreakpointResolved(handler func(DebuggerBreakpointResolvedEvent)) {
+	onCDPEvent(e.client, "Debugger.breakpointResolved", handler)
+}
+
+func (e DebuggerEvents) Paused(handler func(DebuggerPausedEvent)) {
+	onCDPEvent(e.client, "Debugger.paused", handler)
+}
+
+func (e DebuggerEvents) Resumed(handler func(DebuggerResumedEvent)) {
+	onCDPEvent(e.client, "Debugger.resumed", handler)
+}
+
+func (e DebuggerEvents) ScriptFailedToParse(handler func(DebuggerScriptFailedToParseEvent)) {
+	onCDPEvent(e.client, "Debugger.scriptFailedToParse", handler)
+}
+
+func (e DebuggerEvents) ScriptParsed(handler func(DebuggerScriptParsedEvent)) {
+	onCDPEvent(e.client, "Debugger.scriptParsed", handler)
+}
+
+type DeviceAccessEvents struct{ client *ModCDPClient }
+
+func (e DeviceAccessEvents) DeviceRequestPrompted(handler func(DeviceAccessDeviceRequestPromptedEvent)) {
+	onCDPEvent(e.client, "DeviceAccess.deviceRequestPrompted", handler)
+}
+
+type EmulationEvents struct{ client *ModCDPClient }
+
+func (e EmulationEvents) VirtualTimeBudgetExpired(handler func(EmulationVirtualTimeBudgetExpiredEvent)) {
+	onCDPEvent(e.client, "Emulation.virtualTimeBudgetExpired", handler)
+}
+
+func (e EmulationEvents) ScreenOrientationLockChanged(handler func(EmulationScreenOrientationLockChangedEvent)) {
+	onCDPEvent(e.client, "Emulation.screenOrientationLockChanged", handler)
+}
+
+type FedCmEvents struct{ client *ModCDPClient }
+
+func (e FedCmEvents) DialogShown(handler func(FedCmDialogShownEvent)) {
+	onCDPEvent(e.client, "FedCm.dialogShown", handler)
+}
+
+func (e FedCmEvents) DialogClosed(handler func(FedCmDialogClosedEvent)) {
+	onCDPEvent(e.client, "FedCm.dialogClosed", handler)
+}
+
+type FetchEvents struct{ client *ModCDPClient }
+
+func (e FetchEvents) RequestPaused(handler func(FetchRequestPausedEvent)) {
+	onCDPEvent(e.client, "Fetch.requestPaused", handler)
+}
+
+func (e FetchEvents) AuthRequired(handler func(FetchAuthRequiredEvent)) {
+	onCDPEvent(e.client, "Fetch.authRequired", handler)
+}
+
+type HeapProfilerEvents struct{ client *ModCDPClient }
+
+func (e HeapProfilerEvents) AddHeapSnapshotChunk(handler func(HeapProfilerAddHeapSnapshotChunkEvent)) {
+	onCDPEvent(e.client, "HeapProfiler.addHeapSnapshotChunk", handler)
+}
+
+func (e HeapProfilerEvents) HeapStatsUpdate(handler func(HeapProfilerHeapStatsUpdateEvent)) {
+	onCDPEvent(e.client, "HeapProfiler.heapStatsUpdate", handler)
+}
+
+func (e HeapProfilerEvents) LastSeenObjectID(handler func(HeapProfilerLastSeenObjectIDEvent)) {
+	onCDPEvent(e.client, "HeapProfiler.lastSeenObjectId", handler)
+}
+
+func (e HeapProfilerEvents) ReportHeapSnapshotProgress(handler func(HeapProfilerReportHeapSnapshotProgressEvent)) {
+	onCDPEvent(e.client, "HeapProfiler.reportHeapSnapshotProgress", handler)
+}
+
+func (e HeapProfilerEvents) ResetProfiles(handler func(HeapProfilerResetProfilesEvent)) {
+	onCDPEvent(e.client, "HeapProfiler.resetProfiles", handler)
+}
+
+type InputEvents struct{ client *ModCDPClient }
+
+func (e InputEvents) DragIntercepted(handler func(InputDragInterceptedEvent)) {
+	onCDPEvent(e.client, "Input.dragIntercepted", handler)
+}
+
+type InspectorEvents struct{ client *ModCDPClient }
+
+func (e InspectorEvents) Detached(handler func(InspectorDetachedEvent)) {
+	onCDPEvent(e.client, "Inspector.detached", handler)
+}
+
+func (e InspectorEvents) TargetCrashed(handler func(InspectorTargetCrashedEvent)) {
+	onCDPEvent(e.client, "Inspector.targetCrashed", handler)
+}
+
+func (e InspectorEvents) TargetReloadedAfterCrash(handler func(InspectorTargetReloadedAfterCrashEvent)) {
+	onCDPEvent(e.client, "Inspector.targetReloadedAfterCrash", handler)
+}
+
+func (e InspectorEvents) WorkerScriptLoaded(handler func(InspectorWorkerScriptLoadedEvent)) {
+	onCDPEvent(e.client, "Inspector.workerScriptLoaded", handler)
+}
+
+type LayerTreeEvents struct{ client *ModCDPClient }
+
+func (e LayerTreeEvents) LayerPainted(handler func(LayerTreeLayerPaintedEvent)) {
+	onCDPEvent(e.client, "LayerTree.layerPainted", handler)
+}
+
+func (e LayerTreeEvents) LayerTreeDidChange(handler func(LayerTreeLayerTreeDidChangeEvent)) {
+	onCDPEvent(e.client, "LayerTree.layerTreeDidChange", handler)
+}
+
+type LogEvents struct{ client *ModCDPClient }
+
+func (e LogEvents) EntryAdded(handler func(LogEntryAddedEvent)) {
+	onCDPEvent(e.client, "Log.entryAdded", handler)
+}
+
+type MediaEvents struct{ client *ModCDPClient }
+
+func (e MediaEvents) PlayerPropertiesChanged(handler func(MediaPlayerPropertiesChangedEvent)) {
+	onCDPEvent(e.client, "Media.playerPropertiesChanged", handler)
+}
+
+func (e MediaEvents) PlayerEventsAdded(handler func(MediaPlayerEventsAddedEvent)) {
+	onCDPEvent(e.client, "Media.playerEventsAdded", handler)
+}
+
+func (e MediaEvents) PlayerMessagesLogged(handler func(MediaPlayerMessagesLoggedEvent)) {
+	onCDPEvent(e.client, "Media.playerMessagesLogged", handler)
+}
+
+func (e MediaEvents) PlayerErrorsRaised(handler func(MediaPlayerErrorsRaisedEvent)) {
+	onCDPEvent(e.client, "Media.playerErrorsRaised", handler)
+}
+
+func (e MediaEvents) PlayerCreated(handler func(MediaPlayerCreatedEvent)) {
+	onCDPEvent(e.client, "Media.playerCreated", handler)
+}
+
+type NetworkEvents struct{ client *ModCDPClient }
+
+func (e NetworkEvents) DataReceived(handler func(NetworkDataReceivedEvent)) {
+	onCDPEvent(e.client, "Network.dataReceived", handler)
+}
+
+func (e NetworkEvents) EventSourceMessageReceived(handler func(NetworkEventSourceMessageReceivedEvent)) {
+	onCDPEvent(e.client, "Network.eventSourceMessageReceived", handler)
+}
+
+func (e NetworkEvents) LoadingFailed(handler func(NetworkLoadingFailedEvent)) {
+	onCDPEvent(e.client, "Network.loadingFailed", handler)
+}
+
+func (e NetworkEvents) LoadingFinished(handler func(NetworkLoadingFinishedEvent)) {
+	onCDPEvent(e.client, "Network.loadingFinished", handler)
+}
+
+func (e NetworkEvents) RequestIntercepted(handler func(NetworkRequestInterceptedEvent)) {
+	onCDPEvent(e.client, "Network.requestIntercepted", handler)
+}
+
+func (e NetworkEvents) RequestServedFromCache(handler func(NetworkRequestServedFromCacheEvent)) {
+	onCDPEvent(e.client, "Network.requestServedFromCache", handler)
+}
+
+func (e NetworkEvents) RequestWillBeSent(handler func(NetworkRequestWillBeSentEvent)) {
+	onCDPEvent(e.client, "Network.requestWillBeSent", handler)
+}
+
+func (e NetworkEvents) ResourceChangedPriority(handler func(NetworkResourceChangedPriorityEvent)) {
+	onCDPEvent(e.client, "Network.resourceChangedPriority", handler)
+}
+
+func (e NetworkEvents) SignedExchangeReceived(handler func(NetworkSignedExchangeReceivedEvent)) {
+	onCDPEvent(e.client, "Network.signedExchangeReceived", handler)
+}
+
+func (e NetworkEvents) ResponseReceived(handler func(NetworkResponseReceivedEvent)) {
+	onCDPEvent(e.client, "Network.responseReceived", handler)
+}
+
+func (e NetworkEvents) WebSocketClosed(handler func(NetworkWebSocketClosedEvent)) {
+	onCDPEvent(e.client, "Network.webSocketClosed", handler)
+}
+
+func (e NetworkEvents) WebSocketCreated(handler func(NetworkWebSocketCreatedEvent)) {
+	onCDPEvent(e.client, "Network.webSocketCreated", handler)
+}
+
+func (e NetworkEvents) WebSocketFrameError(handler func(NetworkWebSocketFrameErrorEvent)) {
+	onCDPEvent(e.client, "Network.webSocketFrameError", handler)
+}
+
+func (e NetworkEvents) WebSocketFrameReceived(handler func(NetworkWebSocketFrameReceivedEvent)) {
+	onCDPEvent(e.client, "Network.webSocketFrameReceived", handler)
+}
+
+func (e NetworkEvents) WebSocketFrameSent(handler func(NetworkWebSocketFrameSentEvent)) {
+	onCDPEvent(e.client, "Network.webSocketFrameSent", handler)
+}
+
+func (e NetworkEvents) WebSocketHandshakeResponseReceived(handler func(NetworkWebSocketHandshakeResponseReceivedEvent)) {
+	onCDPEvent(e.client, "Network.webSocketHandshakeResponseReceived", handler)
+}
+
+func (e NetworkEvents) WebSocketWillSendHandshakeRequest(handler func(NetworkWebSocketWillSendHandshakeRequestEvent)) {
+	onCDPEvent(e.client, "Network.webSocketWillSendHandshakeRequest", handler)
+}
+
+func (e NetworkEvents) WebTransportCreated(handler func(NetworkWebTransportCreatedEvent)) {
+	onCDPEvent(e.client, "Network.webTransportCreated", handler)
+}
+
+func (e NetworkEvents) WebTransportConnectionEstablished(handler func(NetworkWebTransportConnectionEstablishedEvent)) {
+	onCDPEvent(e.client, "Network.webTransportConnectionEstablished", handler)
+}
+
+func (e NetworkEvents) WebTransportClosed(handler func(NetworkWebTransportClosedEvent)) {
+	onCDPEvent(e.client, "Network.webTransportClosed", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketCreated(handler func(NetworkDirectTCPSocketCreatedEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketCreated", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketOpened(handler func(NetworkDirectTCPSocketOpenedEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketOpened", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketAborted(handler func(NetworkDirectTCPSocketAbortedEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketAborted", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketClosed(handler func(NetworkDirectTCPSocketClosedEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketClosed", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketChunkSent(handler func(NetworkDirectTCPSocketChunkSentEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketChunkSent", handler)
+}
+
+func (e NetworkEvents) DirectTCPSocketChunkReceived(handler func(NetworkDirectTCPSocketChunkReceivedEvent)) {
+	onCDPEvent(e.client, "Network.directTCPSocketChunkReceived", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketJoinedMulticastGroup(handler func(NetworkDirectUDPSocketJoinedMulticastGroupEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketJoinedMulticastGroup", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketLeftMulticastGroup(handler func(NetworkDirectUDPSocketLeftMulticastGroupEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketLeftMulticastGroup", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketCreated(handler func(NetworkDirectUDPSocketCreatedEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketCreated", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketOpened(handler func(NetworkDirectUDPSocketOpenedEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketOpened", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketAborted(handler func(NetworkDirectUDPSocketAbortedEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketAborted", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketClosed(handler func(NetworkDirectUDPSocketClosedEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketClosed", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketChunkSent(handler func(NetworkDirectUDPSocketChunkSentEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketChunkSent", handler)
+}
+
+func (e NetworkEvents) DirectUDPSocketChunkReceived(handler func(NetworkDirectUDPSocketChunkReceivedEvent)) {
+	onCDPEvent(e.client, "Network.directUDPSocketChunkReceived", handler)
+}
+
+func (e NetworkEvents) RequestWillBeSentExtraInfo(handler func(NetworkRequestWillBeSentExtraInfoEvent)) {
+	onCDPEvent(e.client, "Network.requestWillBeSentExtraInfo", handler)
+}
+
+func (e NetworkEvents) ResponseReceivedExtraInfo(handler func(NetworkResponseReceivedExtraInfoEvent)) {
+	onCDPEvent(e.client, "Network.responseReceivedExtraInfo", handler)
+}
+
+func (e NetworkEvents) ResponseReceivedEarlyHints(handler func(NetworkResponseReceivedEarlyHintsEvent)) {
+	onCDPEvent(e.client, "Network.responseReceivedEarlyHints", handler)
+}
+
+func (e NetworkEvents) TrustTokenOperationDone(handler func(NetworkTrustTokenOperationDoneEvent)) {
+	onCDPEvent(e.client, "Network.trustTokenOperationDone", handler)
+}
+
+func (e NetworkEvents) PolicyUpdated(handler func(NetworkPolicyUpdatedEvent)) {
+	onCDPEvent(e.client, "Network.policyUpdated", handler)
+}
+
+func (e NetworkEvents) ReportingAPIReportAdded(handler func(NetworkReportingAPIReportAddedEvent)) {
+	onCDPEvent(e.client, "Network.reportingApiReportAdded", handler)
+}
+
+func (e NetworkEvents) ReportingAPIReportUpdated(handler func(NetworkReportingAPIReportUpdatedEvent)) {
+	onCDPEvent(e.client, "Network.reportingApiReportUpdated", handler)
+}
+
+func (e NetworkEvents) ReportingAPIEndpointsChangedForOrigin(handler func(NetworkReportingAPIEndpointsChangedForOriginEvent)) {
+	onCDPEvent(e.client, "Network.reportingApiEndpointsChangedForOrigin", handler)
+}
+
+func (e NetworkEvents) DeviceBoundSessionsAdded(handler func(NetworkDeviceBoundSessionsAddedEvent)) {
+	onCDPEvent(e.client, "Network.deviceBoundSessionsAdded", handler)
+}
+
+func (e NetworkEvents) DeviceBoundSessionEventOccurred(handler func(NetworkDeviceBoundSessionEventOccurredEvent)) {
+	onCDPEvent(e.client, "Network.deviceBoundSessionEventOccurred", handler)
+}
+
+type OverlayEvents struct{ client *ModCDPClient }
+
+func (e OverlayEvents) InspectNodeRequested(handler func(OverlayInspectNodeRequestedEvent)) {
+	onCDPEvent(e.client, "Overlay.inspectNodeRequested", handler)
+}
+
+func (e OverlayEvents) NodeHighlightRequested(handler func(OverlayNodeHighlightRequestedEvent)) {
+	onCDPEvent(e.client, "Overlay.nodeHighlightRequested", handler)
+}
+
+func (e OverlayEvents) ScreenshotRequested(handler func(OverlayScreenshotRequestedEvent)) {
+	onCDPEvent(e.client, "Overlay.screenshotRequested", handler)
+}
+
+func (e OverlayEvents) InspectPanelShowRequested(handler func(OverlayInspectPanelShowRequestedEvent)) {
+	onCDPEvent(e.client, "Overlay.inspectPanelShowRequested", handler)
+}
+
+func (e OverlayEvents) InspectedElementWindowRestored(handler func(OverlayInspectedElementWindowRestoredEvent)) {
+	onCDPEvent(e.client, "Overlay.inspectedElementWindowRestored", handler)
+}
+
+func (e OverlayEvents) InspectModeCanceled(handler func(OverlayInspectModeCanceledEvent)) {
+	onCDPEvent(e.client, "Overlay.inspectModeCanceled", handler)
+}
+
+type PageEvents struct{ client *ModCDPClient }
+
+func (e PageEvents) DOMContentEventFired(handler func(PageDOMContentEventFiredEvent)) {
+	onCDPEvent(e.client, "Page.domContentEventFired", handler)
+}
+
+func (e PageEvents) FileChooserOpened(handler func(PageFileChooserOpenedEvent)) {
+	onCDPEvent(e.client, "Page.fileChooserOpened", handler)
+}
+
+func (e PageEvents) FrameAttached(handler func(PageFrameAttachedEvent)) {
+	onCDPEvent(e.client, "Page.frameAttached", handler)
+}
+
+func (e PageEvents) FrameClearedScheduledNavigation(handler func(PageFrameClearedScheduledNavigationEvent)) {
+	onCDPEvent(e.client, "Page.frameClearedScheduledNavigation", handler)
+}
+
+func (e PageEvents) FrameDetached(handler func(PageFrameDetachedEvent)) {
+	onCDPEvent(e.client, "Page.frameDetached", handler)
+}
+
+func (e PageEvents) FrameSubtreeWillBeDetached(handler func(PageFrameSubtreeWillBeDetachedEvent)) {
+	onCDPEvent(e.client, "Page.frameSubtreeWillBeDetached", handler)
+}
+
+func (e PageEvents) FrameNavigated(handler func(PageFrameNavigatedEvent)) {
+	onCDPEvent(e.client, "Page.frameNavigated", handler)
+}
+
+func (e PageEvents) DocumentOpened(handler func(PageDocumentOpenedEvent)) {
+	onCDPEvent(e.client, "Page.documentOpened", handler)
+}
+
+func (e PageEvents) FrameResized(handler func(PageFrameResizedEvent)) {
+	onCDPEvent(e.client, "Page.frameResized", handler)
+}
+
+func (e PageEvents) FrameStartedNavigating(handler func(PageFrameStartedNavigatingEvent)) {
+	onCDPEvent(e.client, "Page.frameStartedNavigating", handler)
+}
+
+func (e PageEvents) FrameRequestedNavigation(handler func(PageFrameRequestedNavigationEvent)) {
+	onCDPEvent(e.client, "Page.frameRequestedNavigation", handler)
+}
+
+func (e PageEvents) FrameScheduledNavigation(handler func(PageFrameScheduledNavigationEvent)) {
+	onCDPEvent(e.client, "Page.frameScheduledNavigation", handler)
+}
+
+func (e PageEvents) FrameStartedLoading(handler func(PageFrameStartedLoadingEvent)) {
+	onCDPEvent(e.client, "Page.frameStartedLoading", handler)
+}
+
+func (e PageEvents) FrameStoppedLoading(handler func(PageFrameStoppedLoadingEvent)) {
+	onCDPEvent(e.client, "Page.frameStoppedLoading", handler)
+}
+
+func (e PageEvents) DownloadWillBegin(handler func(PageDownloadWillBeginEvent)) {
+	onCDPEvent(e.client, "Page.downloadWillBegin", handler)
+}
+
+func (e PageEvents) DownloadProgress(handler func(PageDownloadProgressEvent)) {
+	onCDPEvent(e.client, "Page.downloadProgress", handler)
+}
+
+func (e PageEvents) InterstitialHidden(handler func(PageInterstitialHiddenEvent)) {
+	onCDPEvent(e.client, "Page.interstitialHidden", handler)
+}
+
+func (e PageEvents) InterstitialShown(handler func(PageInterstitialShownEvent)) {
+	onCDPEvent(e.client, "Page.interstitialShown", handler)
+}
+
+func (e PageEvents) JavascriptDialogClosed(handler func(PageJavascriptDialogClosedEvent)) {
+	onCDPEvent(e.client, "Page.javascriptDialogClosed", handler)
+}
+
+func (e PageEvents) JavascriptDialogOpening(handler func(PageJavascriptDialogOpeningEvent)) {
+	onCDPEvent(e.client, "Page.javascriptDialogOpening", handler)
+}
+
+func (e PageEvents) LifecycleEvent(handler func(PageLifecycleEventEvent)) {
+	onCDPEvent(e.client, "Page.lifecycleEvent", handler)
+}
+
+func (e PageEvents) BackForwardCacheNotUsed(handler func(PageBackForwardCacheNotUsedEvent)) {
+	onCDPEvent(e.client, "Page.backForwardCacheNotUsed", handler)
+}
+
+func (e PageEvents) LoadEventFired(handler func(PageLoadEventFiredEvent)) {
+	onCDPEvent(e.client, "Page.loadEventFired", handler)
+}
+
+func (e PageEvents) NavigatedWithinDocument(handler func(PageNavigatedWithinDocumentEvent)) {
+	onCDPEvent(e.client, "Page.navigatedWithinDocument", handler)
+}
+
+func (e PageEvents) ScreencastFrame(handler func(PageScreencastFrameEvent)) {
+	onCDPEvent(e.client, "Page.screencastFrame", handler)
+}
+
+func (e PageEvents) ScreencastVisibilityChanged(handler func(PageScreencastVisibilityChangedEvent)) {
+	onCDPEvent(e.client, "Page.screencastVisibilityChanged", handler)
+}
+
+func (e PageEvents) WindowOpen(handler func(PageWindowOpenEvent)) {
+	onCDPEvent(e.client, "Page.windowOpen", handler)
+}
+
+func (e PageEvents) CompilationCacheProduced(handler func(PageCompilationCacheProducedEvent)) {
+	onCDPEvent(e.client, "Page.compilationCacheProduced", handler)
+}
+
+type PerformanceEvents struct{ client *ModCDPClient }
+
+func (e PerformanceEvents) Metrics(handler func(PerformanceMetricsEvent)) {
+	onCDPEvent(e.client, "Performance.metrics", handler)
+}
+
+type PerformanceTimelineEvents struct{ client *ModCDPClient }
+
+func (e PerformanceTimelineEvents) TimelineEventAdded(handler func(PerformanceTimelineTimelineEventAddedEvent)) {
+	onCDPEvent(e.client, "PerformanceTimeline.timelineEventAdded", handler)
+}
+
+type PreloadEvents struct{ client *ModCDPClient }
+
+func (e PreloadEvents) RuleSetUpdated(handler func(PreloadRuleSetUpdatedEvent)) {
+	onCDPEvent(e.client, "Preload.ruleSetUpdated", handler)
+}
+
+func (e PreloadEvents) RuleSetRemoved(handler func(PreloadRuleSetRemovedEvent)) {
+	onCDPEvent(e.client, "Preload.ruleSetRemoved", handler)
+}
+
+func (e PreloadEvents) PreloadEnabledStateUpdated(handler func(PreloadPreloadEnabledStateUpdatedEvent)) {
+	onCDPEvent(e.client, "Preload.preloadEnabledStateUpdated", handler)
+}
+
+func (e PreloadEvents) PrefetchStatusUpdated(handler func(PreloadPrefetchStatusUpdatedEvent)) {
+	onCDPEvent(e.client, "Preload.prefetchStatusUpdated", handler)
+}
+
+func (e PreloadEvents) PrerenderStatusUpdated(handler func(PreloadPrerenderStatusUpdatedEvent)) {
+	onCDPEvent(e.client, "Preload.prerenderStatusUpdated", handler)
+}
+
+func (e PreloadEvents) PreloadingAttemptSourcesUpdated(handler func(PreloadPreloadingAttemptSourcesUpdatedEvent)) {
+	onCDPEvent(e.client, "Preload.preloadingAttemptSourcesUpdated", handler)
+}
+
+type ProfilerEvents struct{ client *ModCDPClient }
+
+func (e ProfilerEvents) ConsoleProfileFinished(handler func(ProfilerConsoleProfileFinishedEvent)) {
+	onCDPEvent(e.client, "Profiler.consoleProfileFinished", handler)
+}
+
+func (e ProfilerEvents) ConsoleProfileStarted(handler func(ProfilerConsoleProfileStartedEvent)) {
+	onCDPEvent(e.client, "Profiler.consoleProfileStarted", handler)
+}
+
+func (e ProfilerEvents) PreciseCoverageDeltaUpdate(handler func(ProfilerPreciseCoverageDeltaUpdateEvent)) {
+	onCDPEvent(e.client, "Profiler.preciseCoverageDeltaUpdate", handler)
+}
+
+type RuntimeEvents struct{ client *ModCDPClient }
+
+func (e RuntimeEvents) BindingCalled(handler func(RuntimeBindingCalledEvent)) {
+	onCDPEvent(e.client, "Runtime.bindingCalled", handler)
+}
+
+func (e RuntimeEvents) ConsoleAPICalled(handler func(RuntimeConsoleAPICalledEvent)) {
+	onCDPEvent(e.client, "Runtime.consoleAPICalled", handler)
+}
+
+func (e RuntimeEvents) ExceptionRevoked(handler func(RuntimeExceptionRevokedEvent)) {
+	onCDPEvent(e.client, "Runtime.exceptionRevoked", handler)
+}
+
+func (e RuntimeEvents) ExceptionThrown(handler func(RuntimeExceptionThrownEvent)) {
+	onCDPEvent(e.client, "Runtime.exceptionThrown", handler)
+}
+
+func (e RuntimeEvents) ExecutionContextCreated(handler func(RuntimeExecutionContextCreatedEvent)) {
+	onCDPEvent(e.client, "Runtime.executionContextCreated", handler)
+}
+
+func (e RuntimeEvents) ExecutionContextDestroyed(handler func(RuntimeExecutionContextDestroyedEvent)) {
+	onCDPEvent(e.client, "Runtime.executionContextDestroyed", handler)
+}
+
+func (e RuntimeEvents) ExecutionContextsCleared(handler func(RuntimeExecutionContextsClearedEvent)) {
+	onCDPEvent(e.client, "Runtime.executionContextsCleared", handler)
+}
+
+func (e RuntimeEvents) InspectRequested(handler func(RuntimeInspectRequestedEvent)) {
+	onCDPEvent(e.client, "Runtime.inspectRequested", handler)
+}
+
+type SecurityEvents struct{ client *ModCDPClient }
+
+func (e SecurityEvents) CertificateError(handler func(SecurityCertificateErrorEvent)) {
+	onCDPEvent(e.client, "Security.certificateError", handler)
+}
+
+func (e SecurityEvents) VisibleSecurityStateChanged(handler func(SecurityVisibleSecurityStateChangedEvent)) {
+	onCDPEvent(e.client, "Security.visibleSecurityStateChanged", handler)
+}
+
+func (e SecurityEvents) SecurityStateChanged(handler func(SecuritySecurityStateChangedEvent)) {
+	onCDPEvent(e.client, "Security.securityStateChanged", handler)
+}
+
+type ServiceWorkerEvents struct{ client *ModCDPClient }
+
+func (e ServiceWorkerEvents) WorkerErrorReported(handler func(ServiceWorkerWorkerErrorReportedEvent)) {
+	onCDPEvent(e.client, "ServiceWorker.workerErrorReported", handler)
+}
+
+func (e ServiceWorkerEvents) WorkerRegistrationUpdated(handler func(ServiceWorkerWorkerRegistrationUpdatedEvent)) {
+	onCDPEvent(e.client, "ServiceWorker.workerRegistrationUpdated", handler)
+}
+
+func (e ServiceWorkerEvents) WorkerVersionUpdated(handler func(ServiceWorkerWorkerVersionUpdatedEvent)) {
+	onCDPEvent(e.client, "ServiceWorker.workerVersionUpdated", handler)
+}
+
+type SmartCardEmulationEvents struct{ client *ModCDPClient }
+
+func (e SmartCardEmulationEvents) EstablishContextRequested(handler func(SmartCardEmulationEstablishContextRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.establishContextRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) ReleaseContextRequested(handler func(SmartCardEmulationReleaseContextRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.releaseContextRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) ListReadersRequested(handler func(SmartCardEmulationListReadersRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.listReadersRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) GetStatusChangeRequested(handler func(SmartCardEmulationGetStatusChangeRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.getStatusChangeRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) CancelRequested(handler func(SmartCardEmulationCancelRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.cancelRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) ConnectRequested(handler func(SmartCardEmulationConnectRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.connectRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) DisconnectRequested(handler func(SmartCardEmulationDisconnectRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.disconnectRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) TransmitRequested(handler func(SmartCardEmulationTransmitRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.transmitRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) ControlRequested(handler func(SmartCardEmulationControlRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.controlRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) GetAttribRequested(handler func(SmartCardEmulationGetAttribRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.getAttribRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) SetAttribRequested(handler func(SmartCardEmulationSetAttribRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.setAttribRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) StatusRequested(handler func(SmartCardEmulationStatusRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.statusRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) BeginTransactionRequested(handler func(SmartCardEmulationBeginTransactionRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.beginTransactionRequested", handler)
+}
+
+func (e SmartCardEmulationEvents) EndTransactionRequested(handler func(SmartCardEmulationEndTransactionRequestedEvent)) {
+	onCDPEvent(e.client, "SmartCardEmulation.endTransactionRequested", handler)
+}
+
+type StorageEvents struct{ client *ModCDPClient }
+
+func (e StorageEvents) CacheStorageContentUpdated(handler func(StorageCacheStorageContentUpdatedEvent)) {
+	onCDPEvent(e.client, "Storage.cacheStorageContentUpdated", handler)
+}
+
+func (e StorageEvents) CacheStorageListUpdated(handler func(StorageCacheStorageListUpdatedEvent)) {
+	onCDPEvent(e.client, "Storage.cacheStorageListUpdated", handler)
+}
+
+func (e StorageEvents) IndexedDBContentUpdated(handler func(StorageIndexedDBContentUpdatedEvent)) {
+	onCDPEvent(e.client, "Storage.indexedDBContentUpdated", handler)
+}
+
+func (e StorageEvents) IndexedDBListUpdated(handler func(StorageIndexedDBListUpdatedEvent)) {
+	onCDPEvent(e.client, "Storage.indexedDBListUpdated", handler)
+}
+
+func (e StorageEvents) InterestGroupAccessed(handler func(StorageInterestGroupAccessedEvent)) {
+	onCDPEvent(e.client, "Storage.interestGroupAccessed", handler)
+}
+
+func (e StorageEvents) InterestGroupAuctionEventOccurred(handler func(StorageInterestGroupAuctionEventOccurredEvent)) {
+	onCDPEvent(e.client, "Storage.interestGroupAuctionEventOccurred", handler)
+}
+
+func (e StorageEvents) InterestGroupAuctionNetworkRequestCreated(handler func(StorageInterestGroupAuctionNetworkRequestCreatedEvent)) {
+	onCDPEvent(e.client, "Storage.interestGroupAuctionNetworkRequestCreated", handler)
+}
+
+func (e StorageEvents) SharedStorageAccessed(handler func(StorageSharedStorageAccessedEvent)) {
+	onCDPEvent(e.client, "Storage.sharedStorageAccessed", handler)
+}
+
+func (e StorageEvents) SharedStorageWorkletOperationExecutionFinished(handler func(StorageSharedStorageWorkletOperationExecutionFinishedEvent)) {
+	onCDPEvent(e.client, "Storage.sharedStorageWorkletOperationExecutionFinished", handler)
+}
+
+func (e StorageEvents) StorageBucketCreatedOrUpdated(handler func(StorageStorageBucketCreatedOrUpdatedEvent)) {
+	onCDPEvent(e.client, "Storage.storageBucketCreatedOrUpdated", handler)
+}
+
+func (e StorageEvents) StorageBucketDeleted(handler func(StorageStorageBucketDeletedEvent)) {
+	onCDPEvent(e.client, "Storage.storageBucketDeleted", handler)
+}
+
+func (e StorageEvents) AttributionReportingSourceRegistered(handler func(StorageAttributionReportingSourceRegisteredEvent)) {
+	onCDPEvent(e.client, "Storage.attributionReportingSourceRegistered", handler)
+}
+
+func (e StorageEvents) AttributionReportingTriggerRegistered(handler func(StorageAttributionReportingTriggerRegisteredEvent)) {
+	onCDPEvent(e.client, "Storage.attributionReportingTriggerRegistered", handler)
+}
+
+func (e StorageEvents) AttributionReportingReportSent(handler func(StorageAttributionReportingReportSentEvent)) {
+	onCDPEvent(e.client, "Storage.attributionReportingReportSent", handler)
+}
+
+func (e StorageEvents) AttributionReportingVerboseDebugReportSent(handler func(StorageAttributionReportingVerboseDebugReportSentEvent)) {
+	onCDPEvent(e.client, "Storage.attributionReportingVerboseDebugReportSent", handler)
+}
+
+type TargetEvents struct{ client *ModCDPClient }
+
+func (e TargetEvents) AttachedToTarget(handler func(TargetAttachedToTargetEvent)) {
+	onCDPEvent(e.client, "Target.attachedToTarget", handler)
+}
+
+func (e TargetEvents) DetachedFromTarget(handler func(TargetDetachedFromTargetEvent)) {
+	onCDPEvent(e.client, "Target.detachedFromTarget", handler)
+}
+
+func (e TargetEvents) ReceivedMessageFromTarget(handler func(TargetReceivedMessageFromTargetEvent)) {
+	onCDPEvent(e.client, "Target.receivedMessageFromTarget", handler)
+}
+
+func (e TargetEvents) TargetCreated(handler func(TargetTargetCreatedEvent)) {
+	onCDPEvent(e.client, "Target.targetCreated", handler)
+}
+
+func (e TargetEvents) TargetDestroyed(handler func(TargetTargetDestroyedEvent)) {
+	onCDPEvent(e.client, "Target.targetDestroyed", handler)
+}
+
+func (e TargetEvents) TargetCrashed(handler func(TargetTargetCrashedEvent)) {
+	onCDPEvent(e.client, "Target.targetCrashed", handler)
+}
+
+func (e TargetEvents) TargetInfoChanged(handler func(TargetTargetInfoChangedEvent)) {
+	onCDPEvent(e.client, "Target.targetInfoChanged", handler)
+}
+
+type TetheringEvents struct{ client *ModCDPClient }
+
+func (e TetheringEvents) Accepted(handler func(TetheringAcceptedEvent)) {
+	onCDPEvent(e.client, "Tethering.accepted", handler)
+}
+
+type TracingEvents struct{ client *ModCDPClient }
+
+func (e TracingEvents) BufferUsage(handler func(TracingBufferUsageEvent)) {
+	onCDPEvent(e.client, "Tracing.bufferUsage", handler)
+}
+
+func (e TracingEvents) DataCollected(handler func(TracingDataCollectedEvent)) {
+	onCDPEvent(e.client, "Tracing.dataCollected", handler)
+}
+
+func (e TracingEvents) TracingComplete(handler func(TracingTracingCompleteEvent)) {
+	onCDPEvent(e.client, "Tracing.tracingComplete", handler)
+}
+
+type WebAudioEvents struct{ client *ModCDPClient }
+
+func (e WebAudioEvents) ContextCreated(handler func(WebAudioContextCreatedEvent)) {
+	onCDPEvent(e.client, "WebAudio.contextCreated", handler)
+}
+
+func (e WebAudioEvents) ContextWillBeDestroyed(handler func(WebAudioContextWillBeDestroyedEvent)) {
+	onCDPEvent(e.client, "WebAudio.contextWillBeDestroyed", handler)
+}
+
+func (e WebAudioEvents) ContextChanged(handler func(WebAudioContextChangedEvent)) {
+	onCDPEvent(e.client, "WebAudio.contextChanged", handler)
+}
+
+func (e WebAudioEvents) AudioListenerCreated(handler func(WebAudioAudioListenerCreatedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioListenerCreated", handler)
+}
+
+func (e WebAudioEvents) AudioListenerWillBeDestroyed(handler func(WebAudioAudioListenerWillBeDestroyedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioListenerWillBeDestroyed", handler)
+}
+
+func (e WebAudioEvents) AudioNodeCreated(handler func(WebAudioAudioNodeCreatedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioNodeCreated", handler)
+}
+
+func (e WebAudioEvents) AudioNodeWillBeDestroyed(handler func(WebAudioAudioNodeWillBeDestroyedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioNodeWillBeDestroyed", handler)
+}
+
+func (e WebAudioEvents) AudioParamCreated(handler func(WebAudioAudioParamCreatedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioParamCreated", handler)
+}
+
+func (e WebAudioEvents) AudioParamWillBeDestroyed(handler func(WebAudioAudioParamWillBeDestroyedEvent)) {
+	onCDPEvent(e.client, "WebAudio.audioParamWillBeDestroyed", handler)
+}
+
+func (e WebAudioEvents) NodesConnected(handler func(WebAudioNodesConnectedEvent)) {
+	onCDPEvent(e.client, "WebAudio.nodesConnected", handler)
+}
+
+func (e WebAudioEvents) NodesDisconnected(handler func(WebAudioNodesDisconnectedEvent)) {
+	onCDPEvent(e.client, "WebAudio.nodesDisconnected", handler)
+}
+
+func (e WebAudioEvents) NodeParamConnected(handler func(WebAudioNodeParamConnectedEvent)) {
+	onCDPEvent(e.client, "WebAudio.nodeParamConnected", handler)
+}
+
+func (e WebAudioEvents) NodeParamDisconnected(handler func(WebAudioNodeParamDisconnectedEvent)) {
+	onCDPEvent(e.client, "WebAudio.nodeParamDisconnected", handler)
+}
+
+type WebAuthnEvents struct{ client *ModCDPClient }
+
+func (e WebAuthnEvents) CredentialAdded(handler func(WebAuthnCredentialAddedEvent)) {
+	onCDPEvent(e.client, "WebAuthn.credentialAdded", handler)
+}
+
+func (e WebAuthnEvents) CredentialDeleted(handler func(WebAuthnCredentialDeletedEvent)) {
+	onCDPEvent(e.client, "WebAuthn.credentialDeleted", handler)
+}
+
+func (e WebAuthnEvents) CredentialUpdated(handler func(WebAuthnCredentialUpdatedEvent)) {
+	onCDPEvent(e.client, "WebAuthn.credentialUpdated", handler)
+}
+
+func (e WebAuthnEvents) CredentialAsserted(handler func(WebAuthnCredentialAssertedEvent)) {
+	onCDPEvent(e.client, "WebAuthn.credentialAsserted", handler)
 }

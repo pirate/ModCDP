@@ -89,6 +89,68 @@ func TestCustomEventSchemasValidatePayloads(t *testing.T) {
 	}
 }
 
+func TestTypedCustomCommandRegistrationBuildsSchemas(t *testing.T) {
+	type ParamsSchema struct {
+		ID string `json:"id"`
+	}
+	type ResultSchema struct {
+		Success bool `json:"success"`
+	}
+
+	cdp := New(Options{})
+	command, err := AddCustomCommand[ParamsSchema, ResultSchema](cdp, "Custom.doSomething")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if command.name != "Custom.doSomething" {
+		t.Fatalf("unexpected command name %q", command.name)
+	}
+	params, err := cdpParamsMap(ParamsSchema{ID: "abc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cdp.validateCommandParams("Custom.doSomething", params); err != nil {
+		t.Fatalf("expected typed params schema to validate: %v", err)
+	}
+	if err := cdp.validateCommandParams("Custom.doSomething", map[string]any{"id": 123}); err == nil {
+		t.Fatal("expected typed params schema to reject wrong id type")
+	}
+	if err := cdp.validateCommandResult("Custom.doSomething", ResultSchema{Success: true}); err != nil {
+		t.Fatalf("expected typed result schema to validate: %v", err)
+	}
+	if err := cdp.validateCommandResult("Custom.doSomething", map[string]any{"success": "yes"}); err == nil {
+		t.Fatal("expected typed result schema to reject wrong success type")
+	}
+}
+
+func TestTypedCustomEventRegistrationAndHandler(t *testing.T) {
+	type EventSchema struct {
+		Data string `json:"data"`
+	}
+
+	cdp := New(Options{})
+	if err := AddCustomEvent[EventSchema](cdp, "Custom.someEvent"); err != nil {
+		t.Fatal(err)
+	}
+	seen := make(chan string, 1)
+	OnTyped[EventSchema](cdp, "Custom.someEvent", func(event EventSchema) {
+		seen <- event.Data
+	})
+	if data, ok := cdp.validateEventData("Custom.someEvent", map[string]any{"data": "ok"}); ok {
+		for _, handler := range cdp.handlers["Custom.someEvent"] {
+			handler(data)
+		}
+	} else {
+		t.Fatal("expected valid typed event payload")
+	}
+	if got := <-seen; got != "ok" {
+		t.Fatalf("unexpected typed event data %q", got)
+	}
+	if _, ok := cdp.validateEventData("Custom.someEvent", map[string]any{"data": 123}); ok {
+		t.Fatal("expected typed event schema to reject wrong data type")
+	}
+}
+
 func TestTypedCDPSurfaceInitializesAndEncodesParams(t *testing.T) {
 	cdp := New(Options{})
 	if cdp.Target.client != cdp {
@@ -116,7 +178,7 @@ func TestTypedCDPEventsWrapRawHandlers(t *testing.T) {
 	typedEvents := make(chan TargetTargetCreatedEvent, 1)
 	rawEvents := make(chan any, 1)
 
-	cdp.Target.OnTargetCreated(func(event TargetTargetCreatedEvent) {
+	cdp.Target.On.TargetCreated(func(event TargetTargetCreatedEvent) {
 		typedEvents <- event
 	})
 	cdp.On("Target.targetCreated", func(event any) {

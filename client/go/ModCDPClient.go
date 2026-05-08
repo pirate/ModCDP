@@ -664,8 +664,20 @@ func (c *ModCDPClient) sendCommand(method string, params map[string]any, targetS
 			return map[string]any{"name": name, "registered": true}, nil
 		}
 	} else if method == "Mod.addCustomEvent" {
-		if _, err := c.registerCustomEventParams(params); err != nil {
+		name, err := c.registerCustomEventParams(params)
+		if err != nil {
 			return nil, err
+		}
+		if c.ExtSessionID == "" {
+			completedAt := time.Now().UnixMilli()
+			c.LastCommandTiming = map[string]any{
+				"method":       method,
+				"target":       "client",
+				"started_at":   startedAt,
+				"completed_at": completedAt,
+				"duration_ms":  completedAt - startedAt,
+			}
+			return map[string]any{"name": name, "registered": true}, nil
 		}
 	}
 	if validateSchema {

@@ -175,7 +175,7 @@ func main() {
 		targetCreatedEvents []modcdp.TargetTargetCreatedEvent
 		foregroundEvents    []map[string]any
 	)
-	cdp.Target.OnTargetCreated(func(event modcdp.TargetTargetCreatedEvent) {
+	cdp.Target.On.TargetCreated(func(event modcdp.TargetTargetCreatedEvent) {
 		fmt.Printf("Target.targetCreated -> %s\n", event.TargetID())
 		eventsMu.Lock()
 		targetCreatedEvents = append(targetCreatedEvents, event)
