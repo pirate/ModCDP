@@ -748,7 +748,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this._extension_injectors = injectors;
     const initial_transport_config = this._upstreamTransportConfig();
     launcher.update(await this._launchOptions());
-    for (const injector of injectors) injector.update(await this._extensionInjectorConfig());
+    for (const injector of injectors) injector.update(await this._baseExtensionInjectorConfig());
     for (const injector of injectors) injector.update(launcher.getInjectorConfig());
     for (const injector of injectors) await injector.prepare();
     for (const injector of injectors) launcher.update(injector.getLauncherConfig());
@@ -839,7 +839,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     return injectors;
   }
 
-  async _extensionInjectorConfig(send: SendCDP | null = null): Promise<ExtensionInjectorConfig> {
+  async _baseExtensionInjectorConfig(send: SendCDP | null = null): Promise<ExtensionInjectorConfig> {
     const service_worker_url_suffixes = await this._serviceWorkerUrlSuffixes();
     const trust_matched_service_worker =
       this.extension.trust_service_worker_target ||
@@ -876,7 +876,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     injectors ??= await this._extensionInjectors();
     const errors: string[] = [];
     for (const injector of injectors) {
-      injector.update(await this._extensionInjectorConfig(send));
+      injector.update(await this._baseExtensionInjectorConfig(send));
       try {
         await injector.prepare();
         const result = await injector.inject();
