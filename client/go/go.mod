@@ -3,7 +3,7 @@ module github.com/pirate/ModCDP/client/go
 go 1.25.0
 
 require (
-	github.com/ArchiveBox/abxbus/abxbus-go v0.0.0-20260508061744-7de75a4e75e9
+	github.com/ArchiveBox/abxbus/abxbus-go v0.0.0-20260508073455-c5b79a4483f1
 	github.com/gobwas/ws v1.4.0
 	golang.org/x/term v0.6.0
 )

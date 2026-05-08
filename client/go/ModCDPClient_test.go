@@ -3,6 +3,8 @@ package modcdp
 import (
 	"strings"
 	"testing"
+
+	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
 )
 
 func TestCustomCommandSchemasValidateParamsAndResults(t *testing.T) {
@@ -98,12 +100,17 @@ func TestTypedCustomCommandRegistrationBuildsSchemas(t *testing.T) {
 	}
 
 	cdp := New(Options{})
-	command, err := AddCustomCommand[ParamsSchema, ResultSchema](cdp, "Custom.doSomething")
+	result, err := cdp.Send("Mod.addCustomCommand", map[string]any{
+		"name":         "Custom.doSomething",
+		"paramsSchema": abxjsonschema.SchemaFor[ParamsSchema](),
+		"resultSchema": abxjsonschema.SchemaFor[ResultSchema](),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if command.name != "Custom.doSomething" {
-		t.Fatalf("unexpected command name %q", command.name)
+	registration, ok := result.(map[string]any)
+	if !ok || registration["name"] != "Custom.doSomething" || registration["registered"] != true {
+		t.Fatalf("unexpected custom command registration: %#v", result)
 	}
 	params, err := cdpParamsMap(ParamsSchema{ID: "abc"})
 	if err != nil {
@@ -129,12 +136,21 @@ func TestTypedCustomEventRegistrationAndHandler(t *testing.T) {
 	}
 
 	cdp := New(Options{})
-	if err := AddCustomEvent[EventSchema](cdp, "Custom.someEvent"); err != nil {
+	result, err := cdp.Send("Mod.addCustomEvent", map[string]any{
+		"name":        "Custom.someEvent",
+		"eventSchema": abxjsonschema.SchemaFor[EventSchema](),
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+	registration, ok := result.(map[string]any)
+	if !ok || registration["name"] != "Custom.someEvent" || registration["registered"] != true {
+		t.Fatalf("unexpected custom event registration: %#v", result)
+	}
 	seen := make(chan string, 1)
-	OnTyped[EventSchema](cdp, "Custom.someEvent", func(event EventSchema) {
-		seen <- event.Data
+	cdp.On("Custom.someEvent", func(data any) {
+		event := data.(map[string]any)
+		seen <- event["data"].(string)
 	})
 	if data, ok := cdp.validateEventData("Custom.someEvent", map[string]any{"data": "ok"}); ok {
 		for _, handler := range cdp.handlers["Custom.someEvent"] {
