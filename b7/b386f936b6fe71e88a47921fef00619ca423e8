@@ -1,0 +1,75 @@
+types/modcdp.ts
+  s_b97125cfd29900::t_6947763266b204 106,108,110,117
+client/go/demo/main.go
+  s_da40c27be267ee::t_7290df94a6b55b 178
+client/go/custom.go
+  s_b97125cfd29900::t_0327c4e1ffa613 1-156
+client/python/tests/test_schema_validation.py
+  s_b97125cfd29900::t_b5b14b9cfd0edb 10-11,118-129,131-166
+  s_b97125cfd29900::t_0854dd653bea49 130
+  s_b97125cfd29900::t_832337f926c83c 32
+client/python/modcdp/ModCDPClient.py
+  s_b97125cfd29900::t_8b32285a4f0603 405-409
+  s_b97125cfd29900::t_7271bb0e25ddc4 448,478-480,491,501,522,526-528
+  s_b97125cfd29900::t_dc863143f3d4b3 747-748,754-757,780,784-787,789,791-793,796-797
+  s_b97125cfd29900::t_ed7aaa3b04b5c1 411
+  s_b97125cfd29900::t_d9ab5d1261f452 759-774,819,822-827,845-846,848-849
+  s_b97125cfd29900::t_37926d3208d819 350-351,354
+  s_b97125cfd29900::t_e61f2b5f1b0083 464,477
+  s_b97125cfd29900::t_c4d448c78d375f 467-476
+  s_b97125cfd29900::t_afa78e6665a8d8 40,82-154
+  s_b97125cfd29900::t_01d12f8dcebccf 721,813,829
+types/codegen.ts
+  s_b97125cfd29900::t_8c57ae3bbc0623 140-146
+  s_b97125cfd29900::t_0f5d74ec28ea6a 177-186,234-248,250,254-255,272
+types/aliases.ts
+  s_b97125cfd29900::t_79c5c153aca6ab 2107-2116,2118-2119,2124-2128,2139
+  s_b97125cfd29900::t_c8a59ac423e298 16-25,1052-1055,1057-1060
+client/go/cdp_domains.go
+  s_da40c27be267ee::t_fba3219d10d0bd 4-7,69-71,126-128,159-161,188-190,209-211,278-280,399-401,618-621,655-657,684-686,1045-1048,1082-1084,1247-1249,1290-1293,1603-1606,1648-1650,1729-1732,1882-1885,1943-1945,1964-1966,2013-2015,2054-2056,2157-2160,2374-2376,2553-2556,2914-2916,2919-2924,2947-2949,2956-2958,2977-2979,3050-3052,3189-3192,3222-3224,3287-3289,3348-3350,3555-3558,3660-3662,3673-3675,3722-3724,3747-3749,3812-4825,4828-4829,4832-4833,4836-4837
+client/go/ModCDPClient_test.go
+  s_da40c27be267ee::t_3478f21c2fe21c 181
+  s_b97125cfd29900::t_21f2cdb11b5ac3 92-107,113-153
+  s_b97125cfd29900::t_8a3aba882cead1 108-112
+client/js/ModCDPClient.ts
+  s_b97125cfd29900::t_9ba6c153e8c505 428
+  s_b97125cfd29900::t_58c8b94f1d94c8 322,411,644-650,660-663,688-691,708-712
+  s_b97125cfd29900::t_453b4af13d7336 117,127-130,132-134,136-138,140,677-684,696-699
+  s_b97125cfd29900::t_7e753921239945 592-631
+test/custom-flat-namespace.test.ts
+  s_b97125cfd29900::t_3d203138148b5a 1-4,6-7,12-23,26-30,34-36,39-43
+  s_b97125cfd29900::t_06f219932daf3f 11
+  s_b97125cfd29900::t_e7844f1851831c 5,8-10,31-33,38
+  s_b97125cfd29900::t_df950eca4baf46 24
+  s_b97125cfd29900::t_d52517c306913a 25
+  s_b97125cfd29900::t_a3892bb8eb7099 37
+client/go/ModCDPClient.go
+  s_b97125cfd29900::t_892a39343b08ee 667-668,671-680
+client/python/demo.py
+  s_da40c27be267ee::t_7dfaec08eda813 42
+  s_da40c27be267ee::t_31f8c782008bea 20,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "b7b386f936b6fe71e88a47921fef00619ca423e8",
+  "prompts": {},
+  "sessions": {
+    "s_b97125cfd29900": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfbaf-cdd3-7450-a6a6-0d68da00b802",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    },
+    "s_da40c27be267ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0672-e176-70b2-b59b-7d59c3a22768",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
