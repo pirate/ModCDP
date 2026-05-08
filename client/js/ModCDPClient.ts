@@ -105,6 +105,7 @@ type ClientOptions = {
   } | null;
 };
 type ModCDPEventNameInput = string | symbol | (z.ZodType & ModCDPNamedValue);
+type ModCDPEventPayload<TEvent extends z.ZodType> = TEvent extends z.ZodType<infer TPayload> ? TPayload : never;
 type ModCDPClientCustomCommandParams = Omit<ModCDPAddCustomCommandParams, "expression"> & {
   expression?: string | null;
 };
@@ -773,6 +774,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
     if (this._launched) await this._launched.close();
   }
 
+  on<TEvent extends z.ZodType & ModCDPNamedValue>(
+    event_name: TEvent,
+    listener: (event: ModCDPEventPayload<TEvent>) => void,
+  ): this;
+  on(event_name: string | symbol, listener: (...args: unknown[]) => void): this;
+  on(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void): this;
   on(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void) {
     if (typeof event_name !== "string" && typeof event_name !== "symbol") {
       const name = normalizeModCDPName(event_name);
@@ -782,6 +789,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
     return super.on(typeof event_name === "symbol" ? event_name : normalizeModCDPName(event_name), listener);
   }
 
+  once<TEvent extends z.ZodType & ModCDPNamedValue>(
+    event_name: TEvent,
+    listener: (event: ModCDPEventPayload<TEvent>) => void,
+  ): this;
+  once(event_name: string | symbol, listener: (...args: unknown[]) => void): this;
+  once(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void): this;
   once(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void) {
     if (typeof event_name !== "string" && typeof event_name !== "symbol") {
       const name = normalizeModCDPName(event_name);
@@ -791,6 +804,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
     return super.once(typeof event_name === "symbol" ? event_name : normalizeModCDPName(event_name), listener);
   }
 
+  off<TEvent extends z.ZodType & ModCDPNamedValue>(
+    event_name: TEvent,
+    listener: (event: ModCDPEventPayload<TEvent>) => void,
+  ): this;
+  off(event_name: string | symbol, listener: (...args: unknown[]) => void): this;
+  off(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void): this;
   off(event_name: ModCDPEventNameInput, listener: (...args: unknown[]) => void) {
     if (typeof event_name !== "string" && typeof event_name !== "symbol") {
       return super.off(normalizeModCDPName(event_name), listener);
