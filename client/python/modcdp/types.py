@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from queue import Queue
-from typing import Literal, Protocol, TypeAlias, TypedDict
+from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 
 JsonPrimitive: TypeAlias = None | bool | int | float | str
 JsonValue: TypeAlias = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
@@ -158,7 +158,7 @@ class UnwrappedModCDPEvent(TypedDict):
     sessionId: str | None
 
 
-Handler: TypeAlias = Callable[[ProtocolPayload], None]
+Handler: TypeAlias = Callable[[Any], Any]
 PendingEntry: TypeAlias = tuple[str, Queue[CdpFrame]]
 
 

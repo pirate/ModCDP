@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from collections.abc import Mapping
 from contextlib import redirect_stderr
 from io import StringIO
+from typing import Any, cast
 
 from modcdp import ModCDPClient
+from modcdp.cdp import AwaitableDict
 from modcdp.types import JsonValue
 
 
 class SchemaValidationTests(unittest.TestCase):
-    def test_generated_cdp_surface_matches_cdp_use_shape(self) -> None:
-        sent: list[tuple[str, dict[str, object], str | None]] = []
+    def test_generated_cdp_surface_exposes_direct_domain_commands(self) -> None:
+        sent: list[tuple[str, dict[str, object], str | None, bool]] = []
 
         class RecordingClient(ModCDPClient):
             def _send_command(
@@ -19,26 +22,64 @@ class SchemaValidationTests(unittest.TestCase):
                 method: str,
                 params: Mapping[str, object] | None = None,
                 session_id: str | None = None,
+                validate_custom_schema: bool = True,
             ) -> JsonValue:
-                sent.append((method, dict(params or {}), session_id))
-                return {"frameId": "frame-1"}
+                sent.append((method, dict(params or {}), session_id, validate_custom_schema))
+                return AwaitableDict({"targetId": "target-1"})
 
         client = RecordingClient()
 
-        result = client.send.Page.navigate({"url": "https://example.com"}, session_id="session-1")
+        result = client.Target.createTarget(url="https://example.com", session_id="session-1")
+        raw_result = client.send("Target.createTarget", {"url": "https://example.com"})
 
-        self.assertEqual(result, {"frameId": "frame-1"})
-        self.assertEqual(sent, [("Page.navigate", {"url": "https://example.com"}, "session-1")])
+        self.assertEqual(result.targetId, "target-1")
+        self.assertEqual(raw_result, {"targetId": "target-1"})
+        self.assertEqual(sent[0], ("Target.createTarget", {"url": "https://example.com"}, "session-1", True))
+        self.assertEqual(sent[1], ("Target.createTarget", {"url": "https://example.com"}, None, False))
+        with self.assertRaises(Exception):
+            client.Target._CreateTargetParams.model_validate({"url": "https://example.com", "unknown": True})
 
-    def test_generated_event_registration_surface_matches_cdp_use_shape(self) -> None:
+        async def run_awaited_calls() -> None:
+            awaited_result = await client.Target.createTarget(url="https://example.com")
+            awaited_raw_result = await client.send("Target.createTarget", {"url": "https://example.com"})
+            self.assertEqual(awaited_result.targetId, "target-1")
+            self.assertEqual(awaited_raw_result["targetId"], "target-1")
+
+        asyncio.run(run_awaited_calls())
+
+    def test_generated_event_surface_supports_typed_and_raw_on(self) -> None:
         client = ModCDPClient()
-        events: list[tuple[object, str | None]] = []
+        typed_events: list[Any] = []
+        raw_events: list[dict[str, JsonValue]] = []
 
-        client.register.Page.loadEventFired(lambda event, session_id: events.append((event, session_id)))
-        handled = client._event_registry.handle_event("Page.loadEventFired", {"timestamp": 123.5}, "session-1")
+        client.on(client.Target.targetCreated, typed_events.append)
+        client.on("Target.targetCreated", raw_events.append)
 
-        self.assertTrue(handled)
-        self.assertEqual(events, [({"timestamp": 123.5}, "session-1")])
+        payload = {"targetInfo": {"targetId": "target-1", "type": "page", "url": "https://example.com"}}
+        for handler in client._handlers["Target.targetCreated"]:
+            handler(payload)
+
+        self.assertEqual(typed_events[0].targetId, "target-1")
+        target_info = cast(dict[str, JsonValue], raw_events[0]["targetInfo"])
+        self.assertEqual(target_info["targetId"], "target-1")
+
+    def test_generated_event_surface_supports_awaited_on_and_async_callbacks(self) -> None:
+        client = ModCDPClient()
+        seen: list[str] = []
+
+        async def callback(event: Any) -> None:
+            seen.append(event.targetId)
+
+        async def register() -> None:
+            await client.on(client.Target.targetCreated, callback)
+
+        asyncio.run(register())
+        client._run_handler(
+            client._handlers["Target.targetCreated"][0],
+            {"targetInfo": {"targetId": "target-1", "type": "page", "url": "https://example.com"}},
+            "Target.targetCreated",
+        )
+        self.assertEqual(seen, ["target-1"])
 
     def test_schema_only_custom_command_registers_without_websocket(self) -> None:
         client = ModCDPClient()

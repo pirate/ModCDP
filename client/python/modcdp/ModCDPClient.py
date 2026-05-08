@@ -17,6 +17,8 @@ Synchronous (blocking) API; one background thread reads frames off the WS.
 """
 
 import json
+import asyncio
+import inspect
 import os
 import re
 import shutil
@@ -33,13 +35,14 @@ import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from queue import Queue, Empty
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from pydantic import TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
 from websocket import create_connection
 
 from .jsonschema import type_adapter_from_json_schema
+from .cdp.surface import AwaitableDict, CDPEvent, CDPSurfaceMixin, cdp_event_name, install_cdp_surface
 from .translate import (
     CUSTOM_EVENT_BINDING_NAME,
     DEFAULT_CLIENT_ROUTES,
@@ -76,11 +79,6 @@ from .types import (
     WebSocketLike,
 )
 
-if TYPE_CHECKING:
-    from .cdp.library import CDPLibrary
-    from .cdp.registration_library import CDPRegistrationLibrary
-    from .cdp.registry import EventRegistry
-
 EXT_ID_FROM_URL_RE = re.compile(r"^chrome-extension://([a-z]+)/")
 MODCDP_READY_EXPRESSION = (
     "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && "
@@ -97,22 +95,6 @@ DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS = 60_000
 DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS = 100
 DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS = 20
 DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250
-
-
-class _DomainMethods:
-    def __init__(self, client: "ModCDPClient", domain: str) -> None:
-        self._client = client
-        self._domain = domain
-
-    def __getattr__(self, method: str):
-        def call(*args: ProtocolParams, **kwargs: JsonValue) -> JsonValue:
-            if len(args) > 1:
-                raise TypeError(f"{self._domain}.{method} accepts at most one positional params object")
-            params: ProtocolParams = dict(args[0]) if args else {}
-            params.update(kwargs)
-            return self._client.send(f"{self._domain}.{method}", params)
-
-        return call
 
 
 class _RawCDP:
@@ -209,7 +191,7 @@ def modcdp_server_bootstrap_expression(extension_path: str) -> str:
     )
 
 
-class ModCDPClient:
+class ModCDPClient(CDPSurfaceMixin):
     def __init__(
         self,
         cdp_url: str | None = None,
@@ -291,13 +273,8 @@ class ModCDPClient:
         self._command_params_schemas: dict[str, TypeAdapter[Any]] = {}
         self._command_result_schemas: dict[str, TypeAdapter[Any]] = {}
         self._event_schemas: dict[str, TypeAdapter[Any]] = {}
-        from .cdp.library import CDPLibrary
-        from .cdp.registration_library import CDPRegistrationLibrary
-        from .cdp.registry import EventRegistry
-
-        self._event_registry: "EventRegistry" = EventRegistry()
-        self.send: "CDPLibrary" = CDPLibrary(self)
-        self.register: "CDPRegistrationLibrary" = CDPRegistrationLibrary(self._event_registry)
+        self._event_classes: dict[str, type[CDPEvent]] = {}
+        install_cdp_surface(self)
         self._reader_thread: threading.Thread | None = None
         self._closed = False
         self._launched_process: subprocess.Popen[bytes] | None = None
@@ -386,6 +363,7 @@ class ModCDPClient:
         method: str,
         params: Mapping[str, Any] | None = None,
         session_id: str | None = None,
+        validate_custom_schema: bool = True,
     ) -> JsonValue:
         started_at = int(time.time() * 1000)
         command_params = cast(ProtocolParams, dict(params or {}))
@@ -401,10 +379,10 @@ class ModCDPClient:
                     "completed_at": completed_at,
                     "duration_ms": completed_at - started_at,
                 }
-                return {"name": cast(str, command_params.get("name")), "registered": True}
+                return AwaitableDict({"name": cast(str, command_params.get("name")), "registered": True})
         elif method == "Mod.addCustomEvent":
             self._register_custom_event(command_params)
-        else:
+        elif validate_custom_schema:
             command_params = self._validate_command_params(method, command_params)
 
         command = wrap_command_if_needed(
@@ -415,7 +393,7 @@ class ModCDPClient:
             target_cdp_session_id=session_id,
         )
         result = self._send_raw(command)
-        if method != "Mod.addCustomCommand":
+        if validate_custom_schema and method != "Mod.addCustomCommand":
             result = self._validate_command_result(method, result)
         completed_at = int(time.time() * 1000)
         self.last_command_timing = {
@@ -425,7 +403,7 @@ class ModCDPClient:
             "completed_at": completed_at,
             "duration_ms": completed_at - started_at,
         }
-        return result
+        return AwaitableDict(result) if isinstance(result, dict) else result
 
     def raw_send(self, method: str, params: ProtocolParams | None = None) -> ProtocolResult:
         return self._send_frame(method, params or {}, record_raw_timing=True)
@@ -441,14 +419,57 @@ class ModCDPClient:
             raise RuntimeError(f"{method} returned non-object value: {result!r}")
         return result
 
-    def on(self, event: str, handler: Handler) -> "ModCDPClient":
-        self._handlers.setdefault(event, []).append(handler)
+    def send(
+        self,
+        method: str,
+        params: Mapping[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> AwaitableDict:
+        result = self._send_command(method, params, session_id=session_id, validate_custom_schema=False)
+        if isinstance(result, AwaitableDict):
+            return result
+        if isinstance(result, dict):
+            return AwaitableDict(result)
+        return AwaitableDict({"value": result})
+
+    def on(self, event: str | type[CDPEvent], handler: Handler) -> "ModCDPClient":
+        event_name = cdp_event_name(event) if not isinstance(event, str) else event
+        if event_name is None:
+            raise TypeError("event must be a CDP event class or event name string")
+        wrapped_handler = handler
+        if not isinstance(event, str):
+            event_class = event
+
+            def typed_handler(payload):
+                typed_payload = event_class.model_validate(payload) if isinstance(payload, Mapping) else payload
+                return handler(typed_payload)
+
+            wrapped_handler = typed_handler
+        self._handlers.setdefault(event_name, []).append(wrapped_handler)
         return self
 
-    def __getattr__(self, domain: str) -> _DomainMethods:
+    def __await__(self):
+        async def _value():
+            return self
+
+        return _value().__await__()
+
+    def _run_handler(self, handler: Handler, payload: Any, event_name: str) -> None:
+        try:
+            result = handler(payload)
+            if inspect.iscoroutine(result):
+                asyncio.run(result)
+        except Exception as e:
+            print(f"[ModCDPClient] handler error for {event_name}: {e}")
+
+    def __getattr__(self, domain: str):
         if domain.startswith("_"):
             raise AttributeError(domain)
-        return _DomainMethods(self, domain)
+        from .cdp.surface import DynamicDomain
+
+        dynamic = DynamicDomain(self, domain)
+        setattr(self, domain, dynamic)
+        return dynamic
 
     def close(self) -> None:
         if self._closed:
@@ -828,11 +849,9 @@ class ModCDPClient:
                         validated_payload = self._validate_event_payload(u["event"], u["data"])
                         if validated_payload is None:
                             continue
-                        self._event_registry.handle_event(u["event"], validated_payload, u.get("sessionId"))
                         for h in self._handlers.get(u["event"], []):
                             def run_wrapped_event(handler=h, payload=validated_payload, event_name=u["event"]):
-                                try: handler(payload)
-                                except Exception as e: print(f"[ModCDPClient] handler error for {event_name}: {e}")
+                                self._run_handler(handler, payload, event_name)
                             threading.Thread(target=run_wrapped_event, daemon=True).start()
                     continue
                 if method:
@@ -841,11 +860,9 @@ class ModCDPClient:
                     validated_payload = self._validate_event_payload(method, dict(params))
                     if validated_payload is None:
                         continue
-                    self._event_registry.handle_event(method, validated_payload, event_session_id)
                     for h in self._handlers.get(method, []):
                         def run_method_event(handler=h, payload=validated_payload, event_name=method):
-                            try: handler(payload)
-                            except Exception as e: print(f"[ModCDPClient] handler error for {event_name}: {e}")
+                            self._run_handler(handler, payload, event_name)
                         threading.Thread(target=run_method_event, daemon=True).start()
         except Exception as e:
             if not self._closed:
