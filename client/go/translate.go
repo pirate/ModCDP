@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-const bindingPrefix = "__ModCDP_"
+const upstreamEventBindingName = "__ModCDP_event_from_upstream__"
+const customEventBindingName = "__ModCDP_custom_event__"
 
 func DefaultClientRoutes() map[string]string {
 	return map[string]string{
@@ -15,17 +16,6 @@ func DefaultClientRoutes() map[string]string {
 		"Custom.*": "service_worker",
 		"*.*":      "service_worker",
 	}
-}
-
-func bindingNameFor(eventName string) string {
-	return bindingPrefix + strings.ReplaceAll(eventName, ".", "_")
-}
-
-func eventNameFor(bindingName string) string {
-	if !strings.HasPrefix(bindingName, bindingPrefix) {
-		return ""
-	}
-	return strings.ReplaceAll(bindingName[len(bindingPrefix):], "_", ".")
 }
 
 func routeFor(method string, routes map[string]string) string {
@@ -107,11 +97,10 @@ func wrapModCDPAddCustomCommand(params map[string]any) map[string]any {
 func wrapModCDPAddCustomEvent(params map[string]any) map[string]any {
 	rawName, _ := params["name"].(string)
 	name, _ := json.Marshal(rawName)
-	bn, _ := json.Marshal(bindingNameFor(rawName))
 	pSchema, _ := json.Marshal(params["eventSchema"])
 	return evalParams(fmt.Sprintf(
-		`globalThis.ModCDP.addCustomEvent({ name: %s, bindingName: %s, eventSchema: %s })`,
-		string(name), string(bn), string(pSchema),
+		`globalThis.ModCDP.addCustomEvent({ name: %s, eventSchema: %s })`,
+		string(name), string(pSchema),
 	))
 }
 
@@ -153,9 +142,7 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 	}
 
 	if method == "Mod.addCustomEvent" {
-		name, _ := params["name"].(string)
 		return []rawStep{
-			{Method: "Runtime.addBinding", Params: map[string]any{"name": bindingNameFor(name)}},
 			{Method: "Runtime.evaluate", Params: wrapModCDPAddCustomEvent(params), Unwrap: "evaluate"},
 		}
 	}
@@ -218,20 +205,26 @@ func unwrapEventIfNeeded(method string, params map[string]any, sessionID string,
 		return "", nil, false
 	}
 	name, _ := params["name"].(string)
-	event := eventNameFor(name)
-	if event == "" {
-		return "", nil, false
-	}
 	payloadStr, _ := params["payload"].(string)
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil || payload == nil {
-		payload = map[string]any{}
+		return "", nil, false
 	}
-	if sid, ok := payload["cdpSessionId"].(string); ok && sid != "" && ourSessionID != "" && sid != ourSessionID {
+	isUpstreamEventBinding := name == upstreamEventBindingName
+	isCustomEventBinding := name == customEventBindingName
+	if !isUpstreamEventBinding && !isCustomEventBinding {
+		return "", nil, false
+	}
+	payloadEvent, _ := payload["event"].(string)
+	if payloadEvent == "" {
+		return "", nil, false
+	}
+	resolvedEvent := payloadEvent
+	if resolvedEvent == upstreamEventBindingName || resolvedEvent == customEventBindingName {
 		return "", nil, false
 	}
 	if data, ok := payload["data"]; ok {
-		return event, data, true
+		return resolvedEvent, data, true
 	}
-	return event, payload, true
+	return resolvedEvent, payload, true
 }

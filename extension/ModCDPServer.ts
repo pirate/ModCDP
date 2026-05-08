@@ -1,6 +1,6 @@
 // ModCDPServer: lives inside an extension service worker. Owns the registry
 // of custom commands and event bindings, and emits events through the binding
-// API installed by the client (Runtime.addBinding -> globalThis[bindingName]).
+// API installed by the client (Runtime.addBinding -> globalThis[__ModCDP_custom_event__]).
 //
 // The installer is intentionally self-contained so the bridge can inject the
 // same server implementation into an already-running extension service worker
@@ -20,6 +20,10 @@ import type {
   ProtocolResult,
 } from "../types/modcdp.js";
 
+export const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
+export const DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
+export const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
+
 type MiddlewarePhase = "request" | "response" | "event";
 type ModCDPGlobalScope = typeof globalThis &
   Record<string, unknown> & {
@@ -32,6 +36,9 @@ type ModCDPGlobalScope = typeof globalThis &
 
 export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis as ModCDPGlobalScope) {
   const MODCDP_SERVER_VERSION = 1;
+  const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
+  const DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
+  const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
   if (
     globalScope.ModCDP?.__ModCDPServerVersion === MODCDP_SERVER_VERSION &&
     globalScope.ModCDP?.handleCommand &&
@@ -39,8 +46,8 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   )
     return globalScope.ModCDP;
 
-  const BINDING_PREFIX = "__ModCDP_";
-  const bindingNameFor = (eventName: string) => BINDING_PREFIX + eventName.replaceAll(".", "_").replaceAll("*", "all");
+  const UPSTREAM_EVENT_BINDING_NAME = "__ModCDP_event_from_upstream__";
+  const CUSTOM_EVENT_BINDING_NAME = "__ModCDP_custom_event__";
   const encodeBindingPayload = ({
     event,
     data,
@@ -62,6 +69,41 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const attachedDebuggees = new Set<string>();
   let runtime_types_promise: Promise<unknown> | null = null;
 
+  async function publishEvent(eventName: string, payload: ProtocolPayload = {}, cdpSessionId: string | null = null) {
+    payload = await ModCDPServer.runMiddleware("event", eventName, payload, {
+      cdpSessionId,
+      event: { name: eventName, payload },
+    });
+    if (payload === undefined) return { event: eventName, emitted: false, reason: "middleware_dropped" };
+
+    for (const listener of eventListeners) {
+      try {
+        listener(eventName, payload, cdpSessionId);
+      } catch (error) {
+        console.error("[ModCDPServer] event listener failed", error);
+      }
+    }
+
+    const isCustomEvent = registryMatch(eventBindings, eventName) != null;
+    let emittedThroughBinding = false;
+    if (isCustomEvent) {
+      const customBinding = globalScope[CUSTOM_EVENT_BINDING_NAME];
+      if (typeof customBinding === "function") {
+        customBinding(encodeBindingPayload({ event: eventName, data: payload, cdpSessionId }));
+        emittedThroughBinding = true;
+      }
+    } else {
+      const mirrorBinding = globalScope[UPSTREAM_EVENT_BINDING_NAME];
+      if (typeof mirrorBinding === "function") {
+        mirrorBinding(encodeBindingPayload({ event: eventName, data: payload, cdpSessionId }));
+        emittedThroughBinding = true;
+      }
+    }
+    return emittedThroughBinding
+      ? { event: eventName, emitted: true }
+      : { event: eventName, emitted: false, reason: "binding_not_installed" };
+  }
+
   const targetAutoAttachParams = {
     autoAttach: true,
     waitForDebuggerOnStart: false,
@@ -80,6 +122,9 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const loopbackSockets = new Map<string, WebSocket>();
   const loopbackSocketPromises = new Map<string, Promise<WebSocket>>();
   const loopbackTargetSessions = new Map<string, string>();
+  const loopbackSessionTargets = new Map<string, string>();
+  const loopbackSessionContexts = new Map<string, number>();
+  const loopbackContextWaiters = new Map<string, Set<(contextId: number) => void>>();
   const initializedLoopbackSockets = new WeakSet<WebSocket>();
   const loopbackPending = new Map<
     number,
@@ -138,9 +183,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   }
 
   function compactDebuggee(input: {
-    extensionId?: string | null;
-    tabId?: number | null;
-    targetId?: string | null;
+    [Key in keyof chrome.debugger.Debuggee]?: chrome.debugger.Debuggee[Key] | null;
   }): chrome.debugger.Debuggee {
     return {
       ...(typeof input.tabId === "number" ? { tabId: input.tabId } : {}),
@@ -195,7 +238,10 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         "error",
         (event) => {
           errorEvent = event;
-          setTimeout(() => fail(new Error(describe("CDP socket error"))), 250);
+          setTimeout(
+            () => fail(new Error(describe("CDP socket error"))),
+            ModCDPServer.ws_connect_error_settle_timeout_ms,
+          );
         },
         { once: true },
       );
@@ -232,21 +278,64 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
               ? (msg.params as ProtocolPayload)
               : {};
           const cdpSessionId = typeof msg.sessionId === "string" ? msg.sessionId : null;
-          void ModCDPServer.runMiddleware("event", method, payload, {
-            cdpSessionId,
-            event: { name: method, payload },
-          })
-            .then((nextPayload) => {
-              if (nextPayload === undefined) return;
-              for (const listener of eventListeners) {
-                try {
-                  listener(method, nextPayload, cdpSessionId);
-                } catch (error) {
-                  console.error("[ModCDPServer] event listener failed", error);
-                }
+          const payloadRecord = payload as Record<string, unknown>;
+          const targetInfo =
+            payloadRecord.targetInfo &&
+            typeof payloadRecord.targetInfo === "object" &&
+            !Array.isArray(payloadRecord.targetInfo)
+              ? (payloadRecord.targetInfo as Record<string, unknown>)
+              : null;
+          const attachedSessionId = typeof payloadRecord.sessionId === "string" ? payloadRecord.sessionId : null;
+          const attachedTargetId = typeof targetInfo?.targetId === "string" ? targetInfo.targetId : null;
+          if (method === "Target.attachedToTarget" && attachedSessionId != null && attachedTargetId != null) {
+            loopbackTargetSessions.set(attachedTargetId, attachedSessionId);
+            loopbackSessionTargets.set(attachedSessionId, attachedTargetId);
+          } else if (method === "Target.detachedFromTarget") {
+            const detachedSessionId =
+              typeof payloadRecord.sessionId === "string" ? payloadRecord.sessionId : cdpSessionId;
+            const detachedTargetId =
+              typeof payloadRecord.targetId === "string"
+                ? payloadRecord.targetId
+                : detachedSessionId == null
+                  ? null
+                  : (loopbackSessionTargets.get(detachedSessionId) ?? null);
+            if (detachedTargetId != null) loopbackTargetSessions.delete(detachedTargetId);
+            if (detachedSessionId != null) loopbackSessionTargets.delete(detachedSessionId);
+            if (detachedSessionId != null) loopbackSessionContexts.delete(detachedSessionId);
+          } else if (method === "Runtime.executionContextCreated" && cdpSessionId != null) {
+            const context = payloadRecord.context;
+            const contextId =
+              context && typeof context === "object" && "id" in context && typeof context.id === "number"
+                ? context.id
+                : null;
+            if (contextId != null) {
+              loopbackSessionContexts.set(cdpSessionId, contextId);
+              const waiters = loopbackContextWaiters.get(cdpSessionId);
+              if (waiters) {
+                loopbackContextWaiters.delete(cdpSessionId);
+                for (const resolve of waiters) resolve(contextId);
               }
-            })
-            .catch((error) => console.error("[ModCDPServer] loopback event listener failed", error));
+            }
+          }
+          void (async () => {
+            if (
+              method === "Target.attachedToTarget" &&
+              attachedSessionId != null &&
+              (targetInfo?.type === "page" || targetInfo?.type === "iframe")
+            ) {
+              await ModCDPServer.handleCommand("Page.enable", {}, attachedSessionId).catch((error) =>
+                console.error("[ModCDPServer] Page.enable failed for attached target", error),
+              );
+              await ModCDPServer.handleCommand(
+                "Page.setLifecycleEventsEnabled",
+                { enabled: true },
+                attachedSessionId,
+              ).catch((error) =>
+                console.error("[ModCDPServer] Page.setLifecycleEventsEnabled failed for attached target", error),
+              );
+            }
+            await publishEvent(method, payload, cdpSessionId);
+          })().catch((error) => console.error("[ModCDPServer] loopback event listener failed", error));
           return;
         }
         const pending = loopbackPending.get(id);
@@ -258,11 +347,15 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       ws.addEventListener("error", () => {
         if (loopbackSockets.get(endpoint) === ws) loopbackSockets.delete(endpoint);
         loopbackTargetSessions.clear();
+        loopbackSessionTargets.clear();
+        loopbackSessionContexts.clear();
         rejectLoopbackPending(new Error(`CDP socket error ${endpoint}`));
       });
       ws.addEventListener("close", (event) => {
         if (loopbackSockets.get(endpoint) === ws) loopbackSockets.delete(endpoint);
         loopbackTargetSessions.clear();
+        loopbackSessionTargets.clear();
+        loopbackSessionContexts.clear();
         rejectLoopbackPending(
           new Error(
             `CDP socket closed ${endpoint} close.code=${event.code} close.reason=${event.reason || ""} close.wasClean=${
@@ -289,9 +382,19 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     if (sessionId) message.sessionId = sessionId;
     ws.send(JSON.stringify(message));
     return new Promise<ProtocolResult>((resolve, reject) => {
-      loopbackPending.set(id, { resolve, reject });
-      ws.addEventListener("error", () => reject(new Error(`CDP socket error ${ModCDPServer.loopback_cdp_url}`)), {
-        once: true,
+      const timeout = setTimeout(() => {
+        if (!loopbackPending.delete(id)) return;
+        reject(new Error(`${method} timed out after ${ModCDPServer.cdp_send_timeout_ms}ms`));
+      }, ModCDPServer.cdp_send_timeout_ms);
+      loopbackPending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
       });
     });
   }
@@ -303,6 +406,29 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     await callLoopbackWS("Target.setAutoAttach", targetAutoAttachParams);
     await callLoopbackWS("Target.setDiscoverTargets", { discover: true });
     initializedLoopbackSockets.add(ws);
+  }
+
+  function waitForLoopbackExecutionContext(
+    sessionId: string,
+    timeoutMs = ModCDPServer.loopback_execution_context_timeout_ms,
+  ) {
+    const existing = loopbackSessionContexts.get(sessionId);
+    if (existing != null) return Promise.resolve(existing);
+    return new Promise<number>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        const waiters = loopbackContextWaiters.get(sessionId);
+        waiters?.delete(complete);
+        if (waiters?.size === 0) loopbackContextWaiters.delete(sessionId);
+        reject(new Error(`Timed out waiting for Runtime.executionContextCreated for session ${sessionId}.`));
+      }, timeoutMs);
+      const complete = (contextId: number) => {
+        clearTimeout(timeout);
+        resolve(contextId);
+      };
+      const waiters = loopbackContextWaiters.get(sessionId);
+      if (waiters) waiters.add(complete);
+      else loopbackContextWaiters.set(sessionId, new Set([complete]));
+    });
   }
 
   async function ensureOffscreenKeepAlive() {
@@ -341,6 +467,9 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     routes: { ...defaultRoutes },
     loopback_cdp_url: null as string | null,
     browserToken: null as string | null,
+    cdp_send_timeout_ms: DEFAULT_CDP_SEND_TIMEOUT_MS,
+    loopback_execution_context_timeout_ms: DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS,
+    ws_connect_error_settle_timeout_ms: DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
     types: null as (typeof import("../types/zod.js"))["types"] | null,
     commands: null as (typeof import("../types/zod.js"))["commands"] | null,
     events: null as (typeof import("../types/zod.js"))["events"] | null,
@@ -362,12 +491,18 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         loopback_cdp_url = this.loopback_cdp_url,
         routes,
         browserToken = this.browserToken,
+        cdp_send_timeout_ms = this.cdp_send_timeout_ms,
+        loopback_execution_context_timeout_ms = this.loopback_execution_context_timeout_ms,
+        ws_connect_error_settle_timeout_ms = this.ws_connect_error_settle_timeout_ms,
         custom_commands = [],
         custom_events = [],
         custom_middlewares = [],
       } = params;
       this.loopback_cdp_url = await resolveCDPEndpoint(loopback_cdp_url);
       this.browserToken = browserToken;
+      this.cdp_send_timeout_ms = cdp_send_timeout_ms;
+      this.loopback_execution_context_timeout_ms = loopback_execution_context_timeout_ms;
+      this.ws_connect_error_settle_timeout_ms = ws_connect_error_settle_timeout_ms;
       if (routes) this.routes = { ...defaultRoutes, ...routes };
       else {
         this.routes = { ...defaultRoutes };
@@ -413,12 +548,11 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       return { name, registered: true };
     },
 
-    addCustomEvent({ name, bindingName, eventSchema = null }: ModCDPCustomEventRegistration) {
+    addCustomEvent({ name, eventSchema = null }: ModCDPCustomEventRegistration) {
       name = normalizeModCDPName(name);
       if (!/^[^.]+\.[^.]+$/.test(name)) throw new Error("name must be in Domain.event form.");
-      bindingName ??= bindingNameFor(name);
-      eventBindings.set(name, { name, bindingName, eventSchema });
-      return { name, bindingName, registered: true };
+      eventBindings.set(name, { name, eventSchema });
+      return { name, registered: true };
     },
 
     addEventListener(listener: (event: string, data: ProtocolPayload, cdpSessionId: string | null) => void) {
@@ -517,14 +651,14 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       if (upstream === "auto") {
         if (this.loopback_cdp_url) {
           try {
-            result = await this.sendLoopback(method, params);
+            result = await this.sendLoopback(method, params, cdpSessionId);
           } catch {
             result = await this.sendChromeDebugger(method, params);
           }
         } else {
           result = await this.sendChromeDebugger(method, params);
         }
-      } else if (upstream === "loopback_cdp") result = await this.sendLoopback(method, params);
+      } else if (upstream === "loopback_cdp") result = await this.sendLoopback(method, params, cdpSessionId);
       else if (upstream === "chrome_debugger") result = await this.sendChromeDebugger(method, params);
       else throw new Error(`No ModCDP command registered for ${method}.`);
 
@@ -555,35 +689,20 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     async emit(eventName: string, payload: ProtocolPayload = {}, cdpSessionId: string | null = null) {
       const event = registryMatch(eventBindings, eventName);
       if (!event) return { event: eventName, emitted: false, reason: "event_not_registered" };
-      const binding = globalScope[event.bindingName];
-      if (typeof binding !== "function") return { event: eventName, emitted: false, reason: "binding_not_installed" };
-
-      payload = await this.runMiddleware("event", eventName, payload, {
-        cdpSessionId,
-        event: { name: eventName, payload },
-      });
-      if (payload === undefined) return { event: eventName, emitted: false, reason: "middleware_dropped" };
-
-      for (const listener of eventListeners) {
-        try {
-          listener(eventName, payload, cdpSessionId);
-        } catch (error) {
-          console.error("[ModCDPServer] event listener failed", error);
-        }
-      }
-      if (typeof binding === "function")
-        binding(encodeBindingPayload({ event: eventName, data: payload, cdpSessionId }));
-      return { event: eventName, emitted: true };
+      const customBinding = globalScope[CUSTOM_EVENT_BINDING_NAME];
+      if (typeof customBinding !== "function")
+        return { event: eventName, emitted: false, reason: "binding_not_installed" };
+      return publishEvent(eventName, payload, cdpSessionId);
     },
 
-    async discoverLoopbackCDP() {
-      if (!this.browserToken) return { loopback_cdp_url: null, verified: false };
+    async discoverLoopbackCDP(): Promise<{ loopback_cdp_url: string | null; verified: boolean; version?: unknown }> {
+      if (!this.browserToken) return { loopback_cdp_url: null as null, verified: false };
 
       const url = "http://127.0.0.1:9222";
       const previousLoopbackUrl = this.loopback_cdp_url;
       const fail = (version?: unknown) => {
         this.loopback_cdp_url = previousLoopbackUrl ?? null;
-        return { loopback_cdp_url: null, verified: false, ...(version ? { version } : {}) };
+        return { loopback_cdp_url: null as null, verified: false, ...(version ? { version } : {}) };
       };
       try {
         const version = await fetch(`${url}/json/version`).then((response) => response.ok && response.json());
@@ -603,10 +722,14 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
           targetId: worker.targetId,
           flatten: true,
         })) as cdp.types.ts.Target.AttachToTargetResult;
+        const contextIdPromise = waitForLoopbackExecutionContext(sessionId);
+        await callLoopbackWS("Runtime.enable", {}, sessionId);
+        const executionContextId = await contextIdPromise;
         const result = (await callLoopbackWS(
-          "Runtime.evaluate",
+          "Runtime.callFunctionOn",
           {
-            expression: `globalThis.ModCDP?.browserToken === ${JSON.stringify(this.browserToken)}`,
+            functionDeclaration: `function() { return globalThis.ModCDP?.browserToken === ${JSON.stringify(this.browserToken)}; }`,
+            executionContextId,
             returnByValue: true,
           },
           sessionId,
@@ -621,13 +744,14 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       }
     },
 
-    async sendLoopback(method: string, params: ProtocolParams = {}) {
+    async sendLoopback(method: string, params: ProtocolParams = {}, cdpSessionId: string | null = null) {
       if (!this.loopback_cdp_url) throw new Error(`No loopback_cdp_url configured for ${method}.`);
 
       await initializeLoopbackCDP();
 
       const domain = method.split(".")[0] ?? "";
       if (browserLevelDomains.has(domain)) return await callLoopbackWS(method, params);
+      if (cdpSessionId) return await callLoopbackWS(method, params, cdpSessionId);
 
       const {
         debuggee = null,
@@ -650,7 +774,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
           resolvedTabId = tab?.id || null;
           resolvedTabUrl = tab?.url || tab?.pendingUrl || null;
         } else if (chromeApi.tabs?.get) {
-          const tab = await chromeApi.tabs.get(resolvedTabId).catch(() => null);
+          const tab = await chromeApi.tabs.get(resolvedTabId).catch((): null => null);
           resolvedTabUrl = tab?.url || tab?.pendingUrl || null;
         }
         if (resolvedTabId && chromeApi.debugger?.getTargets) {
@@ -675,16 +799,17 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       }
       if (!resolvedTargetId) throw new Error(`loopback_cdp route for ${method} could not resolve a page target.`);
 
-      let sessionId = loopbackTargetSessions.get(resolvedTargetId) || null;
-      if (!sessionId) {
-        const attached = (await callLoopbackWS("Target.attachToTarget", {
-          targetId: resolvedTargetId,
-          flatten: true,
-        })) as cdp.types.ts.Target.AttachToTargetResult;
-        sessionId = attached.sessionId;
-        loopbackTargetSessions.set(resolvedTargetId, sessionId);
-        await callLoopbackWS("Target.setAutoAttach", targetAutoAttachParams, sessionId).catch(() => {});
-      }
+      const existingSessionId = loopbackTargetSessions.get(resolvedTargetId);
+      if (existingSessionId) return await callLoopbackWS(method, commandParams, existingSessionId);
+
+      const attached = (await callLoopbackWS("Target.attachToTarget", {
+        targetId: resolvedTargetId,
+        flatten: true,
+      })) as cdp.types.ts.Target.AttachToTargetResult;
+      const sessionId = attached.sessionId;
+      loopbackTargetSessions.set(resolvedTargetId, sessionId);
+      loopbackSessionTargets.set(sessionId, resolvedTargetId);
+      await callLoopbackWS("Target.setAutoAttach", targetAutoAttachParams, sessionId).catch(() => {});
       return await callLoopbackWS(method, commandParams, sessionId);
     },
 
@@ -753,7 +878,6 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
 
   ModCDPServer.addCustomEvent({
     name: "Mod.pong",
-    bindingName: bindingNameFor("Mod.pong"),
   });
 
   ModCDPServer.addCustomCommand({

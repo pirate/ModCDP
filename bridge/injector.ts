@@ -24,12 +24,18 @@ import { installModCDPServer } from "../extension/ModCDPServer.js";
 const EXT_ID_FROM_URL = /^chrome-extension:\/\/([a-z]+)\//;
 const MODCDP_READY_EXPRESSION =
   "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
+export const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
+export const DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
+export const DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS = 10_000;
+export const DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS = 60_000;
+export const DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS = 100;
+export const DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS = 20;
 
 type SendCDP = (method: string, params?: ProtocolParams, session_id?: string | null) => Promise<ProtocolResult>;
 type TargetInfo = { targetId: string; type?: string; url?: string };
 
 const bootstrap_modcdp_server_expression = `
-  (() => {
+  function() {
     const __name = (fn) => fn;
     const installModCDPServer = ${installModCDPServer.toString()};
     const ModCDP = installModCDPServer(globalThis);
@@ -37,29 +43,45 @@ const bootstrap_modcdp_server_expression = `
       ok: Boolean(ModCDP?.__ModCDPServerVersion === 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),
       extension_id: globalThis.chrome?.runtime?.id ?? null,
       has_tabs: Boolean(globalThis.chrome?.tabs?.query),
-      has_debugger: Boolean(globalThis.chrome?.debugger?.sendCommand),
+      has_debugger: Boolean(globalThis.chrome?.debugger?.sendCommand && globalThis.chrome?.debugger?.getTargets),
     };
-  })()
+  }
 `;
 
 export async function injectExtensionIfNeeded({
   send,
   session_id_for_target = null,
+  attach_to_target = null,
+  wait_for_execution_context = null,
   extension_path,
   service_worker_url_includes = [],
   service_worker_url_suffixes = [],
   trust_matched_service_worker = false,
   require_service_worker_target = false,
   service_worker_ready_expression = null,
+  cdp_send_timeout_ms = DEFAULT_CDP_SEND_TIMEOUT_MS,
+  execution_context_timeout_ms = DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS,
+  service_worker_probe_timeout_ms = DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+  service_worker_ready_timeout_ms = DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
+  service_worker_poll_interval_ms = DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS,
+  target_session_poll_interval_ms = DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
 }: {
   send: SendCDP;
   session_id_for_target?: ((target_id: string) => string | null | undefined) | null;
+  attach_to_target?: ((target_id: string) => Promise<string | null | undefined>) | null;
+  wait_for_execution_context?: ((session_id: string, timeout_ms: number) => Promise<number>) | null;
   extension_path?: string | null;
   service_worker_url_includes?: string[];
   service_worker_url_suffixes?: string[];
   trust_matched_service_worker?: boolean;
   require_service_worker_target?: boolean;
   service_worker_ready_expression?: string | null;
+  cdp_send_timeout_ms?: number;
+  execution_context_timeout_ms?: number;
+  service_worker_probe_timeout_ms?: number;
+  service_worker_ready_timeout_ms?: number;
+  service_worker_poll_interval_ms?: number;
+  target_session_poll_interval_ms?: number;
 }) {
   if (typeof send !== "function") throw new Error("injectExtensionIfNeeded requires { send }");
   const ready_expression =
@@ -70,30 +92,53 @@ export async function injectExtensionIfNeeded({
     method: string,
     params: ProtocolParams = {},
     session_id: string | null = null,
-    ms = 10_000,
-  ) =>
-    Promise.race([
+    ms = cdp_send_timeout_ms,
+  ) => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    return Promise.race([
       send(method, params, session_id),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${method} timed out after ${ms}ms`)), ms)),
-    ]);
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${method} timed out after ${ms}ms`)), ms);
+      }),
+    ]).finally(() => {
+      if (timeout != null) clearTimeout(timeout);
+    });
+  };
   // extension_path is only required as a fallback, when discovery does not turn
   // up an already-loaded ModCDP service worker. Validate at the point of use
   // (step 2) so callers running against a browser that already has the
   // extension loaded don't have to provide a path at all.
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const bootstrapped_target_ids = new Set<string>();
+  const unusable_target_ids = new Set<string>();
   const sessionIdForTarget = async (target_id: string, timeout_ms = 0) => {
     const deadline = Date.now() + timeout_ms;
     while (true) {
       const session_id = session_id_for_target?.(target_id);
       if (typeof session_id === "string" && session_id.length > 0) return session_id;
       if (Date.now() >= deadline) return null;
-      await sleep(20);
+      await sleep(target_session_poll_interval_ms);
     }
   };
-  const probeTarget = async (target: TargetInfo, session_timeout_ms = 0) => {
-    const session_id = await sessionIdForTarget(target.targetId, session_timeout_ms);
+  const ensureSessionIdForTarget = async (target_id: string, timeout_ms = 0, allow_attach = false) => {
+    const session_id = session_id_for_target?.(target_id);
+    if (typeof session_id === "string" && session_id.length > 0) return session_id;
+    if (allow_attach) {
+      const attached_session_id = await attach_to_target?.(target_id);
+      if (typeof attached_session_id === "string" && attached_session_id.length > 0) return attached_session_id;
+    }
+    return await sessionIdForTarget(target_id, timeout_ms);
+  };
+  const probeTarget = async (
+    target: TargetInfo,
+    session_timeout_ms = 0,
+    { allow_attach = false }: { allow_attach?: boolean } = {},
+  ) => {
+    if (unusable_target_ids.has(target.targetId)) return null;
+    const session_id = await ensureSessionIdForTarget(target.targetId, session_timeout_ms, allow_attach);
     if (session_id == null) return null;
+    await sendWithTimeout("Runtime.enable", {}, session_id, cdp_send_timeout_ms);
     const probe = RuntimeCommands["Runtime.evaluate"].result.parse(
       await sendWithTimeout(
         "Runtime.evaluate",
@@ -112,31 +157,103 @@ export async function injectExtensionIfNeeded({
       session_id,
     };
   };
+  const bootstrapTarget = async (target: TargetInfo) => {
+    if (bootstrapped_target_ids.has(target.targetId)) return null;
+    bootstrapped_target_ids.add(target.targetId);
+    const session_id = await ensureSessionIdForTarget(target.targetId, service_worker_probe_timeout_ms, true);
+    if (session_id == null) return null;
+    await sendWithTimeout("Runtime.enable", {}, session_id, cdp_send_timeout_ms).catch(() => {});
+    const bootstrap = RuntimeCommands["Runtime.evaluate"].result.parse(
+      await sendWithTimeout(
+        "Runtime.evaluate",
+        {
+          expression: `(${bootstrap_modcdp_server_expression})()`,
+          awaitPromise: true,
+          returnByValue: true,
+        },
+        session_id,
+        cdp_send_timeout_ms,
+      ),
+    );
+    const value = bootstrap.result?.value || {};
+    if (!value.has_tabs || !value.has_debugger) {
+      unusable_target_ids.add(target.targetId);
+      return null;
+    }
+    let ready = Boolean(value.ok);
+    if (ready && ready_expression !== MODCDP_READY_EXPRESSION) {
+      const probe = RuntimeCommands["Runtime.evaluate"].result.parse(
+        await sendWithTimeout(
+          "Runtime.evaluate",
+          {
+            expression: ready_expression,
+            returnByValue: true,
+          },
+          session_id,
+          cdp_send_timeout_ms,
+        ),
+      );
+      ready = probe.result?.value === true;
+    }
+    if (!ready) return null;
+    return {
+      extension_id: value.extension_id || target.url?.match(EXT_ID_FROM_URL)?.[1] || null,
+      target_id: target.targetId,
+      url: target.url,
+      session_id,
+      has_tabs: Boolean(value.has_tabs),
+      has_debugger: Boolean(value.has_debugger),
+    };
+  };
+  const discoverReadyServiceWorker = async ({ matched_only = false }: { matched_only?: boolean } = {}) => {
+    const target_infos = TargetCommands["Target.getTargets"].result.parse(await send("Target.getTargets")).targetInfos;
+    if (trust_matched_service_worker) {
+      const trusted_target = target_infos.find((candidate) => serviceWorkerTargetMatches(candidate)) as
+        | TargetInfo
+        | undefined;
+      if (trusted_target) {
+        const probed = await probeTarget(trusted_target, service_worker_probe_timeout_ms, { allow_attach: true });
+        if (probed) return { source: "trusted", ...probed };
+        const bootstrapped = await bootstrapTarget(trusted_target);
+        if (bootstrapped) return { source: "trusted", ...bootstrapped };
+      }
+    }
+    if (trust_matched_service_worker || matched_only) return null;
+    for (const candidate of target_infos) {
+      if (candidate.type !== "service_worker") continue;
+      if (!candidate.url.startsWith("chrome-extension://")) continue;
+      try {
+        const probed = await probeTarget(candidate as TargetInfo, service_worker_probe_timeout_ms);
+        if (probed) return { source: "discovered", ...probed };
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  };
+  const waitForReadyServiceWorker = async (
+    timeout_ms: number,
+    { matched_only = false }: { matched_only?: boolean } = {},
+  ) => {
+    const deadline = Date.now() + timeout_ms;
+    while (Date.now() < deadline) {
+      const discovered = await discoverReadyServiceWorker({ matched_only });
+      if (discovered) return discovered;
+      await sleep(service_worker_poll_interval_ms);
+    }
+    return null;
+  };
 
   // 1. Discover an existing ModCDP service worker from the current CDP target
   // snapshot. If no already-ready worker is visible, move on to the explicit
   // injection path instead of waiting on a guessed preinstalled-extension budget.
-  const target_infos = TargetCommands["Target.getTargets"].result.parse(await send("Target.getTargets")).targetInfos;
-  if (trust_matched_service_worker) {
-    const trusted_target = target_infos.find((candidate) => serviceWorkerTargetMatches(candidate)) as
-      | TargetInfo
-      | undefined;
-    if (trusted_target) {
-      const probed = await probeTarget(trusted_target, 2_000);
-      if (probed) return { source: "trusted", ...probed };
-    }
-  }
-  for (const candidate of target_infos) {
-    if (candidate.type !== "service_worker") continue;
-    if (!candidate.url.startsWith("chrome-extension://")) continue;
-    try {
-      const probed = await probeTarget(candidate as TargetInfo, 2_000);
-      if (probed) return { source: "discovered", ...probed };
-    } catch {
-      continue;
-    }
-  }
+  const discovered = await discoverReadyServiceWorker();
+  if (discovered) return discovered;
   if (require_service_worker_target) {
+    const discovered = await waitForReadyServiceWorker(service_worker_ready_timeout_ms, {
+      matched_only: trust_matched_service_worker,
+    });
+    if (discovered) return discovered;
     throw new Error(
       `Required ModCDP service worker target was not visible in the current CDP target snapshot ` +
         `(${[...service_worker_url_includes, ...service_worker_url_suffixes].join(", ") || "no matcher"}).`,
@@ -155,28 +272,10 @@ export async function injectExtensionIfNeeded({
       const load_error = error instanceof Error ? error : new Error(String(error));
       if (/Method not available|Method.*not.*found|wasn't found/i.test(load_error.message)) {
         load_unpacked_unavailable_error = load_error;
-        const target_infos = TargetCommands["Target.getTargets"].result.parse(
-          await send("Target.getTargets"),
-        ).targetInfos;
-        if (trust_matched_service_worker) {
-          const trusted_target = target_infos.find((candidate) => serviceWorkerTargetMatches(candidate)) as
-            | TargetInfo
-            | undefined;
-          if (trusted_target) {
-            const probed = await probeTarget(trusted_target, 2_000);
-            if (probed) return { source: "trusted", ...probed };
-          }
-        }
-        for (const candidate of target_infos) {
-          if (candidate.type !== "service_worker") continue;
-          if (!candidate.url.startsWith("chrome-extension://")) continue;
-          try {
-            const probed = await probeTarget(candidate as TargetInfo, 2_000);
-            if (probed) return { source: "discovered", ...probed };
-          } catch {
-            continue;
-          }
-        }
+        const discovered = await waitForReadyServiceWorker(service_worker_ready_timeout_ms, {
+          matched_only: trust_matched_service_worker,
+        });
+        if (discovered) return discovered;
       } else {
         throw new Error(
           `Extensions.loadUnpacked failed for ${extension_path}: ${load_error.message}\n` +
@@ -194,7 +293,7 @@ export async function injectExtensionIfNeeded({
       // 3. Wait for the loaded extension's service worker target. Custom extensions
       // can name the worker bundle anything; WXT uses background.js.
       const sw_url_prefix = `chrome-extension://${extension_id}/`;
-      const deadline = Date.now() + 60_000;
+      const deadline = Date.now() + service_worker_ready_timeout_ms;
       while (Date.now() < deadline) {
         const target_infos = TargetCommands["Target.getTargets"].result.parse(
           await send("Target.getTargets"),
@@ -203,7 +302,7 @@ export async function injectExtensionIfNeeded({
           (candidate) => candidate.type === "service_worker" && candidate.url.startsWith(sw_url_prefix),
         ) as TargetInfo | undefined;
         if (target) {
-          const probed = await probeTarget(target, 2_000);
+          const probed = await probeTarget(target, service_worker_probe_timeout_ms, { allow_attach: true });
           if (probed)
             return {
               source: "injected",
@@ -213,9 +312,11 @@ export async function injectExtensionIfNeeded({
               session_id: probed.session_id,
             };
         }
-        await sleep(100);
+        await sleep(service_worker_poll_interval_ms);
       }
-      throw new Error(`Timed out after 60s waiting for service worker target for extension ${extension_id}.`);
+      throw new Error(
+        `Timed out after ${service_worker_ready_timeout_ms}ms waiting for service worker target for extension ${extension_id}.`,
+      );
     }
   }
 
@@ -239,43 +340,16 @@ export async function injectExtensionIfNeeded({
 
     let session_id: string | null = null;
     try {
-      session_id = await sessionIdForTarget(target.targetId, 2_000);
-      if (session_id == null) continue;
-      await send("Runtime.enable", {}, session_id).catch(() => {});
-      const bootstrap = RuntimeCommands["Runtime.evaluate"].result.parse(
-        await sendWithTimeout(
-          "Runtime.evaluate",
-          {
-            expression: bootstrap_modcdp_server_expression,
-            awaitPromise: true,
-            returnByValue: true,
-            allowUnsafeEvalBlockedByCSP: true,
-          },
-          session_id,
-          3_000,
-        ),
-      );
-      const value = bootstrap.result?.value || {};
-      let ready = Boolean(value.ok);
-      if (ready && ready_expression !== MODCDP_READY_EXPRESSION) {
-        const probe = RuntimeCommands["Runtime.evaluate"].result.parse(
-          await sendWithTimeout(
-            "Runtime.evaluate",
-            { expression: ready_expression, returnByValue: true },
-            session_id,
-            2_000,
-          ),
-        );
-        ready = probe.result?.value === true;
-      }
-      if (ready) {
+      const bootstrapped = await bootstrapTarget(target as TargetInfo);
+      if (bootstrapped) {
+        session_id = bootstrapped.session_id;
         borrowed.push({
           target_id: target.targetId,
           url: target.url,
           session_id,
-          extension_id: value.extension_id || target.url.match(EXT_ID_FROM_URL)?.[1] || null,
-          has_tabs: Boolean(value.has_tabs),
-          has_debugger: Boolean(value.has_debugger),
+          extension_id: bootstrapped.extension_id,
+          has_tabs: bootstrapped.has_tabs,
+          has_debugger: bootstrapped.has_debugger,
         });
       }
     } catch {}

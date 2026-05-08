@@ -82,6 +82,9 @@ class ModCDPRawTiming(TypedDict):
 class ModCDPServerConfig(TypedDict, total=False):
     loopback_cdp_url: str | None
     routes: ModCDPRoutes
+    cdp_send_timeout_ms: int
+    loopback_execution_context_timeout_ms: int
+    ws_connect_error_settle_timeout_ms: int
     browserToken: str | None
     custom_commands: list[ModCDPAddCustomCommandParams]
     custom_events: list[ModCDPAddCustomEventObjectParams]

@@ -128,6 +128,9 @@ export const ModCDPConfigureParamsSchema = z.object({
   loopback_cdp_url: z.string().nullable().optional(),
   routes: ModCDPRoutesSchema.optional(),
   browserToken: z.string().nullable().optional(),
+  cdp_send_timeout_ms: z.number().positive().optional(),
+  loopback_execution_context_timeout_ms: z.number().positive().optional(),
+  ws_connect_error_settle_timeout_ms: z.number().positive().optional(),
   custom_commands: z.array(ModCDPAddCustomCommandParamsSchema).optional(),
   custom_events: z.array(ModCDPAddCustomEventObjectParamsSchema).optional(),
   custom_middlewares: z.array(ModCDPAddMiddlewareParamsSchema).optional(),
@@ -187,7 +190,6 @@ export type ModCDPAddCustomCommandResponse = z.infer<typeof ModCDPAddCustomComma
 export const ModCDPAddCustomEventResponseSchema = z
   .object({
     name: z.string(),
-    bindingName: z.string(),
     registered: z.boolean(),
   })
   .passthrough();
@@ -263,9 +265,7 @@ export const ModCDPCustomCommandRegistrationSchema = ModCDPAddCustomCommandParam
 });
 export type ModCDPCustomCommandRegistration = z.infer<typeof ModCDPCustomCommandRegistrationSchema>;
 
-export const ModCDPCustomEventRegistrationSchema = ModCDPAddCustomEventObjectParamsSchema.extend({
-  bindingName: z.string(),
-});
+export const ModCDPCustomEventRegistrationSchema = ModCDPAddCustomEventObjectParamsSchema;
 export type ModCDPCustomEventRegistration = z.infer<typeof ModCDPCustomEventRegistrationSchema>;
 
 export const ModCDPMiddlewareRegistrationSchema = ModCDPAddMiddlewareParamsSchema.extend({
@@ -326,7 +326,7 @@ export const TranslatedStepSchema = z
   .object({
     method: z.string(),
     params: ProtocolParamsSchema.optional(),
-    unwrap: z.literal("evaluate").optional(),
+    unwrap: z.literal("runtime").optional(),
   })
   .passthrough();
 export type TranslatedStep = z.infer<typeof TranslatedStepSchema>;
@@ -380,11 +380,14 @@ export const ProxyConnectionStateSchema = z.object({
   pending: z.custom<Map<number, ProxyPending>>(),
   extSessionId: z.string().nullable(),
   extTargetId: z.string().nullable(),
+  extExecutionContextId: z.number().nullable(),
   hiddenSessionIds: z.custom<Set<string>>(),
   hiddenTargetIds: z.custom<Set<string>>(),
   targetSessionIds: z.custom<Map<string, string>>(),
   clientSessionIds: z.custom<Set<string>>(),
+  forwardMirroredUpstreamEvents: z.boolean(),
   bootstrapped: z.boolean(),
+  closing: z.boolean(),
   queuedFromClient: z.array(z.custom<import("ws").RawData>()),
 });
 export type ProxyConnectionState = z.infer<typeof ProxyConnectionStateSchema>;

@@ -5,6 +5,12 @@ Constructor parameter names mirror the JS / Go ports:
     extension_path    extension directory (str)
     routes            client-side routing dict
     server            { 'loopback_cdp_url'?, 'routes'? } passed to ModCDPServer.configure
+    scan_for_existing_localhost_9222
+                      when true and cdp_url is unset, attach to localhost:9222 before autolaunching
+    mirror_upstream_events
+                      when false, do not mirror server-side upstream CDP events back through Runtime bindings
+    *_timeout_ms / *_interval_ms
+                      override default CDP send, service-worker probe, event, and poll timings
 
 Public methods: connect(), send(method, params), on(event, handler), close(), _cdp.send(), _cdp.on().
 Synchronous (blocking) API; one background thread reads frames off the WS.
@@ -13,11 +19,14 @@ Synchronous (blocking) API; one background thread reads frames off the WS.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import tempfile
+import urllib.error
+import urllib.parse
 import urllib.request
 import socket
 import zipfile
@@ -29,8 +38,9 @@ from typing import cast
 from websocket import create_connection
 
 from .translate import (
+    CUSTOM_EVENT_BINDING_NAME,
     DEFAULT_CLIENT_ROUTES,
-    binding_name_for,
+    UPSTREAM_EVENT_BINDING_NAME,
     wrap_command_if_needed,
     unwrap_event_if_needed,
     unwrap_response_if_needed,
@@ -69,6 +79,16 @@ MODCDP_READY_EXPRESSION = (
     "globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)"
 )
 DEFAULT_SERVER = object()
+DEFAULT_LIVE_CDP_URL = "http://127.0.0.1:9222"
+DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000
+DEFAULT_EVENT_WAIT_TIMEOUT_MS = 10_000
+DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000
+DEFAULT_CHROME_READY_TIMEOUT_MS = 45_000
+DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS = 10_000
+DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS = 60_000
+DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS = 100
+DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS = 20
+DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250
 
 
 class _DomainMethods:
@@ -106,7 +126,16 @@ class _RawCDP:
 def websocket_url_for(endpoint: str) -> str:
     if re.match(r"^wss?://", endpoint, re.I):
         return endpoint
-    with urllib.request.urlopen(f"{endpoint}/json/version", timeout=5) as r:
+    http_endpoint = endpoint if re.match(r"^[a-z][a-z\d+\-.]*://", endpoint, re.I) else f"http://{endpoint}"
+    try:
+        r = urllib.request.urlopen(f"{http_endpoint}/json/version", timeout=5)
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+        parsed = urllib.parse.urlparse(http_endpoint)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        return urllib.parse.urlunparse((scheme, parsed.netloc, "/devtools/browser", "", "", ""))
+    with r:
         parsed: object = json.loads(r.read())
     if not isinstance(parsed, dict):
         raise RuntimeError(f"HTTP discovery for {endpoint} returned invalid JSON")
@@ -117,6 +146,13 @@ def websocket_url_for(endpoint: str) -> str:
     if not isinstance(ws_url, str):
         raise RuntimeError(f"HTTP discovery for {endpoint} returned a non-string webSocketDebuggerUrl")
     return ws_url
+
+
+def live_websocket_url_for(endpoint: str = DEFAULT_LIVE_CDP_URL) -> str | None:
+    try:
+        return websocket_url_for(endpoint)
+    except Exception:
+        return None
 
 
 def _free_port() -> int:
@@ -175,6 +211,16 @@ class ModCDPClient:
         trust_service_worker_target: bool = False,
         require_service_worker_target: bool = False,
         service_worker_ready_expression: str | None = None,
+        mirror_upstream_events: bool = True,
+        scan_for_existing_localhost_9222: bool = False,
+        cdp_send_timeout_ms: int = DEFAULT_CDP_SEND_TIMEOUT_MS,
+        event_wait_timeout_ms: int = DEFAULT_EVENT_WAIT_TIMEOUT_MS,
+        execution_context_timeout_ms: int = DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS,
+        service_worker_probe_timeout_ms: int = DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+        service_worker_ready_timeout_ms: int = DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
+        service_worker_poll_interval_ms: int = DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS,
+        target_session_poll_interval_ms: int = DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
+        ws_connect_error_settle_timeout_ms: int = DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
         launch_options: LaunchOptions | None = None,
     ) -> None:
         self.cdp_url: str | None = cdp_url
@@ -196,6 +242,21 @@ class ModCDPClient:
         self.trust_service_worker_target = trust_service_worker_target
         self.require_service_worker_target = require_service_worker_target
         self.service_worker_ready_expression = service_worker_ready_expression
+        self.mirror_upstream_events = mirror_upstream_events
+        self.scan_for_existing_localhost_9222 = scan_for_existing_localhost_9222
+        self.cdp_send_timeout_ms = cdp_send_timeout_ms
+        self.event_wait_timeout_ms = event_wait_timeout_ms
+        self.execution_context_timeout_ms = execution_context_timeout_ms
+        self.service_worker_probe_timeout_ms = service_worker_probe_timeout_ms
+        self.service_worker_ready_timeout_ms = service_worker_ready_timeout_ms
+        self.service_worker_poll_interval_ms = service_worker_poll_interval_ms
+        self.target_session_poll_interval_ms = target_session_poll_interval_ms
+        self.ws_connect_error_settle_timeout_ms = ws_connect_error_settle_timeout_ms
+        self.server_options: ModCDPServerConfig = {
+            "cdp_send_timeout_ms": cdp_send_timeout_ms,
+            "loopback_execution_context_timeout_ms": execution_context_timeout_ms,
+            "ws_connect_error_settle_timeout_ms": ws_connect_error_settle_timeout_ms,
+        }
         self.launch_options = cast(LaunchOptions, dict(launch_options or {}))
 
         self.extension_id: str | None = None
@@ -223,9 +284,11 @@ class ModCDPClient:
     def connect(self) -> "ModCDPClient":
         connect_started_at = int(time.time() * 1000)
         if self.cdp_url is None:
-            self._prepare_extension_path()
-            launched = self._launch_chrome()
-            self.cdp_url = launched["cdp_url"]
+            self.cdp_url = live_websocket_url_for() if self.scan_for_existing_localhost_9222 else None
+            if self.cdp_url is None:
+                self._prepare_extension_path()
+                launched = self._launch_chrome()
+                self.cdp_url = launched["cdp_url"]
         input_cdp_url = self.cdp_url
         self.cdp_url = websocket_url_for(input_cdp_url)
         if self.server is not None and "loopback_cdp_url" not in self.server:
@@ -234,7 +297,7 @@ class ModCDPClient:
             loopback_url = self.server["loopback_cdp_url"]
             if loopback_url == input_cdp_url or loopback_url == self.cdp_url:
                 self.server = {**self.server, "loopback_cdp_url": self.cdp_url}
-        self._ws = cast(WebSocketLike, create_connection(self.cdp_url))
+        self._ws = cast(WebSocketLike, create_connection(self.cdp_url, timeout=self.cdp_send_timeout_ms / 1000))
         self._reader_thread = threading.Thread(target=self._reader, daemon=True)
         self._reader_thread.start()
 
@@ -253,11 +316,9 @@ class ModCDPClient:
         self.ext_target_id = ext["target_id"]
         self.ext_session_id = ext["session_id"]
         self._send_frame("Runtime.enable", {}, self.ext_session_id)
-        self._send_frame("Runtime.addBinding", {"name": binding_name_for("Mod.pong")}, self.ext_session_id)
-        for event in self.custom_events:
-            name = event.get("name") if isinstance(event, dict) else event
-            if isinstance(name, str) and name:
-                self._send_frame("Runtime.addBinding", {"name": binding_name_for(name)}, self.ext_session_id)
+        self._send_frame("Runtime.addBinding", {"name": CUSTOM_EVENT_BINDING_NAME}, self.ext_session_id)
+        if self.mirror_upstream_events:
+            self._send_frame("Runtime.addBinding", {"name": UPSTREAM_EVENT_BINDING_NAME}, self.ext_session_id)
 
         if self.server is not None:
             custom_events: list[ModCDPAddCustomEventObjectParams] = []
@@ -270,6 +331,7 @@ class ModCDPClient:
             ]
             custom_middlewares: list[ModCDPAddMiddlewareParams] = list(self.custom_middlewares)
             configure_params: ModCDPServerConfig = {
+                **self.server_options,
                 **self.server,
                 "custom_events": custom_events,
                 "custom_commands": custom_commands,
@@ -318,8 +380,6 @@ class ModCDPClient:
 
     def on(self, event: str, handler: Handler) -> "ModCDPClient":
         self._handlers.setdefault(event, []).append(handler)
-        if self.ext_session_id is not None and "." in event:
-            self._send_frame("Runtime.addBinding", {"name": binding_name_for(event)}, self.ext_session_id)
         return self
 
     def __getattr__(self, domain: str) -> _DomainMethods:
@@ -328,25 +388,50 @@ class ModCDPClient:
         return _DomainMethods(self, domain)
 
     def close(self) -> None:
+        if self._closed:
+            return
+        if self._ws is not None:
+            try:
+                with self._lock:
+                    self._next_id += 1
+                    msg_id = self._next_id
+                self._ws.send(json.dumps({"id": msg_id, "method": "Browser.close", "params": {}}))
+            except Exception:
+                pass
         self._closed = True
         try:
             if self._ws:
                 self._ws.close()
         except Exception:
             pass
+        if self._reader_thread is not None and self._reader_thread.is_alive():
+            self._reader_thread.join(timeout=1)
+        self._ws = None
         if self._launched_process is not None:
             self._launched_process.terminate()
             try:
                 self._launched_process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 self._launched_process.kill()
+                self._launched_process.wait(timeout=2)
             self._launched_process = None
         if self._profile_dir is not None:
-            self._profile_dir.cleanup()
+            self._cleanup_temp_dir(self._profile_dir)
             self._profile_dir = None
         if self._prepared_extension_dir is not None:
-            self._prepared_extension_dir.cleanup()
+            self._cleanup_temp_dir(self._prepared_extension_dir)
             self._prepared_extension_dir = None
+
+    def _cleanup_temp_dir(self, temp_dir: tempfile.TemporaryDirectory[str]) -> None:
+        for attempt in range(20):
+            try:
+                temp_dir.cleanup()
+                return
+            except OSError:
+                if attempt == 19:
+                    shutil.rmtree(temp_dir.name, ignore_errors=True)
+                    return
+                time.sleep(0.1)
 
     def _ready_expression(self) -> str:
         if not self.service_worker_ready_expression:
@@ -361,19 +446,38 @@ class ModCDPClient:
             session_id = self._target_sessions.get(target_id)
             if session_id:
                 return session_id
-            time.sleep(0.02)
+            time.sleep(self.target_session_poll_interval_ms / 1000)
         return None
+
+    def _ensure_session_id_for_target(self, target_id: str, timeout: float = 0, allow_attach: bool = False) -> str | None:
+        session_id = self._target_sessions.get(target_id)
+        if session_id:
+            return session_id
+        if allow_attach:
+            result = self._send_frame(
+                "Target.attachToTarget",
+                {"targetId": target_id, "flatten": True},
+                timeout=max(timeout, self.cdp_send_timeout_ms / 1000),
+            )
+            attached_session_id = result.get("sessionId")
+            if isinstance(attached_session_id, str) and attached_session_id:
+                self._target_sessions[target_id] = attached_session_id
+                return attached_session_id
+        return self._session_id_for_target(target_id, timeout=timeout)
 
     def _launch_chrome(self) -> dict[str, str]:
         executable_path = self.launch_options.get("executable_path") or os.environ.get("CHROME_PATH")
         candidates = [
             executable_path,
-            "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
             "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            str(Path.home() / "Library/Caches/ms-playwright/chromium-1217/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
+            "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/usr/bin/google-chrome-canary",
             "/usr/bin/chromium",
             "/usr/bin/chromium-browser",
+            "/usr/bin/google-chrome-canary",
+            "/usr/bin/google-chrome-stable",
             "/usr/bin/google-chrome",
         ]
         executable_path = next((candidate for candidate in candidates if candidate and Path(candidate).exists()), None)
@@ -413,7 +517,7 @@ class ModCDPClient:
         args.append("about:blank")
         self._launched_process = subprocess.Popen([executable_path, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         cdp_url = f"http://127.0.0.1:{port}"
-        chrome_ready_timeout_s = 45
+        chrome_ready_timeout_s = DEFAULT_CHROME_READY_TIMEOUT_MS / 1000
         deadline = time.time() + chrome_ready_timeout_s
         while time.time() < deadline:
             try:
@@ -489,6 +593,7 @@ class ModCDPClient:
         timeout: float | None = None,
         record_raw_timing: bool = False,
     ) -> ProtocolResult:
+        effective_timeout = self.cdp_send_timeout_ms / 1000 if timeout is None else timeout
         with self._lock:
             self._next_id += 1
             msg_id = self._next_id
@@ -510,11 +615,11 @@ class ModCDPClient:
                 self._pending.pop(msg_id, None)
             raise
         try:
-            response = done.get(timeout=timeout)
+            response = done.get(timeout=effective_timeout)
         except Empty:
             with self._lock:
                 self._pending.pop(msg_id, None)
-            raise RuntimeError(f"{method} timed out after {timeout}s")
+            raise RuntimeError(f"{method} timed out after {int(effective_timeout * 1000)}ms")
         err = response.get("error")
         if err:
             raise RuntimeError(f"{method} failed: {err.get('message', err)}")
@@ -620,18 +725,19 @@ class ModCDPClient:
             or any(len([part for part in suffix.split("/") if part]) > 1 for suffix in self.service_worker_url_suffixes)
         )
 
-        def probe_target(target: TargetInfo, timeout: float = 0) -> ExtensionProbe | None:
+        def probe_target(target: TargetInfo, timeout: float = 0, allow_attach: bool = False) -> ExtensionProbe | None:
             target_id = target.get("targetId")
             target_url = target.get("url")
             if not target_id or not target_url:
                 return None
-            session_id = self._session_id_for_target(target_id, timeout=timeout)
+            session_id = self._ensure_session_id_for_target(target_id, timeout=timeout, allow_attach=allow_attach)
             if not session_id:
                 return None
+            self._send_frame("Runtime.enable", {}, session_id, timeout=self.cdp_send_timeout_ms / 1000)
             probe = self._send_frame("Runtime.evaluate", {
                 "expression": ready_expression,
                 "returnByValue": True,
-            }, session_id, timeout=2)
+            }, session_id, timeout=self.cdp_send_timeout_ms / 1000)
             if _json_object(probe.get("result")).get("value") is not True:
                 return None
             match = EXT_ID_FROM_URL_RE.match(target_url)
@@ -644,27 +750,54 @@ class ModCDPClient:
                 "session_id": session_id,
             }
 
-        # 1. Discover an existing ModCDP service worker from the current CDP
-        # target snapshot. If none is already ready, use explicit injection.
-        target_infos = self._target_infos()
-        if trust_service_worker_target:
+        def discover_ready_service_worker(matched_only: bool = False) -> ExtensionInfo | None:
+            target_infos = self._target_infos()
+            if trust_service_worker_target:
+                for t in target_infos:
+                    if self._service_worker_target_matches(t):
+                        try:
+                            result = probe_target(t, timeout=self.service_worker_probe_timeout_ms / 1000, allow_attach=True)
+                        except Exception:
+                            result = None
+                        if result:
+                            return {"source": "trusted", **result}
+            if trust_service_worker_target or matched_only:
+                return None
             for t in target_infos:
-                if self._service_worker_target_matches(t):
-                    result = probe_target(t, timeout=2)
-                    if result:
-                        return {"source": "trusted", **result}
-        for t in target_infos:
-            if t["type"] != "service_worker": continue
-            if not t["url"].startswith("chrome-extension://"): continue
-            try:
-                result = probe_target(t, timeout=2)
-            except Exception:
-                continue
-            if result:
-                return {"source": "discovered", **result}
+                if t["type"] != "service_worker": continue
+                if not t["url"].startswith("chrome-extension://"): continue
+                try:
+                    result = probe_target(t, timeout=self.service_worker_probe_timeout_ms / 1000)
+                except Exception:
+                    continue
+                if result:
+                    return {"source": "discovered", **result}
+            return None
+
+        def wait_for_ready_service_worker(timeout: float, matched_only: bool = False) -> ExtensionInfo | None:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                result = discover_ready_service_worker(matched_only=matched_only)
+                if result:
+                    return result
+                time.sleep(self.service_worker_poll_interval_ms / 1000)
+            return None
+
+        # 1. Discover an existing ModCDP service worker. Browserbase loads the
+        # extension for the session, but the service-worker target can appear a
+        # moment after the browser CDP websocket accepts connections.
+        discovered = discover_ready_service_worker()
+        if discovered:
+            return discovered
         if self.require_service_worker_target:
+            discovered = wait_for_ready_service_worker(
+                self.service_worker_probe_timeout_ms / 1000,
+                matched_only=trust_service_worker_target,
+            )
+            if discovered:
+                return discovered
             raise RuntimeError(
-                "Required ModCDP service worker target was not visible in the current CDP target snapshot "
+                "Required ModCDP service worker target did not become ready "
                 f"({', '.join([*self.service_worker_url_includes, *self.service_worker_url_suffixes]) or 'no matcher'})."
             )
         if self.extension_path is None:
@@ -676,22 +809,12 @@ class ModCDPClient:
             extension_id = r.get("id") or r.get("extensionId")
         except RuntimeError as e:
             if "Method not available" in str(e) or "wasn't found" in str(e):
-                target_infos = self._target_infos()
-                if trust_service_worker_target:
-                    for t in target_infos:
-                        if self._service_worker_target_matches(t):
-                            result = probe_target(t, timeout=2)
-                            if result:
-                                return {"source": "trusted", **result}
-                for t in target_infos:
-                    if t["type"] != "service_worker": continue
-                    if not t["url"].startswith("chrome-extension://"): continue
-                    try:
-                        result = probe_target(t, timeout=2)
-                    except Exception:
-                        continue
-                    if result:
-                        return {"source": "discovered", **result}
+                discovered = wait_for_ready_service_worker(
+                    self.service_worker_probe_timeout_ms / 1000,
+                    matched_only=trust_service_worker_target,
+                )
+                if discovered:
+                    return discovered
                 return self._borrow_extension_worker(str(e))
             raise
         if not isinstance(extension_id, str) or not extension_id:
@@ -699,19 +822,21 @@ class ModCDPClient:
 
         # 3. Wait for the loaded extension's SW.
         sw_url_prefix = f"chrome-extension://{extension_id}/"
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + self.service_worker_ready_timeout_ms / 1000
         while time.monotonic() < deadline:
             for t in self._target_infos():
                 target_url = t.get("url") or ""
                 if t.get("type") == "service_worker" and target_url.startswith(sw_url_prefix):
-                    result = probe_target(t, timeout=2)
+                    result = probe_target(t, timeout=self.service_worker_probe_timeout_ms / 1000, allow_attach=True)
                     if result:
                         return {
                             "source": "injected", "extension_id": extension_id,
                             "target_id": t["targetId"], "url": target_url, "session_id": result["session_id"],
                         }
-            time.sleep(0.1)
-        raise RuntimeError(f"Timed out after 60s waiting for service worker target for extension {extension_id}.")
+            time.sleep(self.service_worker_poll_interval_ms / 1000)
+        raise RuntimeError(
+            f"Timed out after {self.service_worker_ready_timeout_ms}ms waiting for service worker target for extension {extension_id}."
+        )
 
     def _service_worker_target_matches(self, target: TargetInfo) -> bool:
         url = target.get("url") or ""

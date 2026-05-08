@@ -6,6 +6,12 @@
 //	ExtensionPath   extension directory.
 //	Routes          client-side routing map.
 //	Server          { LoopbackCDPURL?, Routes? } passed to ModCDPServer.configure.
+//	ScanForExistingLocalhost9222
+//	                when true and CDPURL is unset, attach to localhost:9222 before autolaunching.
+//	MirrorUpstreamEvents
+//	                when false, do not mirror server-side upstream CDP events back through Runtime bindings.
+//	*TimeoutMS / *IntervalMS
+//	                override default CDP send, service-worker probe, event, and poll timings.
 //
 // Public methods: Connect, Send(method, params), SendRaw, On, OnRaw, Close.
 // Synchronous; one background goroutine reads frames off the WS.
@@ -27,6 +33,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,15 +54,45 @@ var (
 
 const modcdpReadyExpression = `Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)`
 
+const defaultLiveCDPURL = "http://127.0.0.1:9222"
+const DefaultCDPSendTimeoutMS = 10_000
+const DefaultEventWaitTimeoutMS = 10_000
+const DefaultExecutionContextTimeoutMS = 10_000
+const DefaultChromeReadyTimeoutMS = 45_000
+const DefaultServiceWorkerProbeTimeoutMS = 10_000
+const DefaultServiceWorkerReadyTimeoutMS = 60_000
+const DefaultServiceWorkerPollIntervalMS = 100
+const DefaultTargetSessionPollIntervalMS = 20
+const DefaultWSConnectErrorSettleTimeoutMS = 250
+
 func websocketURLFor(endpoint string) (string, error) {
 	if strings.HasPrefix(endpoint, "ws://") || strings.HasPrefix(endpoint, "wss://") {
 		return endpoint, nil
 	}
-	resp, err := http.Get(endpoint + "/json/version")
+	httpEndpoint := endpoint
+	if !strings.Contains(endpoint, "://") {
+		httpEndpoint = "http://" + endpoint
+	}
+	resp, err := http.Get(httpEndpoint + "/json/version")
 	if err != nil {
 		return "", fmt.Errorf("GET /json/version: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		parsed, parseErr := url.Parse(httpEndpoint)
+		if parseErr != nil {
+			return "", parseErr
+		}
+		if parsed.Scheme == "https" {
+			parsed.Scheme = "wss"
+		} else {
+			parsed.Scheme = "ws"
+		}
+		parsed.Path = "/devtools/browser"
+		parsed.RawQuery = ""
+		parsed.Fragment = ""
+		return parsed.String(), nil
+	}
 	body, _ := io.ReadAll(resp.Body)
 	var version map[string]any
 	if err := json.Unmarshal(body, &version); err != nil {
@@ -66,6 +103,14 @@ func websocketURLFor(endpoint string) (string, error) {
 		return "", fmt.Errorf("HTTP discovery for %s returned no webSocketDebuggerUrl", endpoint)
 	}
 	return wsURL, nil
+}
+
+func liveWebSocketURLFor(endpoint string) string {
+	wsURL, err := websocketURLFor(endpoint)
+	if err != nil {
+		return ""
+	}
+	return wsURL
 }
 
 func freePort() (int, error) {
@@ -91,6 +136,7 @@ func firstNonEmpty(values ...string) string {
 type ServerConfig struct {
 	LoopbackCDPURL string            `json:"loopback_cdp_url,omitempty"`
 	Routes         map[string]string `json:"routes,omitempty"`
+	Options        map[string]any    `json:"-"`
 }
 
 type CustomEvent struct {
@@ -120,19 +166,29 @@ type LaunchOptions struct {
 }
 
 type Options struct {
-	CDPURL                       string
-	ExtensionPath                string
-	Routes                       map[string]string
-	Server                       *ServerConfig
-	CustomCommands               []CustomCommand
-	CustomEvents                 []CustomEvent
-	CustomMiddlewares            []CustomMiddleware
-	ServiceWorkerURLIncludes     []string
-	ServiceWorkerURLSuffixes     []string
-	TrustServiceWorkerTarget     bool
-	RequireServiceWorkerTarget   bool
-	ServiceWorkerReadyExpression string
-	LaunchOptions                LaunchOptions
+	CDPURL                        string
+	ExtensionPath                 string
+	Routes                        map[string]string
+	Server                        *ServerConfig
+	CustomCommands                []CustomCommand
+	CustomEvents                  []CustomEvent
+	CustomMiddlewares             []CustomMiddleware
+	ServiceWorkerURLIncludes      []string
+	ServiceWorkerURLSuffixes      []string
+	TrustServiceWorkerTarget      bool
+	RequireServiceWorkerTarget    bool
+	ServiceWorkerReadyExpression  string
+	MirrorUpstreamEvents          *bool
+	ScanForExistingLocalhost9222  bool
+	CDPSendTimeoutMS              int
+	EventWaitTimeoutMS            int
+	ExecutionContextTimeoutMS     int
+	ServiceWorkerProbeTimeoutMS   int
+	ServiceWorkerReadyTimeoutMS   int
+	ServiceWorkerPollIntervalMS   int
+	TargetSessionPollIntervalMS   int
+	WSConnectErrorSettleTimeoutMS int
+	LaunchOptions                 LaunchOptions
 }
 
 type Handler func(data any)
@@ -188,6 +244,30 @@ func New(opts Options) *ModCDPClient {
 	if opts.ServiceWorkerURLSuffixes == nil {
 		opts.ServiceWorkerURLSuffixes = []string{"/service_worker.js", "/background.js"}
 	}
+	if opts.CDPSendTimeoutMS == 0 {
+		opts.CDPSendTimeoutMS = DefaultCDPSendTimeoutMS
+	}
+	if opts.EventWaitTimeoutMS == 0 {
+		opts.EventWaitTimeoutMS = DefaultEventWaitTimeoutMS
+	}
+	if opts.ExecutionContextTimeoutMS == 0 {
+		opts.ExecutionContextTimeoutMS = DefaultExecutionContextTimeoutMS
+	}
+	if opts.ServiceWorkerProbeTimeoutMS == 0 {
+		opts.ServiceWorkerProbeTimeoutMS = DefaultServiceWorkerProbeTimeoutMS
+	}
+	if opts.ServiceWorkerReadyTimeoutMS == 0 {
+		opts.ServiceWorkerReadyTimeoutMS = DefaultServiceWorkerReadyTimeoutMS
+	}
+	if opts.ServiceWorkerPollIntervalMS == 0 {
+		opts.ServiceWorkerPollIntervalMS = DefaultServiceWorkerPollIntervalMS
+	}
+	if opts.TargetSessionPollIntervalMS == 0 {
+		opts.TargetSessionPollIntervalMS = DefaultTargetSessionPollIntervalMS
+	}
+	if opts.WSConnectErrorSettleTimeoutMS == 0 {
+		opts.WSConnectErrorSettleTimeoutMS = DefaultWSConnectErrorSettleTimeoutMS
+	}
 	return &ModCDPClient{
 		opts:           opts,
 		pending:        map[int64]chan map[string]any{},
@@ -201,14 +281,19 @@ func New(opts Options) *ModCDPClient {
 func (c *ModCDPClient) Connect() error {
 	connectStartedAt := time.Now().UnixMilli()
 	if c.opts.CDPURL == "" {
-		if err := c.prepareExtensionPath(); err != nil {
-			return err
+		if c.opts.ScanForExistingLocalhost9222 {
+			c.opts.CDPURL = liveWebSocketURLFor(defaultLiveCDPURL)
 		}
-		cdpURL, err := c.launchChrome()
-		if err != nil {
-			return err
+		if c.opts.CDPURL == "" {
+			if err := c.prepareExtensionPath(); err != nil {
+				return err
+			}
+			cdpURL, err := c.launchChrome()
+			if err != nil {
+				return err
+			}
+			c.opts.CDPURL = cdpURL
 		}
-		c.opts.CDPURL = cdpURL
 	}
 	inputCDPURL := c.opts.CDPURL
 	wsURL, err := websocketURLFor(c.opts.CDPURL)
@@ -263,15 +348,16 @@ func (c *ModCDPClient) Connect() error {
 		c.Close()
 		return err
 	}
-	if _, err := c.sendFrame("Runtime.addBinding", map[string]any{"name": bindingNameFor("Mod.pong")}, c.ExtSessionID); err != nil {
+	if _, err := c.sendFrame("Runtime.addBinding", map[string]any{"name": customEventBindingName}, c.ExtSessionID); err != nil {
 		c.Close()
 		return err
 	}
-	for _, event := range c.opts.CustomEvents {
-		if event.Name == "" {
-			continue
-		}
-		if _, err := c.sendFrame("Runtime.addBinding", map[string]any{"name": bindingNameFor(event.Name)}, c.ExtSessionID); err != nil {
+	mirrorUpstreamEvents := true
+	if c.opts.MirrorUpstreamEvents != nil {
+		mirrorUpstreamEvents = *c.opts.MirrorUpstreamEvents
+	}
+	if mirrorUpstreamEvents {
+		if _, err := c.sendFrame("Runtime.addBinding", map[string]any{"name": upstreamEventBindingName}, c.ExtSessionID); err != nil {
 			c.Close()
 			return err
 		}
@@ -308,13 +394,20 @@ func (c *ModCDPClient) Connect() error {
 			}
 			customMiddlewares = append(customMiddlewares, item)
 		}
-		command, err := wrapCommandIfNeeded("Mod.configure", map[string]any{
-			"loopback_cdp_url":   c.opts.Server.LoopbackCDPURL,
-			"routes":             c.opts.Server.Routes,
-			"custom_commands":    customCommands,
-			"custom_events":      customEvents,
-			"custom_middlewares": customMiddlewares,
-		}, c.opts.Routes, c.ExtSessionID)
+		configureParams := map[string]any{
+			"cdp_send_timeout_ms":                   c.opts.CDPSendTimeoutMS,
+			"loopback_execution_context_timeout_ms": c.opts.ExecutionContextTimeoutMS,
+			"ws_connect_error_settle_timeout_ms":    c.opts.WSConnectErrorSettleTimeoutMS,
+			"loopback_cdp_url":                      c.opts.Server.LoopbackCDPURL,
+			"routes":                                c.opts.Server.Routes,
+			"custom_commands":                       customCommands,
+			"custom_events":                         customEvents,
+			"custom_middlewares":                    customMiddlewares,
+		}
+		for key, value := range c.opts.Server.Options {
+			configureParams[key] = value
+		}
+		command, err := wrapCommandIfNeeded("Mod.configure", configureParams, c.opts.Routes, c.ExtSessionID)
 		if err != nil {
 			c.Close()
 			return fmt.Errorf("Mod.configure: %w", err)
@@ -396,6 +489,16 @@ func (c *ModCDPClient) On(event string, handler Handler) {
 }
 
 func (c *ModCDPClient) Close() {
+	if c.conn != nil {
+		c.mu.Lock()
+		c.nextID++
+		id := c.nextID
+		c.mu.Unlock()
+		body, _ := json.Marshal(map[string]any{"id": id, "method": "Browser.close", "params": map[string]any{}})
+		c.writeMu.Lock()
+		_ = wsutil.WriteClientText(c.conn, body)
+		c.writeMu.Unlock()
+	}
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -419,14 +522,18 @@ func (c *ModCDPClient) Close() {
 
 func (c *ModCDPClient) launchChrome() (string, error) {
 	executablePath := firstNonEmpty(c.opts.LaunchOptions.ExecutablePath, os.Getenv("CHROME_PATH"))
+	homeDir, _ := os.UserHomeDir()
 	candidates := []string{
 		executablePath,
-		"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
 		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+		"/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+		filepath.Join(homeDir, "Library/Caches/ms-playwright/chromium-1217/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
+		"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
 		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		"/usr/bin/google-chrome-canary",
 		"/usr/bin/chromium",
 		"/usr/bin/chromium-browser",
+		"/usr/bin/google-chrome-canary",
+		"/usr/bin/google-chrome-stable",
 		"/usr/bin/google-chrome",
 	}
 	executablePath = ""
@@ -496,7 +603,7 @@ func (c *ModCDPClient) launchChrome() (string, error) {
 		return "", err
 	}
 	cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
-	const chromeReadyTimeout = 45 * time.Second
+	chromeReadyTimeout := time.Duration(DefaultChromeReadyTimeoutMS) * time.Millisecond
 	deadline := time.Now().Add(chromeReadyTimeout)
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(cdpURL + "/json/version")
@@ -506,7 +613,7 @@ func (c *ModCDPClient) launchChrome() (string, error) {
 				return cdpURL, nil
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Duration(DefaultServiceWorkerPollIntervalMS) * time.Millisecond)
 	}
 	c.Close()
 	return "", fmt.Errorf("Chrome at %s did not become ready within %s", cdpURL, chromeReadyTimeout)
@@ -627,7 +734,7 @@ func (c *ModCDPClient) measurePingLatency() error {
 		}
 		c.Latency = latency
 		return nil
-	case <-time.After(10 * time.Second):
+	case <-time.After(time.Duration(c.opts.EventWaitTimeoutMS) * time.Millisecond):
 		return fmt.Errorf("Mod.pong timed out")
 	}
 }
@@ -646,7 +753,7 @@ func numberAsInt64(value any) (int64, bool) {
 }
 
 func (c *ModCDPClient) sendFrame(method string, params map[string]any, sessionID string) (map[string]any, error) {
-	return c.sendFrameTimeout(method, params, sessionID, 0)
+	return c.sendFrameTimeout(method, params, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
 }
 
 func (c *ModCDPClient) sendFrameTimeout(method string, params map[string]any, sessionID string, timeout time.Duration) (map[string]any, error) {
@@ -686,7 +793,7 @@ func (c *ModCDPClient) sendFrameTimeout(method string, params map[string]any, se
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
-		return nil, fmt.Errorf("%s timed out", method)
+		return nil, fmt.Errorf("%s timed out after %s", method, timeout)
 	case resp := <-ch:
 		if errObj, ok := resp["error"].(map[string]any); ok {
 			return nil, fmt.Errorf("%s failed: %v", method, errObj["message"])
@@ -802,12 +909,22 @@ func (c *ModCDPClient) reader() {
 		// a response that this same goroutine is supposed to deliver.
 		if sessionID == c.ExtSessionID {
 			params, _ := msg["params"].(map[string]any)
+			bindingName, _ := params["name"].(string)
 			if event, data, ok := unwrapEventIfNeeded(method, params, sessionID, c.ExtSessionID); ok {
 				c.handlersMu.Lock()
 				hs := append([]Handler(nil), c.handlers[event]...)
+				cdpHandlers := append([]func(CDPEvent){}, c.cdpHandlers["*"]...)
+				cdpHandlers = append(cdpHandlers, c.cdpHandlers[event]...)
 				c.handlersMu.Unlock()
 				for _, h := range hs {
 					go h(data)
+				}
+				if bindingName == upstreamEventBindingName {
+					dataMap, _ := data.(map[string]any)
+					cdpEvent := CDPEvent{Method: event, Params: dataMap, CDPSessionID: sessionID, SessionID: sessionID}
+					for _, h := range cdpHandlers {
+						go h(cdpEvent)
+					}
 				}
 			}
 			continue
@@ -832,76 +949,76 @@ func (c *ModCDPClient) reader() {
 }
 
 func (c *ModCDPClient) ensureExtension() (map[string]any, error) {
-	targetsResp, err := c.sendFrame("Target.getTargets", map[string]any{}, "")
-	if err != nil {
-		return nil, err
-	}
-	targetsRaw, _ := targetsResp["targetInfos"].([]any)
 	trustServiceWorkerTarget := c.trustServiceWorkerTarget()
-	if trustServiceWorkerTarget {
+
+	discoverReadyServiceWorker := func(matchedOnly bool) (map[string]any, bool, error) {
+		targetsResp, err := c.sendFrame("Target.getTargets", map[string]any{}, "")
+		if err != nil {
+			return nil, false, err
+		}
+		targetsRaw, _ := targetsResp["targetInfos"].([]any)
+		probeTimeout := time.Duration(c.opts.ServiceWorkerProbeTimeoutMS) * time.Millisecond
+		if trustServiceWorkerTarget {
+			for _, t := range targetsRaw {
+				ti, _ := t.(map[string]any)
+				if !c.serviceWorkerTargetMatches(ti) {
+					continue
+				}
+				if probed, ok := c.probeReadyTarget(ti, probeTimeout, true); ok {
+					probed["source"] = "trusted"
+					return probed, true, nil
+				}
+			}
+		}
+		if trustServiceWorkerTarget || matchedOnly {
+			return nil, false, nil
+		}
 		for _, t := range targetsRaw {
 			ti, _ := t.(map[string]any)
-			if !c.serviceWorkerTargetMatches(ti) {
+			ttype, _ := ti["type"].(string)
+			turl, _ := ti["url"].(string)
+			if ttype != "service_worker" || !strings.HasPrefix(turl, "chrome-extension://") {
 				continue
 			}
-			if probed, ok := c.probeReadyTarget(ti, 2*time.Second); ok {
-				probed["source"] = "trusted"
-				return probed, nil
+			if probed, ok := c.probeReadyTarget(ti, probeTimeout, false); ok {
+				probed["source"] = "discovered"
+				return probed, true, nil
 			}
 		}
+		return nil, false, nil
 	}
-	for _, t := range targetsRaw {
-		ti, _ := t.(map[string]any)
-		ttype, _ := ti["type"].(string)
-		turl, _ := ti["url"].(string)
-		if ttype != "service_worker" || !strings.HasPrefix(turl, "chrome-extension://") {
-			continue
+
+	waitForReadyServiceWorker := func(timeout time.Duration, matchedOnly bool) (map[string]any, bool, error) {
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			if discovered, ok, err := discoverReadyServiceWorker(matchedOnly); ok || err != nil {
+				return discovered, ok, err
+			}
+			time.Sleep(time.Duration(c.opts.ServiceWorkerPollIntervalMS) * time.Millisecond)
 		}
-		if probed, ok := c.probeReadyTarget(ti, 2*time.Second); ok {
-			probed["source"] = "discovered"
-			return probed, nil
-		}
+		return nil, false, nil
+	}
+
+	if discovered, ok, err := discoverReadyServiceWorker(false); ok || err != nil {
+		return discovered, err
 	}
 	if c.opts.RequireServiceWorkerTarget {
+		if discovered, ok, err := waitForReadyServiceWorker(time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, trustServiceWorkerTarget); ok || err != nil {
+			return discovered, err
+		}
 		matchers := append(append([]string{}, c.opts.ServiceWorkerURLIncludes...), c.opts.ServiceWorkerURLSuffixes...)
 		matcherText := strings.Join(matchers, ", ")
 		if matcherText == "" {
 			matcherText = "no matcher"
 		}
-		return nil, fmt.Errorf("required ModCDP service worker target was not visible in the current CDP target snapshot (%s)", matcherText)
+		return nil, fmt.Errorf("required ModCDP service worker target did not become ready (%s)", matcherText)
 	}
 
 	loadResp, err := c.sendFrame("Extensions.loadUnpacked", map[string]any{"path": c.opts.ExtensionPath}, "")
 	if err != nil {
 		if strings.Contains(err.Error(), "Method not available") || strings.Contains(err.Error(), "wasn't found") {
-			targetsResp, getTargetsErr := c.sendFrame("Target.getTargets", map[string]any{}, "")
-			if getTargetsErr != nil {
-				return nil, getTargetsErr
-			}
-			targetsRaw, _ := targetsResp["targetInfos"].([]any)
-			if trustServiceWorkerTarget {
-				for _, t := range targetsRaw {
-					ti, _ := t.(map[string]any)
-					if !c.serviceWorkerTargetMatches(ti) {
-						continue
-					}
-					if probed, ok := c.probeReadyTarget(ti, 2*time.Second); ok {
-						probed["source"] = "trusted"
-						return probed, nil
-					}
-				}
-			}
-			for _, t := range targetsRaw {
-				ti, _ := t.(map[string]any)
-				ttype, _ := ti["type"].(string)
-				turl, _ := ti["url"].(string)
-				if ttype != "service_worker" || !strings.HasPrefix(turl, "chrome-extension://") {
-					continue
-				}
-				if probed, ok := c.probeReadyTarget(ti, 2*time.Second); ok {
-					probed["source"] = "discovered"
-					return probed, nil
-				}
+			if discovered, ok, discoverErr := waitForReadyServiceWorker(time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, trustServiceWorkerTarget); ok || discoverErr != nil {
+				return discovered, discoverErr
 			}
 			return c.borrowExtensionWorker(err.Error())
 		}
@@ -916,7 +1033,7 @@ func (c *ModCDPClient) ensureExtension() (map[string]any, error) {
 	}
 
 	swURLPrefix := fmt.Sprintf("chrome-extension://%s/", extID)
-	deadline := time.Now().Add(60 * time.Second)
+	deadline := time.Now().Add(time.Duration(c.opts.ServiceWorkerReadyTimeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {
 		targetsResp, err := c.sendFrame("Target.getTargets", map[string]any{}, "")
 		if err != nil {
@@ -927,16 +1044,16 @@ func (c *ModCDPClient) ensureExtension() (map[string]any, error) {
 			ti, _ := t.(map[string]any)
 			turl, _ := ti["url"].(string)
 			if ti["type"] == "service_worker" && strings.HasPrefix(turl, swURLPrefix) {
-				if probed, ok := c.probeReadyTarget(ti, time.Second); ok {
+				if probed, ok := c.probeReadyTarget(ti, time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true); ok {
 					probed["source"] = "injected"
 					probed["extension_id"] = extID
 					return probed, nil
 				}
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Duration(c.opts.ServiceWorkerPollIntervalMS) * time.Millisecond)
 	}
-	return nil, fmt.Errorf("timed out after 60s waiting for service worker target for extension %s", extID)
+	return nil, fmt.Errorf("timed out after %dms waiting for service worker target for extension %s", c.opts.ServiceWorkerReadyTimeoutMS, extID)
 }
 
 func (c *ModCDPClient) trustServiceWorkerTarget() bool {
@@ -1005,22 +1122,47 @@ func (c *ModCDPClient) sessionIDForTarget(targetID string, timeout time.Duration
 		if sessionID != "" {
 			return sessionID
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(time.Duration(c.opts.TargetSessionPollIntervalMS) * time.Millisecond)
 	}
 	return ""
 }
 
-func (c *ModCDPClient) probeReadyTarget(target map[string]any, timeout time.Duration) (map[string]any, bool) {
+func (c *ModCDPClient) ensureSessionIDForTarget(targetID string, timeout time.Duration, allowAttach bool) string {
+	c.targetSessionsMu.Lock()
+	sessionID := c.targetSessions[targetID]
+	c.targetSessionsMu.Unlock()
+	if sessionID != "" {
+		return sessionID
+	}
+	if allowAttach {
+		result, err := c.sendFrameTimeout("Target.attachToTarget", map[string]any{"targetId": targetID, "flatten": true}, "", timeout)
+		if err == nil {
+			attachedSessionID, _ := result["sessionId"].(string)
+			if attachedSessionID != "" {
+				c.targetSessionsMu.Lock()
+				c.targetSessions[targetID] = attachedSessionID
+				c.targetSessionsMu.Unlock()
+				return attachedSessionID
+			}
+		}
+	}
+	return c.sessionIDForTarget(targetID, timeout)
+}
+
+func (c *ModCDPClient) probeReadyTarget(target map[string]any, timeout time.Duration, allowAttach bool) (map[string]any, bool) {
 	targetID, _ := target["targetId"].(string)
 	targetURL, _ := target["url"].(string)
-	sessionID := c.sessionIDForTarget(targetID, timeout)
+	sessionID := c.ensureSessionIDForTarget(targetID, timeout, allowAttach)
 	if sessionID == "" {
+		return nil, false
+	}
+	if _, err := c.sendFrameTimeout("Runtime.enable", map[string]any{}, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond); err != nil {
 		return nil, false
 	}
 	probe, err := c.sendFrameTimeout("Runtime.evaluate", map[string]any{
 		"expression":    c.readyExpression(),
 		"returnByValue": true,
-	}, sessionID, 2*time.Second)
+	}, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
 	if err != nil {
 		return nil, false
 	}
@@ -1059,17 +1201,17 @@ func (c *ModCDPClient) borrowExtensionWorker(loadError string) (map[string]any, 
 		if ttype != "service_worker" || !strings.HasPrefix(turl, "chrome-extension://") {
 			continue
 		}
-		sessionID := c.sessionIDForTarget(tid, 2*time.Second)
+		sessionID := c.ensureSessionIDForTarget(tid, time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true)
 		if sessionID == "" {
 			continue
 		}
-		_, _ = c.sendFrameTimeout("Runtime.enable", map[string]any{}, sessionID, 2*time.Second)
+		_, _ = c.sendFrameTimeout("Runtime.enable", map[string]any{}, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
 		probe, err := c.sendFrameTimeout("Runtime.evaluate", map[string]any{
 			"expression":                  bootstrap,
 			"awaitPromise":                true,
 			"returnByValue":               true,
 			"allowUnsafeEvalBlockedByCSP": true,
-		}, sessionID, 3*time.Second)
+		}, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
 		if err != nil {
 			continue
 		}
@@ -1082,7 +1224,7 @@ func (c *ModCDPClient) borrowExtensionWorker(loadError string) (map[string]any, 
 			readyProbe, err := c.sendFrameTimeout("Runtime.evaluate", map[string]any{
 				"expression":    c.readyExpression(),
 				"returnByValue": true,
-			}, sessionID, 2*time.Second)
+			}, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
 			if err != nil {
 				continue
 			}

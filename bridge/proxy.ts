@@ -9,6 +9,9 @@
 //     rewrite Mod.* /
 //     Custom.* outbound and Runtime.bindingCalled inbound; forward everything
 //     else unchanged.
+//   - Keep mirrored upstream events private by default so vanilla CDP clients
+//     only see native upstream CDP frames. Set forwardMirroredUpstreamEvents to
+//     true when debugging the service-worker mirror path itself.
 //
 // Run as a CLI:
 //   node proxy.js --port 9223 --upstream http://127.0.0.1:9222
@@ -18,12 +21,12 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { WebSocketServer } from "ws";
-import type { RawData, WebSocket as ClientWebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
+import type { RawData } from "ws";
 
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 import {
-  bindingNameFor,
+  UPSTREAM_EVENT_BINDING_NAME,
   wrapModCDPEvaluate,
   wrapModCDPAddCustomCommand,
   wrapModCDPAddMiddleware,
@@ -56,6 +59,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EXTENSION_PATH = path.resolve(ROOT, "..", "extension");
 const DEFAULT_PORT = 9223;
 const DEFAULT_UPSTREAM = "http://127.0.0.1:9222";
+export const DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS = 1_000;
 
 const DEBUG = process.env.PROXY_DEBUG === "1";
 const log = (...args) => console.log("[proxy]", ...args);
@@ -73,10 +77,14 @@ export async function startProxy({
   port = DEFAULT_PORT,
   upstream = DEFAULT_UPSTREAM,
   extensionPath = DEFAULT_EXTENSION_PATH,
+  forwardMirroredUpstreamEvents = false,
+  upstreamMonitorIntervalMs = DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS,
 }: {
   port?: number;
   upstream?: string;
   extensionPath?: string;
+  forwardMirroredUpstreamEvents?: boolean;
+  upstreamMonitorIntervalMs?: number;
 } = {}) {
   const server = http.createServer(async (req, res) => {
     try {
@@ -109,7 +117,26 @@ export async function startProxy({
     }
   });
 
+  let stopUpstreamMonitor: (() => void) | null = null;
   const wss = new WebSocketServer({ server });
+  let closing = false;
+  let closePromise: Promise<void> | null = null;
+  const close = async () => {
+    if (closePromise) return closePromise;
+    closing = true;
+    closePromise = (async () => {
+      stopUpstreamMonitor?.();
+      stopUpstreamMonitor = null;
+      for (const socket of wss.clients) {
+        try {
+          socket.close();
+        } catch {}
+      }
+      await new Promise<void>((resolve) => wss.close(() => resolve()));
+      if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+    })();
+    return closePromise;
+  };
   wss.on("connection", (client, req) => {
     log("client connected", req.url);
     // attach a synchronous early-buffer immediately so we don't lose frames
@@ -120,6 +147,10 @@ export async function startProxy({
     handleConnection(client, earlyBuffer, earlyHandler, {
       upstream,
       extensionPath,
+      forwardMirroredUpstreamEvents,
+      onUpstreamClosed: () => {
+        void close().catch((error) => log("proxy close failed:", errorMessage(error)));
+      },
     }).catch((err) => {
       log("connection failed:", err.message);
       try {
@@ -129,15 +160,15 @@ export async function startProxy({
   });
 
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", () => resolve()));
+  stopUpstreamMonitor = monitorUpstream(upstream, upstreamMonitorIntervalMs, () => {
+    void close().catch((error) => log("proxy close failed:", errorMessage(error)));
+  });
   log(`listening on ws://127.0.0.1:${port}/  (upstream: ${upstream})`);
 
   return {
     url: `http://127.0.0.1:${port}`,
     wsUrl: `ws://127.0.0.1:${port}`,
-    close: async () => {
-      await new Promise<void>((resolve) => wss.close(() => resolve()));
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    },
+    close,
   };
 }
 
@@ -149,18 +180,75 @@ function rewriteWsUrls(value: unknown, host: string) {
   for (const child of Array.isArray(value) ? value : Object.values(value)) rewriteWsUrls(child, host);
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string")
+    return error.message;
+  return "";
+}
+
+function monitorUpstream(upstream: string, upstreamMonitorIntervalMs: number, onClosed: () => void) {
+  let stopped = false;
+  let socket: WebSocket | null = null;
+  let interval: NodeJS.Timeout | null = null;
+  const close = () => {
+    if (stopped) return;
+    stopped = true;
+    if (interval) clearInterval(interval);
+    try {
+      socket?.close();
+    } catch {}
+  };
+  const upstreamClosed = () => {
+    if (stopped) return;
+    close();
+    onClosed();
+  };
+
+  if (isWsUrl(upstream)) {
+    socket = new WebSocket(upstream);
+    socket.addEventListener("close", upstreamClosed);
+    socket.addEventListener("error", upstreamClosed);
+    return close;
+  }
+
+  const check = async () => {
+    try {
+      const response = await fetch(`${upstream}/json/version`);
+      if (!response.ok) upstreamClosed();
+    } catch {
+      upstreamClosed();
+    }
+  };
+  interval = setInterval(() => void check(), upstreamMonitorIntervalMs);
+  void check();
+  return close;
+}
+
 // --- per-connection bridging ----------------------------------------------
 
 async function handleConnection(
-  client: ClientWebSocket,
+  client: WebSocket,
   earlyBuffer: RawData[],
   earlyHandler: (buf: RawData) => void,
-  { upstream, extensionPath }: { upstream: string; extensionPath: string },
+  {
+    upstream,
+    extensionPath,
+    forwardMirroredUpstreamEvents,
+    onUpstreamClosed,
+  }: {
+    upstream: string;
+    extensionPath: string;
+    forwardMirroredUpstreamEvents: boolean;
+    onUpstreamClosed: () => void;
+  },
 ) {
   const cdp = new ModCDPClient({
     cdp_url: upstream,
     extension_path: extensionPath,
     hydrate_aliases: false,
+    service_worker_url_suffixes: ["/service_worker.js"],
+    trust_service_worker_target: true,
   });
   await cdp.connect();
   const upstream_socket = cdp.ws as unknown as WebSocket | null;
@@ -174,11 +262,14 @@ async function handleConnection(
     pending: new Map(), // upstreamId -> { kind, clientId?, clientSessionId?, ... }
     extSessionId: cdp.ext_session_id,
     extTargetId: cdp.ext_target_id,
+    extExecutionContextId: cdp.ext_execution_context_id,
     hiddenSessionIds: new Set(), // sessions we attached for ourselves
     hiddenTargetIds: new Set(), // SW target the client must never see
     targetSessionIds: cdp.auto_target_sessions,
     clientSessionIds: new Set(), // session ids the client has attached
+    forwardMirroredUpstreamEvents,
     bootstrapped: false,
+    closing: false,
     queuedFromClient: [],
   };
   if (cdp.ext_session_id) state.hiddenSessionIds.add(cdp.ext_session_id);
@@ -197,17 +288,26 @@ async function handleConnection(
     handleUpstreamMessage(state, msg);
   });
   upstream_socket.addEventListener("close", () => {
+    const closedDuringDownstreamShutdown = state.closing;
+    state.closing = true;
     try {
       client.close();
     } catch {}
+    if (!closedDuringDownstreamShutdown) onUpstreamClosed();
   });
-  upstream_socket.addEventListener("error", () => {
-    log("upstream ws error");
+  upstream_socket.addEventListener("error", (event) => {
+    if (state.closing || client.readyState === client.CLOSING || client.readyState === client.CLOSED) {
+      dbg("upstream ws error during shutdown");
+      return;
+    }
+    log("upstream ws error", errorMessage(event));
     try {
       client.close(1011, "upstream error");
     } catch {}
+    onUpstreamClosed();
   });
   client.on("close", () => {
+    state.closing = true;
     void cdp.close().catch(() => {});
   });
   log(`extension ${cdp.connect_timing?.extension_source} (${cdp.extension_id}); ext session ${cdp.ext_session_id}`);
@@ -239,31 +339,10 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
   dbg("client->", msg.id ?? "", msg.method, msg.sessionId ?? "");
   const { id, method, params = {}, sessionId } = msg;
 
-  // route a Mod.* / Custom.* command into a Runtime.evaluate against the
+  // route a Mod.* / Custom.* command into a Runtime.callFunctionOn against the
   // hidden ext session, while remembering the originating client id+session
   // so the response can be steered back to the right Playwright CDPSession.
   if (MAGIC_METHODS.has(method) || ROUTE_TO_SW_RE.test(method)) {
-    if (method === "Mod.addCustomEvent") {
-      const addEventParams = ModCDPAddCustomEventObjectParamsSchema.parse(params ?? {});
-      const eventName = normalizeModCDPName(addEventParams.name);
-      // two-step: addBinding, then evaluate the addCustomEvent registration.
-      const upId = state.nextUpstreamId++;
-      state.pending.set(upId, {
-        kind: "modcdp_add_event_step1",
-        clientId: id,
-        clientSessionId: sessionId || null,
-        eventName,
-      });
-      state.upstream.send(
-        JSON.stringify({
-          id: upId,
-          method: "Runtime.addBinding",
-          params: { name: bindingNameFor(eventName) },
-          sessionId: state.extSessionId,
-        }),
-      );
-      return;
-    }
     const upId = state.nextUpstreamId++;
     state.pending.set(upId, { kind: "modcdp_eval", clientId: id, clientSessionId: sessionId || null });
     let runtimeParams;
@@ -275,6 +354,9 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
       });
     } else if (method === "Mod.addCustomCommand") {
       runtimeParams = wrapModCDPAddCustomCommand(ModCDPAddCustomCommandParamsSchema.parse(params ?? {}));
+    } else if (method === "Mod.addCustomEvent") {
+      const eventParams = ModCDPAddCustomEventObjectParamsSchema.parse(params ?? {});
+      runtimeParams = wrapModCDPAddCustomEvent({ name: normalizeModCDPName(eventParams.name) });
     } else if (method === "Mod.addMiddleware") {
       runtimeParams = wrapModCDPAddMiddleware(ModCDPAddMiddlewareParamsSchema.parse(params ?? {}));
     } else {
@@ -284,8 +366,14 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
           : (sessionId ?? null);
       runtimeParams = wrapCustomCommand(method, params, cdpSessionId);
     }
+    if (state.extExecutionContextId != null) runtimeParams.executionContextId = state.extExecutionContextId;
     state.upstream.send(
-      JSON.stringify({ id: upId, method: "Runtime.evaluate", params: runtimeParams, sessionId: state.extSessionId }),
+      JSON.stringify({
+        id: upId,
+        method: "Runtime.callFunctionOn",
+        params: runtimeParams,
+        sessionId: state.extSessionId,
+      }),
     );
     return;
   }
@@ -320,27 +408,10 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseFram
 
     if (p.kind === "modcdp_eval") {
       try {
-        replyToClient({ result: unwrapResponseIfNeeded(response.result || {}, "evaluate") ?? {} });
+        replyToClient({ result: unwrapResponseIfNeeded(response.result || {}, "runtime") ?? {} });
       } catch (e) {
         replyToClient({ error: { code: -32000, message: e.message } });
       }
-      return;
-    }
-    if (p.kind === "modcdp_add_event_step1") {
-      if (response.error) {
-        replyToClient({ error: response.error });
-        return;
-      }
-      const upId = state.nextUpstreamId++;
-      state.pending.set(upId, { kind: "modcdp_eval", clientId: p.clientId, clientSessionId: p.clientSessionId });
-      state.upstream.send(
-        JSON.stringify({
-          id: upId,
-          method: "Runtime.evaluate",
-          params: wrapModCDPAddCustomEvent({ name: p.eventName ?? "" }),
-          sessionId: state.extSessionId,
-        }),
-      );
       return;
     }
     // passthrough
@@ -353,31 +424,27 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseFram
 
   if (event.method === "Target.attachedToTarget") {
     const attached = TargetEvents["Target.attachedToTarget"].parse(event.params || {});
-    state.targetSessionIds.set(attached.targetInfo.targetId, attached.sessionId);
-  }
-  if (event.method === "Target.detachedFromTarget") {
-    const eventSessionId =
-      event.params &&
-      typeof event.params === "object" &&
-      "sessionId" in event.params &&
-      typeof event.params.sessionId === "string"
-        ? event.params.sessionId
-        : null;
-    if (eventSessionId) {
-      for (const [target_id, session_id] of state.targetSessionIds) {
-        if (session_id === eventSessionId) state.targetSessionIds.delete(target_id);
+    if (attached.sessionId) {
+      state.targetSessionIds.set(attached.targetInfo.targetId, attached.sessionId);
+      if (state.hiddenTargetIds.has(attached.targetInfo.targetId)) state.hiddenSessionIds.add(attached.sessionId);
+    }
+  } else if (event.method === "Target.detachedFromTarget") {
+    const detached = TargetEvents["Target.detachedFromTarget"].parse(event.params || {});
+    if (detached.sessionId) {
+      state.hiddenSessionIds.delete(detached.sessionId);
+      for (const [targetId, sessionId] of state.targetSessionIds) {
+        if (sessionId !== detached.sessionId) continue;
+        state.targetSessionIds.delete(targetId);
+        break;
       }
     }
   }
 
   // event
   if (event.method === "Runtime.bindingCalled" && event.sessionId === state.extSessionId) {
-    const u = unwrapEventIfNeeded(
-      event.method,
-      RuntimeEvents["Runtime.bindingCalled"].parse(event.params || {}),
-      event.sessionId || null,
-      null,
-    );
+    const binding = RuntimeEvents["Runtime.bindingCalled"].parse(event.params || {});
+    if (binding.name === UPSTREAM_EVENT_BINDING_NAME && !state.forwardMirroredUpstreamEvents) return;
+    const u = unwrapEventIfNeeded(event.method, binding, event.sessionId || null, null);
     if (!u) return;
     // emit to root + every known client session, so any CDPSession listener
     // (Playwright per-target sessions) fires.
@@ -470,7 +537,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const port = Number(argv.port || DEFAULT_PORT);
   const upstream = argv.upstream || DEFAULT_UPSTREAM;
   const extensionPath = argv.extension ? path.resolve(argv.extension) : DEFAULT_EXTENSION_PATH;
-  startProxy({ port, upstream, extensionPath }).catch((e) => {
+  const forwardMirroredUpstreamEvents = argv["forward-mirrored-upstream-events"] === "true";
+  startProxy({ port, upstream, extensionPath, forwardMirroredUpstreamEvents }).catch((e) => {
     console.error(e);
     process.exitCode = 1;
   });

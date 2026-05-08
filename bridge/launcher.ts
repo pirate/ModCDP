@@ -9,17 +9,22 @@ import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 
 const CANDIDATE_PATHS = [
   process.env.CHROME_PATH,
-  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+  path.join(
+    homedir(),
+    "Library/Caches/ms-playwright/chromium-1217/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+  ),
+  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/usr/bin/google-chrome-canary",
   "/usr/bin/chromium",
   "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome-canary",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/google-chrome",
   "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -41,6 +46,8 @@ const DEFAULT_FLAGS = [
   "--password-store=basic",
   "--use-mock-keychain",
 ];
+export const DEFAULT_CHROME_READY_TIMEOUT_MS = 45_000;
+export const DEFAULT_CHROME_READY_POLL_INTERVAL_MS = 100;
 
 export function findChromeBinary(explicit?: string | null) {
   for (const candidate of [explicit, ...CANDIDATE_PATHS]) {
@@ -72,6 +79,8 @@ export async function launchChrome({
   sandbox = false,
   extra_args = [],
   stdio = "ignore",
+  chrome_ready_timeout_ms = DEFAULT_CHROME_READY_TIMEOUT_MS,
+  chrome_ready_poll_interval_ms = DEFAULT_CHROME_READY_POLL_INTERVAL_MS,
 }: {
   executable_path?: string | null;
   port?: number | null;
@@ -79,15 +88,18 @@ export async function launchChrome({
   sandbox?: boolean;
   extra_args?: string[];
   stdio?: StdioOptions;
+  chrome_ready_timeout_ms?: number;
+  chrome_ready_poll_interval_ms?: number;
 } = {}) {
   const exe = findChromeBinary(executable_path);
   const usePort = port || (await freePort());
   const profileDir = await mkdtemp(path.join(tmpdir(), "modcdp."));
+  const needsNoSandbox = headless && process.platform === "linux" && !process.env.DISPLAY && sandbox !== true;
   const flags = [
     ...DEFAULT_FLAGS,
     headless ? "--headless=new" : null,
     "--disable-gpu",
-    sandbox === false ? "--no-sandbox" : null,
+    needsNoSandbox ? "--no-sandbox" : null,
     `--user-data-dir=${profileDir}`,
     "--remote-debugging-address=127.0.0.1",
     `--remote-debugging-port=${usePort}`,
@@ -104,8 +116,7 @@ export async function launchChrome({
   };
 
   const cdpUrl = `http://127.0.0.1:${usePort}`;
-  const chromeReadyTimeoutMs = 45_000;
-  const deadline = Date.now() + chromeReadyTimeoutMs;
+  const deadline = Date.now() + chrome_ready_timeout_ms;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${cdpUrl}/json/version`);
@@ -114,8 +125,8 @@ export async function launchChrome({
         return { proc, port: usePort, cdpUrl, wsUrl: version.webSocketDebuggerUrl, profileDir, close };
       }
     } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, chrome_ready_poll_interval_ms));
   }
   await close();
-  throw new Error(`Chrome at ${cdpUrl} did not become ready within ${chromeReadyTimeoutMs / 1000}s`);
+  throw new Error(`Chrome at ${cdpUrl} did not become ready within ${chrome_ready_timeout_ms}ms`);
 }

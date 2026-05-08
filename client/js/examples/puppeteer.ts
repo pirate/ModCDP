@@ -14,6 +14,7 @@ import { startProxy } from "../../../bridge/proxy.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const extension_path = path.resolve(here, "../../../extension");
+const DEFAULT_CUSTOM_PROXY_EVENT_TIMEOUT_MS = 10_000;
 
 let proxy: Awaited<ReturnType<typeof startProxy>> | null = null;
 let chrome: Awaited<ReturnType<typeof launchChrome>> | null = null;
@@ -47,7 +48,10 @@ try {
 
   await cdp.send("Mod.addCustomEvent", { name: "Custom.proxyEvent" });
   const event_received = new Promise<Record<string, unknown>>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Timed out waiting for Custom.proxyEvent")), 3000);
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for Custom.proxyEvent")),
+      DEFAULT_CUSTOM_PROXY_EVENT_TIMEOUT_MS,
+    );
     cdp.on("Custom.proxyEvent", (payload) => {
       clearTimeout(timeout);
       resolve(payload);

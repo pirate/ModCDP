@@ -17,23 +17,14 @@ from .types import (
     UnwrappedModCDPEvent,
 )
 
-BINDING_PREFIX = "__ModCDP_"
+UPSTREAM_EVENT_BINDING_NAME = "__ModCDP_event_from_upstream__"
+CUSTOM_EVENT_BINDING_NAME = "__ModCDP_custom_event__"
 
 DEFAULT_CLIENT_ROUTES: ModCDPRoutes = {
     "Mod.*": "service_worker",
     "Custom.*": "service_worker",
     "*.*": "service_worker",
 }
-
-
-def binding_name_for(event_name: str) -> str:
-    return BINDING_PREFIX + event_name.replace(".", "_")
-
-
-def event_name_for(binding_name: str) -> str | None:
-    if not binding_name.startswith(BINDING_PREFIX):
-        return None
-    return binding_name[len(BINDING_PREFIX):].replace("_", ".")
 
 
 def route_for(method: str, routes: ModCDPRoutes) -> str:
@@ -128,7 +119,6 @@ def _wrap_modcdp_add_custom_event(params: ProtocolParams) -> RuntimeEvaluatePara
     return _eval_params(
         "globalThis.ModCDP.addCustomEvent({\n"
         f"  name: {json.dumps(name)},\n"
-        f"  bindingName: {json.dumps(binding_name_for(name))},\n"
         f"  eventSchema: {json.dumps(params.get('eventSchema'))},\n"
         "})"
     )
@@ -169,9 +159,7 @@ def _wrap_service_worker_command(method: str, params: ProtocolParams, session_id
         params = {**params, "sentAt": int(time.time() * 1000)}
 
     if method == "Mod.addCustomEvent":
-        name = _required_string(params, "name")
         return [
-            {"method": "Runtime.addBinding", "params": {"name": binding_name_for(name)}},
             {
                 "method": "Runtime.evaluate",
                 "params": _wrap_modcdp_add_custom_event(params),
@@ -244,9 +232,6 @@ def unwrap_event_if_needed(
     binding_name = params.get("name")
     if not isinstance(binding_name, str):
         return None
-    event = event_name_for(binding_name)
-    if event is None:
-        return None
     raw_payload = params.get("payload")
     if not isinstance(raw_payload, str):
         return None
@@ -257,9 +242,21 @@ def unwrap_event_if_needed(
     if not isinstance(parsed, dict):
         return None
     payload = cast(ProtocolPayload, parsed)
-    if our_session_id is not None and payload.get("cdpSessionId") and payload["cdpSessionId"] != our_session_id:
+    is_upstream_event_binding = binding_name == UPSTREAM_EVENT_BINDING_NAME
+    is_custom_event_binding = binding_name == CUSTOM_EVENT_BINDING_NAME
+    if not is_upstream_event_binding and not is_custom_event_binding:
+        return None
+    payload_event = payload.get("event")
+    if not isinstance(payload_event, str) or not payload_event:
+        payload_event = None
+    if payload_event is None:
+        return None
+    resolved_event = payload_event
+    if resolved_event == UPSTREAM_EVENT_BINDING_NAME or resolved_event == CUSTOM_EVENT_BINDING_NAME:
         return None
     data_value = payload["data"] if "data" in payload else payload
     data: ProtocolPayload = data_value if isinstance(data_value, dict) else {"value": data_value}
-    unwrapped: UnwrappedModCDPEvent = {"event": event, "data": data, "sessionId": session_id}
+    raw_source_session_id = payload.get("cdpSessionId")
+    source_session_id = raw_source_session_id if isinstance(raw_source_session_id, str) else session_id
+    unwrapped: UnwrappedModCDPEvent = {"event": resolved_event, "data": data, "sessionId": source_session_id}
     return unwrapped

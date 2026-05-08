@@ -36,6 +36,12 @@ const EXTENSION_PATH =
   [path.resolve(HERE, "..", "..", "extension"), path.resolve(HERE, "..", "..", "dist", "extension")].find((candidate) =>
     existsSync(path.join(candidate, "service_worker.js")),
   ) ?? path.resolve(HERE, "..", "..", "extension");
+const DEFAULT_DEMO_EVENT_TIMEOUT_MS = 10_000;
+const DEFAULT_LIVE_CDP_POLL_INTERVAL_MS = 250;
+const DEFAULT_LIVE_CDP_ACTIVE_PORT_STALE_MS = 1_000;
+const DEFAULT_TARGET_EVENT_TIMEOUT_MS = 10_000;
+const DEFAULT_FOREGROUND_EVENT_TIMEOUT_MS = 10_000;
+const DEFAULT_DEMO_EVENT_POLL_INTERVAL_MS = 20;
 
 function parseArgs(argv) {
   const flags = new Set(argv.filter((a) => a.startsWith("--")).map((a) => a.slice(2)));
@@ -109,7 +115,7 @@ function isTargetCreatedPayload(value: unknown): value is TargetCreatedPayload {
   return targetInfo == null || (typeof targetInfo === "object" && !Array.isArray(targetInfo));
 }
 
-async function waitForEvent(cdp, eventName, predicate = (_payload) => true, timeoutMs = 3000) {
+async function waitForEvent(cdp, eventName, predicate = (_payload) => true, timeoutMs = DEFAULT_DEMO_EVENT_TIMEOUT_MS) {
   return await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cdp.off(eventName, onEvent);
@@ -153,7 +159,7 @@ async function waitForLiveCdpUrl() {
     for (const file of candidates) {
       try {
         const info = await stat(file);
-        if (info.mtimeMs < startedAt - 1_000) continue;
+        if (info.mtimeMs < startedAt - DEFAULT_LIVE_CDP_ACTIVE_PORT_STALE_MS) continue;
         const [port, browserPath] = (await readFile(file, "utf8"))
           .trim()
           .split(/\n/)
@@ -161,7 +167,7 @@ async function waitForLiveCdpUrl() {
         if (port && browserPath) return `ws://127.0.0.1:${port}${browserPath}`;
       } catch {}
     }
-    await sleep(250);
+    await sleep(DEFAULT_LIVE_CDP_POLL_INTERVAL_MS);
   }
 }
 
@@ -411,12 +417,12 @@ async function main() {
 
     await cdp.Target.setDiscoverTargets({ discover: true });
     const createdTarget = await cdp.Target.createTarget({ url: "https://example.com", background: true });
-    const targetDeadline = Date.now() + 3000;
+    const targetDeadline = Date.now() + DEFAULT_TARGET_EVENT_TIMEOUT_MS;
     while (
       !targetCreatedEvents.some((event) => event?.targetInfo?.targetId === createdTarget.targetId) &&
       Date.now() < targetDeadline
     ) {
-      await sleep(20);
+      await sleep(DEFAULT_DEMO_EVENT_POLL_INTERVAL_MS);
     }
     if (!targetCreatedEvents.some((event) => event?.targetInfo?.targetId === createdTarget.targetId)) {
       throw new Error(`expected Target.targetCreated for ${createdTarget.targetId}`);
@@ -429,12 +435,12 @@ async function main() {
     console.log("Custom.TabIdFromTargetId ->", tabFromTarget);
 
     await cdp.Target.activateTarget({ targetId: createdTarget.targetId });
-    const foregroundDeadline = Date.now() + 3000;
+    const foregroundDeadline = Date.now() + DEFAULT_FOREGROUND_EVENT_TIMEOUT_MS;
     while (
       !foregroundEvents.some((event) => event.targetId === createdTarget.targetId) &&
       Date.now() < foregroundDeadline
     ) {
-      await sleep(20);
+      await sleep(DEFAULT_DEMO_EVENT_POLL_INTERVAL_MS);
     }
     const foreground = foregroundEvents.find((event) => event.targetId === createdTarget.targetId);
     if (!foreground) throw new Error(`expected Custom.foregroundTargetChanged for ${createdTarget.targetId}`);

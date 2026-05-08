@@ -20,7 +20,8 @@ import type {
 } from "../types/modcdp.js";
 import type { cdp } from "../types/cdp.js";
 
-export const BINDING_PREFIX = "__ModCDP_";
+export const UPSTREAM_EVENT_BINDING_NAME = "__ModCDP_event_from_upstream__";
+export const CUSTOM_EVENT_BINDING_NAME = "__ModCDP_custom_event__";
 
 export const DEFAULT_CLIENT_ROUTES = {
   "Mod.*": "service_worker",
@@ -29,12 +30,6 @@ export const DEFAULT_CLIENT_ROUTES = {
 } satisfies ModCDPRoutes;
 
 type TranslateOptions = { routes?: ModCDPRoutes; cdpSessionId?: string | null };
-
-export const bindingNameFor = (eventName: string) =>
-  BINDING_PREFIX + eventName.replaceAll(".", "_").replaceAll("*", "all");
-
-export const eventNameFor = (bindingName: string) =>
-  bindingName.startsWith(BINDING_PREFIX) ? bindingName.slice(BINDING_PREFIX.length).replaceAll("_", ".") : null;
 
 function normalizeModCDPName(
   value:
@@ -87,19 +82,18 @@ export function wrapModCDPEvaluate({
   cdpSessionId = null,
 }: ModCDPEvaluateParams): cdp.types.ts.Runtime.EvaluateParams {
   return {
-    expression: `
-      (async () => {
+    functionDeclaration: `
+      async function() {
         const params = ${JSON.stringify(params)};
         const cdp = globalThis.ModCDP.attachToSession(${JSON.stringify(cdpSessionId)});
         const ModCDP = globalThis.ModCDP;
         const chrome = globalThis.chrome;
         const value = (${expression});
         return typeof value === "function" ? await value(params) : value;
-      })()
+      }
     `,
     awaitPromise: true,
     returnByValue: true,
-    allowUnsafeEvalBlockedByCSP: true,
   };
 }
 
@@ -109,8 +103,8 @@ export function wrapModCDPAddCustomCommand({
 }: ModCDPAddCustomCommandParams): cdp.types.ts.Runtime.EvaluateParams {
   const commandName = normalizeModCDPName(name);
   return {
-    expression: `
-      (() => {
+    functionDeclaration: `
+      function() {
         return globalThis.ModCDP.addCustomCommand({
           name: ${JSON.stringify(commandName)},
           paramsSchema: null,
@@ -124,27 +118,26 @@ export function wrapModCDPAddCustomCommand({
             return await handler(params || {}, method);
           },
         });
-      })()
+      }
     `,
     awaitPromise: true,
     returnByValue: true,
-    allowUnsafeEvalBlockedByCSP: true,
   };
 }
 
 export function wrapModCDPAddCustomEvent({ name }: { name: string }): cdp.types.ts.Runtime.EvaluateParams {
   const eventName = normalizeModCDPName(name);
   return {
-    expression: `
-      globalThis.ModCDP.addCustomEvent({
+    functionDeclaration: `
+      function() {
+        return globalThis.ModCDP.addCustomEvent({
         name: ${JSON.stringify(eventName)},
-        bindingName: ${JSON.stringify(bindingNameFor(eventName))},
         eventSchema: null,
-      })
+        });
+      }
     `,
     awaitPromise: true,
     returnByValue: true,
-    allowUnsafeEvalBlockedByCSP: true,
   };
 }
 
@@ -155,8 +148,8 @@ export function wrapModCDPAddMiddleware({
 }: ModCDPAddMiddlewareParams): cdp.types.ts.Runtime.EvaluateParams {
   const middlewareName = normalizeModCDPName(name);
   return {
-    expression: `
-      (() => {
+    functionDeclaration: `
+      function() {
         return globalThis.ModCDP.addMiddleware({
           name: ${JSON.stringify(middlewareName)},
           phase: ${JSON.stringify(phase)},
@@ -169,11 +162,10 @@ export function wrapModCDPAddMiddleware({
             return await middleware(payload, next, context);
           },
         });
-      })()
+      }
     `,
     awaitPromise: true,
     returnByValue: true,
-    allowUnsafeEvalBlockedByCSP: true,
   };
 }
 
@@ -183,10 +175,9 @@ export function wrapCustomCommand(
   cdpSessionId: string | null = null,
 ): cdp.types.ts.Runtime.EvaluateParams {
   return {
-    expression: `globalThis.ModCDP.handleCommand(${JSON.stringify(method)}, ${JSON.stringify(params)}, ${JSON.stringify(cdpSessionId)})`,
+    functionDeclaration: `async function() { return await globalThis.ModCDP.handleCommand(${JSON.stringify(method)}, ${JSON.stringify(params)}, ${JSON.stringify(cdpSessionId)}); }`,
     awaitPromise: true,
     returnByValue: true,
-    allowUnsafeEvalBlockedByCSP: true,
   };
 }
 
@@ -200,13 +191,9 @@ function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, c
     const eventName = normalizeModCDPName(eventParams.name);
     return [
       {
-        method: "Runtime.addBinding",
-        params: { name: bindingNameFor(eventName) },
-      },
-      {
-        method: "Runtime.evaluate",
+        method: "Runtime.callFunctionOn",
         params: wrapModCDPAddCustomEvent({ name: eventName }),
-        unwrap: "evaluate" as const,
+        unwrap: "runtime" as const,
       },
     ];
   }
@@ -232,9 +219,9 @@ function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, c
 
   return [
     {
-      method: "Runtime.evaluate",
+      method: "Runtime.callFunctionOn",
       params: runtimeParams,
-      unwrap: "evaluate" as const,
+      unwrap: "runtime" as const,
     },
   ];
 }
@@ -272,10 +259,10 @@ export function wrapCommandIfNeeded(
 
 // --- inbound: Runtime.* result/event -> ModCDP value/event ----------------
 
-function unwrapEvaluateResponse(result: cdp.types.ts.Runtime.EvaluateResult) {
+function unwrapRuntimeResponse(result: cdp.types.ts.Runtime.EvaluateResult) {
   if (result?.exceptionDetails) {
     const ex = result.exceptionDetails;
-    throw new Error(ex.exception?.description || ex.text || "Runtime.evaluate failed");
+    throw new Error(ex.exception?.description || ex.text || "Runtime call failed");
   }
   return result?.result?.value;
 }
@@ -284,12 +271,12 @@ export function unwrapResponseIfNeeded(
   result: ProtocolResult | cdp.types.ts.Runtime.EvaluateResult,
   unwrap: string | null = null,
 ) {
-  return unwrap === "evaluate" ? unwrapEvaluateResponse(result as cdp.types.ts.Runtime.EvaluateResult) : (result ?? {});
+  return unwrap === "runtime" ? unwrapRuntimeResponse(result as cdp.types.ts.Runtime.EvaluateResult) : (result ?? {});
 }
 
 // Returns { event, data } or null when the binding is not a ModCDP event,
-// when the payload is scoped to a different cdpSessionId than ourSessionId,
-// or when the payload string is not valid JSON.
+// when a custom binding payload is scoped to a different cdpSessionId than
+// ourSessionId, or when the payload string is not valid JSON.
 export function unwrapEventIfNeeded(
   method: string,
   params: RuntimeBindingCalledEvent,
@@ -304,12 +291,16 @@ export function unwrapEventIfNeeded(
     return null;
   }
   if (payload == null || typeof payload !== "object") return null;
-  const event = eventNameFor(params?.name || "");
-  if (!event) return null;
-  if (typeof payload.event === "string" && payload.event.length > 0 && payload.event !== event) return null;
-  if (ourSessionId != null && payload.cdpSessionId && payload.cdpSessionId !== ourSessionId) return null;
+  const bindingName = params?.name || "";
+  const isUpstreamEventBinding = bindingName === UPSTREAM_EVENT_BINDING_NAME;
+  const isCustomEventBinding = bindingName === CUSTOM_EVENT_BINDING_NAME;
+  if (!isUpstreamEventBinding && !isCustomEventBinding) return null;
+  const payloadEvent = typeof payload.event === "string" && payload.event.length > 0 ? payload.event : null;
+  if (payloadEvent == null) return null;
+  if (payloadEvent === UPSTREAM_EVENT_BINDING_NAME || payloadEvent === CUSTOM_EVENT_BINDING_NAME) return null;
   const data = Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
-  return { event, data, sessionId };
+  const sourceSessionId = typeof payload.cdpSessionId === "string" ? payload.cdpSessionId : sessionId;
+  return { event: payloadEvent, data, sessionId: sourceSessionId };
 }
 
 // --- shared encoder used by the extension service worker --------------------

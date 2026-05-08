@@ -9,6 +9,7 @@ import { commands, events } from "../types/zod.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "extension");
+const DEFAULT_ROUTED_OVERRIDES_TEST_TIMEOUT_MS = 45_000;
 
 function hasTargetInfo(value: unknown): value is { targetInfo: Record<string, unknown> } {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
@@ -40,50 +41,6 @@ async (params) => {
 }
 `;
 
-const setDiscoverTargetsOverride = String.raw`
-async (params) => {
-  if (!ModCDP.loopback_cdp_url) throw new Error("loopback_cdp_url is required");
-
-  const state = globalThis.__modcdpTargetForwarder ||= { nextId: 1, pending: new Map(), ws: null };
-  const needsSocket = !state.ws || state.ws.readyState === WebSocket.CLOSING || state.ws.readyState === WebSocket.CLOSED;
-
-  if (needsSocket) {
-    state.ws = await new Promise((resolve, reject) => {
-      const ws = new WebSocket(ModCDP.loopback_cdp_url);
-      ws.addEventListener("open", () => resolve(ws), { once: true });
-      ws.addEventListener("error", reject, { once: true });
-    });
-
-    state.ws.addEventListener("message", async event => {
-      const msg = JSON.parse(event.data);
-      if (msg.id && state.pending.has(msg.id)) {
-        const pending = state.pending.get(msg.id);
-        state.pending.delete(msg.id);
-        if (msg.error) pending.reject(new Error(msg.error.message));
-        else pending.resolve(msg.result || {});
-        return;
-      }
-
-      if (msg.method !== "Target.targetCreated") return;
-      await ModCDP.emit("Target.targetCreated", msg.params || {});
-    });
-  }
-
-  state.call = (method, callParams = {}) => new Promise((resolve, reject) => {
-    const id = state.nextId++;
-    state.pending.set(id, { resolve, reject });
-    state.ws.send(JSON.stringify({ id, method, params: callParams }));
-  });
-
-  const result = await state.call("Target.setDiscoverTargets", params);
-  if (params.discover === false) {
-    try { state.ws.close(); } catch {}
-    state.ws = null;
-  }
-  return result;
-}
-`;
-
 const tabIdFromTargetIdCommand = String.raw`
 async ({ targetId }) => {
   const targets = await chrome.debugger.getTargets();
@@ -112,108 +69,118 @@ async (payload, next) => {
 }
 `;
 
-test("service-worker routed standard CDP commands and events can be transformed", { timeout: 45_000 }, async () => {
-  const chrome = await launchChrome({
-    headless: process.platform === "linux",
-    sandbox: process.platform !== "linux",
-    extra_args: [`--load-extension=${EXTENSION_PATH}`],
-  });
-  const cdp = new ModCDPClient({
-    cdp_url: chrome.cdpUrl,
-    routes: {
-      "Target.getTargets": "service_worker",
-      "Target.setDiscoverTargets": "service_worker",
-    },
-    server: {
-      loopback_cdp_url: chrome.cdpUrl,
-      routes: { "*.*": "loopback_cdp" },
-    },
-  });
-
-  try {
-    await cdp.connect();
-    assert.equal(cdp.cdp_url, chrome.wsUrl);
-    assert.equal(cdp.server.loopback_cdp_url, chrome.wsUrl);
-
-    const rawTargets = commands["Target.getTargets"].result.parse(await cdp._sendFrame("Target.getTargets"));
-    assert.ok(rawTargets.targetInfos?.length > 0, "expected raw Target.getTargets targetInfos");
-    assert.equal(
-      rawTargets.targetInfos.some((targetInfo) => Object.hasOwn(targetInfo, "tabId")),
-      false,
-      "raw CDP TargetInfo should not already contain tabId",
-    );
-
-    await cdp.send("Mod.addCustomCommand", {
-      name: "Custom.tabIdFromTargetId",
-      expression: tabIdFromTargetIdCommand,
+test(
+  "service-worker routed standard CDP commands and events can be transformed",
+  { timeout: DEFAULT_ROUTED_OVERRIDES_TEST_TIMEOUT_MS },
+  async () => {
+    const chrome = await launchChrome({
+      headless: process.platform === "linux",
+      sandbox: process.platform !== "linux",
+      extra_args: [`--load-extension=${EXTENSION_PATH}`],
     });
-    await cdp.Mod.addMiddleware({
-      name: "*",
-      phase: cdp.RESPONSE,
-      expression: addTabIdMiddleware,
-    });
-    const middlewareTargets = await cdp.send("Target.getTargets");
-    assert.ok(
-      middlewareTargets.targetInfos.some(
-        (targetInfo) => targetInfo.type === "page" && Number.isInteger(targetInfo.tabId),
-      ),
-      "wildcard response middleware should add tabId next to targetId inside TargetInfo",
-    );
-
-    await cdp.Mod.addMiddleware({
-      name: "*",
-      phase: cdp.EVENT,
-      expression: addTabIdMiddleware,
+    const cdp = new ModCDPClient({
+      cdp_url: chrome.cdpUrl,
+      service_worker_url_suffixes: ["/service_worker.js"],
+      trust_service_worker_target: true,
+      routes: {
+        "Target.getTargets": "service_worker",
+        "Target.createTarget": "service_worker",
+        "Target.setDiscoverTargets": "service_worker",
+      },
+      server: {
+        loopback_cdp_url: chrome.cdpUrl,
+        routes: { "*.*": "loopback_cdp" },
+      },
     });
 
-    await cdp.Mod.addCustomCommand({
-      name: cdp.Target.getTargets,
-      expression: getTargetsOverride,
-    });
+    try {
+      await cdp.connect();
+      assert.equal(cdp.cdp_url, chrome.wsUrl);
+      assert.equal(cdp.server.loopback_cdp_url, chrome.wsUrl);
 
-    const enrichedTargets = await cdp.send("Target.getTargets");
-    assert.ok(enrichedTargets.targetInfos?.length > 0, "expected enriched Target.getTargets targetInfos");
-    assert.equal(
-      enrichedTargets.targetInfos.every((targetInfo) => Object.hasOwn(targetInfo, "tabId")),
-      true,
-      "every routed TargetInfo should include a tabId property",
-    );
-    assert.ok(
-      enrichedTargets.targetInfos.some(
-        (targetInfo) => targetInfo.type === "page" && Number.isInteger(targetInfo.tabId),
-      ),
-      "expected at least one page target to be matched to a chrome.tabs tab id",
-    );
-
-    await cdp.Mod.addCustomEvent({ name: cdp.Target.targetCreated });
-    await cdp.Mod.addCustomCommand({
-      name: cdp.Target.setDiscoverTargets,
-      expression: setDiscoverTargetsOverride,
-    });
-
-    const forwardedEvent = new Promise((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("timed out waiting for transformed Target.targetCreated")),
-        10_000,
+      const rawTargets = commands["Target.getTargets"].result.parse(await cdp._sendFrame("Target.getTargets"));
+      assert.ok(rawTargets.targetInfos?.length > 0, "expected raw Target.getTargets targetInfos");
+      assert.equal(
+        rawTargets.targetInfos.some((targetInfo) => Object.hasOwn(targetInfo, "tabId")),
+        false,
+        "raw CDP TargetInfo should not already contain tabId",
       );
+
+      await cdp.send("Mod.addCustomCommand", {
+        name: "Custom.tabIdFromTargetId",
+        expression: tabIdFromTargetIdCommand,
+      });
+      await cdp.Mod.addMiddleware({
+        name: "*",
+        phase: cdp.RESPONSE,
+        expression: addTabIdMiddleware,
+      });
+      const middlewareTargets = await cdp.send("Target.getTargets");
+      assert.ok(
+        middlewareTargets.targetInfos.some(
+          (targetInfo) => targetInfo.type === "page" && Number.isInteger(targetInfo.tabId),
+        ),
+        "wildcard response middleware should add tabId next to targetId inside TargetInfo",
+      );
+
+      await cdp.Mod.addMiddleware({
+        name: "*",
+        phase: cdp.EVENT,
+        expression: addTabIdMiddleware,
+      });
+
+      await cdp.Mod.addCustomCommand({
+        name: cdp.Target.getTargets,
+        expression: getTargetsOverride,
+      });
+
+      const enrichedTargets = await cdp.send("Target.getTargets");
+      assert.ok(enrichedTargets.targetInfos?.length > 0, "expected enriched Target.getTargets targetInfos");
+      assert.equal(
+        enrichedTargets.targetInfos.every((targetInfo) => Object.hasOwn(targetInfo, "tabId")),
+        true,
+        "every routed TargetInfo should include a tabId property",
+      );
+      assert.ok(
+        enrichedTargets.targetInfos.some(
+          (targetInfo) => targetInfo.type === "page" && Number.isInteger(targetInfo.tabId),
+        ),
+        "expected at least one page target to be matched to a chrome.tabs tab id",
+      );
+
+      await cdp.Mod.addCustomEvent({ name: cdp.Target.targetCreated });
+
+      const transformedEvents: unknown[] = [];
       cdp.on("Target.targetCreated", (params) => {
         if (!hasTargetInfo(params)) return;
         if (!Object.hasOwn(params.targetInfo || {}, "tabId")) return;
-        clearTimeout(timeout);
-        resolve(params);
+        transformedEvents.push(params);
       });
-    });
 
-    await cdp.Target.setDiscoverTargets({ discover: true });
-    await cdp._sendFrame("Target.createTarget", { url: "about:blank#modcdp-event-test" });
-
-    const event = events["Target.targetCreated"].parse(await forwardedEvent);
-    assert.ok(Object.hasOwn(event.targetInfo, "tabId"), "transformed event targetInfo should include tabId");
-  } finally {
-    try {
       await cdp.Target.setDiscoverTargets({ discover: false });
-    } catch {}
-    await cdp.close();
-    await chrome.close();
-  }
-});
+      await cdp.Target.setDiscoverTargets({ discover: true });
+      await cdp.Target.getTargets();
+
+      if (transformedEvents.length === 0) {
+        const createdTarget = await cdp.Target.createTarget({ url: "about:blank#modcdp-target-created" });
+        await cdp.Target.getTargets();
+        assert.ok(
+          transformedEvents.some((params) => {
+            if (!hasTargetInfo(params)) return;
+            return params.targetInfo.targetId === createdTarget.targetId;
+          }),
+          `expected transformed Target.targetCreated for ${createdTarget.targetId}`,
+        );
+      }
+
+      const event = events["Target.targetCreated"].parse(transformedEvents[0]);
+      assert.ok(Object.hasOwn(event.targetInfo, "tabId"), "transformed event targetInfo should include tabId");
+    } finally {
+      try {
+        await cdp.Target.setDiscoverTargets({ discover: false });
+      } catch {}
+      await cdp.close();
+      await chrome.close();
+    }
+  },
+);
