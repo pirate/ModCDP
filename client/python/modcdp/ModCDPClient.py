@@ -33,10 +33,13 @@ import zipfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from queue import Queue, Empty
-from typing import cast
+from typing import Any, cast
 
+from pydantic import TypeAdapter, ValidationError
+from pydantic_core import to_jsonable_python
 from websocket import create_connection
 
+from .jsonschema import type_adapter_from_json_schema
 from .translate import (
     CUSTOM_EVENT_BINDING_NAME,
     DEFAULT_CLIENT_ROUTES,
@@ -279,12 +282,17 @@ class ModCDPClient:
         self._lock = threading.Lock()
         self._target_sessions: dict[str, str] = {}
         self._session_targets: dict[str, TargetInfo] = {}
+        self._schema_lock = threading.RLock()
+        self._command_params_schemas: dict[str, TypeAdapter[Any]] = {}
+        self._command_result_schemas: dict[str, TypeAdapter[Any]] = {}
+        self._event_schemas: dict[str, TypeAdapter[Any]] = {}
         self._reader_thread: threading.Thread | None = None
         self._closed = False
         self._launched_process: subprocess.Popen[bytes] | None = None
         self._profile_dir: tempfile.TemporaryDirectory[str] | None = None
         self._prepared_extension_dir: tempfile.TemporaryDirectory[str] | None = None
         self._cdp = _RawCDP(self)
+        self._hydrate_custom_surface()
 
     def connect(self) -> "ModCDPClient":
         connect_started_at = int(time.time() * 1000)
@@ -363,13 +371,34 @@ class ModCDPClient:
 
     def send(self, method: str, params: ProtocolParams | None = None) -> JsonValue:
         started_at = int(time.time() * 1000)
+        command_params = cast(ProtocolParams, dict(params or {}))
+        if method == "Mod.addCustomCommand":
+            self._register_custom_command(command_params)
+            expression = command_params.get("expression")
+            if not isinstance(expression, str) or not expression:
+                completed_at = int(time.time() * 1000)
+                self.last_command_timing = {
+                    "method": method,
+                    "target": "client",
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "duration_ms": completed_at - started_at,
+                }
+                return {"name": cast(str, command_params.get("name")), "registered": True}
+        elif method == "Mod.addCustomEvent":
+            self._register_custom_event(command_params)
+        else:
+            command_params = self._validate_command_params(method, command_params)
+
         command = wrap_command_if_needed(
             method,
-            params or {},
+            command_params,
             routes=self.routes,
             cdp_session_id=self.ext_session_id,
         )
         result = self._send_raw(command)
+        if method != "Mod.addCustomCommand":
+            result = self._validate_command_result(method, result)
         completed_at = int(time.time() * 1000)
         self.last_command_timing = {
             "method": method,
@@ -558,6 +587,88 @@ class ModCDPClient:
             unwrap = step.get("unwrap")
         return unwrap_response_if_needed(result, unwrap)
 
+    def _hydrate_custom_surface(self) -> None:
+        for command in self.custom_commands:
+            self._register_custom_command(cast(ProtocolParams, command))
+        for event in self.custom_events:
+            if isinstance(event, str):
+                continue
+            self._register_custom_event(cast(ProtocolParams, event))
+
+    def _register_custom_command(self, params: ProtocolParams) -> None:
+        name = params.get("name")
+        if not isinstance(name, str) or not name:
+            raise TypeError("name must be a non-empty string")
+        params_schema = self._adapter_from_optional_schema(params.get("paramsSchema"), "paramsSchema")
+        result_schema = self._adapter_from_optional_schema(params.get("resultSchema"), "resultSchema")
+        with self._schema_lock:
+            if params_schema is not None:
+                self._command_params_schemas[name] = params_schema
+            if result_schema is not None:
+                self._command_result_schemas[name] = result_schema
+
+    def _register_custom_event(self, params: ProtocolParams) -> None:
+        name = params.get("name")
+        if not isinstance(name, str) or not name:
+            raise TypeError("name must be a non-empty string")
+        event_schema = self._adapter_from_optional_schema(params.get("eventSchema"), "eventSchema")
+        if event_schema is not None:
+            with self._schema_lock:
+                self._event_schemas[name] = event_schema
+
+    def _adapter_from_optional_schema(self, schema: JsonValue | None, field_name: str) -> TypeAdapter[Any] | None:
+        if schema is None:
+            return None
+        if not isinstance(schema, Mapping):
+            raise TypeError(f"{field_name} must be a JSON Schema object")
+        return type_adapter_from_json_schema(cast(Mapping[str, Any], schema))
+
+    def _validate_command_params(self, method: str, params: ProtocolParams) -> ProtocolParams:
+        with self._schema_lock:
+            adapter = self._command_params_schemas.get(method)
+        if adapter is None:
+            return params
+        try:
+            validated = adapter.validate_python(dict(params))
+        except ValidationError as e:
+            raise ValueError(f"{method} params did not match paramsSchema: {e}") from e
+        jsonable = to_jsonable_python(validated)
+        if not isinstance(jsonable, Mapping):
+            raise ValueError(f"{method} paramsSchema must validate to a JSON object")
+        return cast(ProtocolParams, dict(jsonable))
+
+    def _validate_command_result(self, method: str, result: JsonValue) -> JsonValue:
+        with self._schema_lock:
+            adapter = self._command_result_schemas.get(method)
+        if adapter is None:
+            return result
+        try:
+            return cast(JsonValue, to_jsonable_python(adapter.validate_python(result)))
+        except ValidationError as e:
+            raise ValueError(f"{method} result did not match resultSchema: {e}") from e
+
+    def _validate_event_payload(self, event: str, payload: ProtocolPayload) -> ProtocolPayload | None:
+        with self._schema_lock:
+            adapter = self._event_schemas.get(event)
+        if adapter is None:
+            return dict(payload)
+        try:
+            validated = adapter.validate_python(dict(payload))
+        except ValidationError as direct_error:
+            if set(payload.keys()) != {"value"}:
+                print(f"[ModCDPClient] event {event} did not match eventSchema: {direct_error}", file=sys.stderr)
+                return None
+            try:
+                validated = adapter.validate_python(payload["value"])
+            except ValidationError as value_error:
+                print(f"[ModCDPClient] event {event} did not match eventSchema: {value_error}", file=sys.stderr)
+                return None
+            return {"value": cast(JsonValue, to_jsonable_python(validated))}
+        jsonable = to_jsonable_python(validated)
+        if isinstance(jsonable, Mapping):
+            return cast(ProtocolPayload, dict(jsonable))
+        return {"value": cast(JsonValue, jsonable)}
+
     def _measure_ping_latency(self) -> ModCDPPingLatency:
         sent_at = int(time.time() * 1000)
         done: Queue[ProtocolPayload] = Queue()
@@ -685,15 +796,21 @@ class ModCDPClient:
                         self.ext_session_id,
                     )
                     if u:
+                        validated_payload = self._validate_event_payload(u["event"], u["data"])
+                        if validated_payload is None:
+                            continue
                         for h in self._handlers.get(u["event"], []):
-                            def run_wrapped_event(handler=h, payload=u["data"], event_name=u["event"]):
+                            def run_wrapped_event(handler=h, payload=validated_payload, event_name=u["event"]):
                                 try: handler(payload)
                                 except Exception as e: print(f"[ModCDPClient] handler error for {event_name}: {e}")
                             threading.Thread(target=run_wrapped_event, daemon=True).start()
                     continue
                 if method:
+                    validated_payload = self._validate_event_payload(method, dict(params))
+                    if validated_payload is None:
+                        continue
                     for h in self._handlers.get(method, []):
-                        def run_method_event(handler=h, payload=dict(params), event_name=method):
+                        def run_method_event(handler=h, payload=validated_payload, event_name=method):
                             try: handler(payload)
                             except Exception as e: print(f"[ModCDPClient] handler error for {event_name}: {e}")
                         threading.Thread(target=run_method_event, daemon=True).start()

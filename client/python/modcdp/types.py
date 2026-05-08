@@ -17,10 +17,10 @@ ModCDPRoutes: TypeAlias = dict[str, str]
 
 class _ModCDPAddCustomCommandRequired(TypedDict):
     name: str
-    expression: str
 
 
 class ModCDPAddCustomCommandParams(_ModCDPAddCustomCommandRequired, total=False):
+    expression: str | None
     paramsSchema: JsonValue
     resultSchema: JsonValue
 
