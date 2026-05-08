@@ -1,0 +1,19 @@
+package.json
+  s_b97125cfd29900::t_c587c45b20931b 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "42d00e9bad5eb2be02a7f19c9fb9fc5d8aa6854a",
+  "prompts": {},
+  "sessions": {
+    "s_b97125cfd29900": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfbaf-cdd3-7450-a6a6-0d68da00b802",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
