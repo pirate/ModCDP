@@ -8,6 +8,8 @@
 
 import type { cdp } from "../types/cdp.js";
 import type {
+  CdpCommandFrame,
+  CdpEventFrame,
   CdpDebuggeeCommandParams,
   ModCDPConfigureParams,
   ModCDPCustomCommandRegistration,
@@ -23,6 +25,7 @@ import type {
 export const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
 export const DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
 export const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
+export const DEFAULT_REVERSE_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
 
 type MiddlewarePhase = "request" | "response" | "event";
 type ModCDPGlobalScope = typeof globalThis &
@@ -39,6 +42,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
   const DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
   const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
+  const DEFAULT_REVERSE_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
   if (
     globalScope.ModCDP?.__ModCDPServerVersion === MODCDP_SERVER_VERSION &&
     globalScope.ModCDP?.handleCommand &&
@@ -83,6 +87,16 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         console.error("[ModCDPServer] event listener failed", error);
       }
     }
+    let emittedThroughReverseBridge = false;
+    if (reverseBridgeSocket?.readyState === WebSocket.OPEN) {
+      const frame: CdpEventFrame = {
+        method: eventName,
+        params: (payload ?? {}) as CdpEventFrame["params"],
+      };
+      if (cdpSessionId) frame.sessionId = cdpSessionId;
+      reverseBridgeSocket.send(JSON.stringify(frame));
+      emittedThroughReverseBridge = true;
+    }
 
     const isCustomEvent = registryMatch(eventBindings, eventName) != null;
     let emittedThroughBinding = false;
@@ -99,7 +113,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         emittedThroughBinding = true;
       }
     }
-    return emittedThroughBinding
+    return emittedThroughBinding || emittedThroughReverseBridge
       ? { event: eventName, emitted: true }
       : { event: eventName, emitted: false, reason: "binding_not_installed" };
   }
@@ -130,6 +144,11 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     number,
     { resolve: (value: ProtocolResult) => void; reject: (error: Error) => void }
   >();
+  let reverseBridgeSocket: WebSocket | null = null;
+  let reverseBridgeUrl: string | null = null;
+  let reverseBridgeReconnectIntervalMs = DEFAULT_REVERSE_BRIDGE_RECONNECT_INTERVAL_MS;
+  let reverseBridgeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let selfDebuggee: chrome.debugger.Debuggee | null = null;
   const offscreenKeepAlivePortName = "ModCDPOffscreenKeepAlive";
   const offscreenKeepAlivePath = "offscreen/keepalive.html";
   let creatingOffscreenKeepAlive: Promise<void> | null = null;
@@ -256,6 +275,148 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   function rejectLoopbackPending(error: Error) {
     for (const pending of loopbackPending.values()) pending.reject(error);
     loopbackPending.clear();
+  }
+
+  function scheduleReverseBridgeReconnect(delayMs: number) {
+    if (!reverseBridgeUrl) return;
+    if (reverseBridgeReconnectTimer) return;
+    reverseBridgeReconnectTimer = setTimeout(() => {
+      reverseBridgeReconnectTimer = null;
+      void connectReverseBridge(reverseBridgeUrl).catch(() => {});
+    }, delayMs);
+  }
+
+  async function handleReverseBridgeMessage(ws: WebSocket, data: unknown) {
+    let frame: CdpCommandFrame;
+    try {
+      const parsed = JSON.parse(typeof data === "string" ? data : String(data));
+      if (typeof parsed?.id !== "number" || typeof parsed?.method !== "string") return;
+      frame = parsed as CdpCommandFrame;
+    } catch {
+      return;
+    }
+
+    try {
+      const result = await ModCDPServer.handleCommand(frame.method, frame.params ?? {}, frame.sessionId ?? null);
+      ws.send(JSON.stringify({ id: frame.id, result }));
+    } catch (error) {
+      ws.send(
+        JSON.stringify({
+          id: frame.id,
+          error: {
+            code: -32000,
+            message: errorMessage(error),
+          },
+        }),
+      );
+    }
+  }
+
+  async function connectReverseBridge(endpoint: string) {
+    if (reverseBridgeSocket?.readyState === WebSocket.OPEN || reverseBridgeSocket?.readyState === WebSocket.CONNECTING) {
+      return { reverse_proxy_url: endpoint, connected: reverseBridgeSocket.readyState === WebSocket.OPEN };
+    }
+
+    const ws = new WebSocket(endpoint);
+    reverseBridgeSocket = ws;
+    ws.addEventListener("open", () => {
+      startOffscreenKeepAlive();
+      ws.send(
+        JSON.stringify({
+          type: "modcdp.reverse.hello",
+          role: "extension-service-worker",
+          version: 1,
+          extensionId: globalScope.chrome?.runtime?.id ?? null,
+        }),
+      );
+    });
+    ws.addEventListener("message", (event) => {
+      void handleReverseBridgeMessage(ws, event.data);
+    });
+    ws.addEventListener("error", () => {
+      if (reverseBridgeSocket === ws) reverseBridgeSocket = null;
+      scheduleReverseBridgeReconnect(reverseBridgeReconnectIntervalMs);
+    });
+    ws.addEventListener("close", () => {
+      if (reverseBridgeSocket === ws) reverseBridgeSocket = null;
+      scheduleReverseBridgeReconnect(reverseBridgeReconnectIntervalMs);
+    });
+    return { reverse_proxy_url: endpoint, connected: false };
+  }
+
+  function debuggerSendCommand(
+    debuggee: chrome.debugger.Debuggee,
+    method: string,
+    params: Record<string, unknown> = {},
+  ): Promise<ProtocolResult> {
+    const chromeApi = globalScope.chrome;
+    return new Promise<ProtocolResult>((resolve, reject) =>
+      chromeApi.debugger.sendCommand(debuggee, method, params, (result) => {
+        const error = chromeApi.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve(result as ProtocolResult);
+      }),
+    );
+  }
+
+  async function getSelfDebuggee(): Promise<chrome.debugger.Debuggee> {
+    if (selfDebuggee) return selfDebuggee;
+    const chromeApi = globalScope.chrome;
+    if (!chromeApi?.debugger?.getTargets || !chromeApi?.debugger?.attach) {
+      throw new Error("chrome.debugger is unavailable for reverse expression evaluation.");
+    }
+    const serviceWorkerUrl = chromeApi.runtime.getURL("service_worker.js");
+    const targets = await chromeApi.debugger.getTargets();
+    const target = targets.find((candidate) => candidate.url === serviceWorkerUrl);
+    if (!target?.id) throw new Error(`Could not find ModCDP service worker debugger target ${serviceWorkerUrl}.`);
+    const debuggee = { targetId: target.id };
+    await new Promise<void>((resolve, reject) =>
+      chromeApi.debugger.attach(debuggee, "1.3", () => {
+        const error = chromeApi.runtime.lastError;
+        if (!error || error.message?.includes("Another debugger is already attached")) resolve();
+        else reject(new Error(error.message));
+      }),
+    );
+    selfDebuggee = debuggee;
+    return debuggee;
+  }
+
+  async function evaluateInSelf(expression: string): Promise<ProtocolResult> {
+    const debuggee = await getSelfDebuggee();
+    const result = (await debuggerSendCommand(debuggee, "Runtime.evaluate", {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    })) as cdp.types.ts.Runtime.EvaluateResult;
+    if (result.exceptionDetails) {
+      const ex = result.exceptionDetails;
+      throw new Error(ex.exception?.description || ex.text || "Runtime evaluation failed");
+    }
+    return (result.result?.value ?? {}) as ProtocolResult;
+  }
+
+  async function evaluateUserExpression({
+    expression,
+    params = {},
+    cdpSessionId = null,
+    method = null,
+  }: {
+    expression: string;
+    params?: ProtocolPayload;
+    cdpSessionId?: string | null;
+    method?: string | null;
+  }): Promise<ProtocolResult> {
+    return evaluateInSelf(`
+      (async () => {
+        const params = ${JSON.stringify(params ?? {})};
+        const method = ${JSON.stringify(method)};
+        const cdp = globalThis.ModCDP.attachToSession(${JSON.stringify(cdpSessionId)});
+        const ModCDP = globalThis.ModCDP;
+        const chrome = globalThis.chrome;
+        const value = (${expression});
+        return typeof value === "function" ? await value(params || {}, method) : value;
+      })()
+    `);
   }
 
   async function loopbackWS(endpoint: string): Promise<WebSocket> {
@@ -474,6 +635,24 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     commands: null as (typeof import("../types/zod.js"))["commands"] | null,
     events: null as (typeof import("../types/zod.js"))["events"] | null,
     startOffscreenKeepAlive,
+    startReverseBridge(
+      endpoint: string,
+      {
+        reconnect_interval_ms = DEFAULT_REVERSE_BRIDGE_RECONNECT_INTERVAL_MS,
+      }: {
+        reconnect_interval_ms?: number;
+      } = {},
+    ) {
+      if (!/^wss?:\/\//i.test(endpoint)) {
+        throw new Error(`reverse proxy endpoint must be a ws:// or wss:// URL, got ${endpoint}.`);
+      }
+      reverseBridgeUrl = endpoint;
+      reverseBridgeReconnectIntervalMs = reconnect_interval_ms;
+      void connectReverseBridge(endpoint).catch(() => {
+        scheduleReverseBridgeReconnect(reverseBridgeReconnectIntervalMs);
+      });
+      return { reverse_proxy_url: endpoint, reconnect_interval_ms, connecting: true };
+    },
     ensureOffscreenKeepAlive,
 
     async loadTypes() {
@@ -526,21 +705,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       if (!/^[^.]+\.[^.]+$/.test(name)) throw new Error("name must be in Domain.method form.");
       if (typeof handler !== "function" && typeof expression === "string") {
         handler = async (params: ProtocolParams = {}, cdpSessionId: string | null = null, method: string = name) => {
-          const cdp = ModCDPServer.attachToSession(cdpSessionId);
-          const ModCDP = ModCDPServer;
-          const chrome = globalScope.chrome;
-          const value = new Function(
-            "params",
-            "method",
-            "cdp",
-            "ModCDP",
-            "chrome",
-            `return (async () => {
-              const handler = (${expression});
-              return typeof handler === "function" ? await handler(params || {}, method) : handler;
-            })()`,
-          );
-          return await value(params, method, cdp, ModCDP, chrome);
+          return await evaluateUserExpression({ expression, params, cdpSessionId, method });
         };
       }
       if (typeof handler !== "function") throw new Error(`Custom command ${name} was registered without a handler.`);
@@ -568,24 +733,23 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       if (typeof handler !== "function" && typeof expression === "string") {
         handler = async (payload: ProtocolPayload, next: unknown, context: ProtocolPayload = {}) => {
           const context_object = context && typeof context === "object" ? (context as Record<string, unknown>) : {};
-          const cdp = ModCDPServer.attachToSession(
-            typeof context_object.cdpSessionId === "string" ? context_object.cdpSessionId : null,
-          );
-          const ModCDP = ModCDPServer;
-          const chrome = globalScope.chrome;
-          const value = new Function(
-            "payload",
-            "next",
-            "context",
-            "cdp",
-            "ModCDP",
-            "chrome",
-            `return (async () => {
+          const cdpSessionId = typeof context_object.cdpSessionId === "string" ? context_object.cdpSessionId : null;
+          const result = (await evaluateInSelf(`
+            (async () => {
+              const payload = ${JSON.stringify(payload ?? {})};
+              const context = ${JSON.stringify(context ?? {})};
+              const cdp = globalThis.ModCDP.attachToSession(${JSON.stringify(cdpSessionId)});
+              const ModCDP = globalThis.ModCDP;
+              const chrome = globalThis.chrome;
+              const next = async (nextValue = payload) => ({ __ModCDP_middleware_next__: true, value: nextValue });
               const handler = (${expression});
               return await handler(payload, next, context);
-            })()`,
-          );
-          return await value(payload, next, context, cdp, ModCDP, chrome);
+            })()
+          `)) as Record<string, unknown>;
+          if (result?.__ModCDP_middleware_next__ === true && typeof next === "function") {
+            return await next(result.value);
+          }
+          return result;
         };
       }
       if (typeof handler !== "function") {
@@ -690,7 +854,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       const event = registryMatch(eventBindings, eventName);
       if (!event) return { event: eventName, emitted: false, reason: "event_not_registered" };
       const customBinding = globalScope[CUSTOM_EVENT_BINDING_NAME];
-      if (typeof customBinding !== "function")
+      if (typeof customBinding !== "function" && reverseBridgeSocket?.readyState !== WebSocket.OPEN)
         return { event: eventName, emitted: false, reason: "binding_not_installed" };
       return publishEvent(eventName, payload, cdpSessionId);
     },
@@ -907,20 +1071,11 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     name: "Mod.evaluate",
     handler: async (raw_params: ProtocolParams = {}) => {
       const { expression, params = {}, cdpSessionId = null } = raw_params as Record<string, unknown>;
-      const cdp = ModCDPServer.attachToSession(typeof cdpSessionId === "string" ? cdpSessionId : null);
-      const ModCDP = ModCDPServer;
-      const chrome = globalScope.chrome;
-      const value = new Function(
-        "params",
-        "cdp",
-        "ModCDP",
-        "chrome",
-        `return (async () => {
-          const value = (${expression});
-          return typeof value === "function" ? await value(params || {}) : value;
-        })()`,
-      );
-      return await value(params, cdp, ModCDP, chrome);
+      return await evaluateUserExpression({
+        expression: String(expression),
+        params: params as ProtocolPayload,
+        cdpSessionId: typeof cdpSessionId === "string" ? cdpSessionId : null,
+      });
     },
   });
 

@@ -135,6 +135,19 @@ pnpm run proxy -- --upstream http://127.0.0.1:9222 --port 9223
 # ✨ All ModCDP commands now work through playwright! you can modify/extend playwright behavior to your heart's content
 ```
 
+### Reverse proxy mode
+
+Use reverse mode when the browser does not expose a public CDP websocket to the final client, but the ModCDP extension can open a websocket back to a local proxy. The proxy still serves a normal-looking CDP endpoint to Playwright, Puppeteer, Stagehand, or any other CDP client:
+
+```sh
+pnpm run proxy -- --reverse 127.0.0.1:29292 --listen 127.0.0.1:9223
+# const browser = await playwright.chromium.connectOverCDP("http://127.0.0.1:9223")
+```
+
+The extension currently has `ws://127.0.0.1:29292` baked in and retries every 2s forever. Once it connects, it self-identifies as a ModCDP extension service worker and the proxy uses that reverse websocket as its upstream. `Mod.*`, expression-backed `Custom.*` commands, custom event fanout, middleware, and normal CDP commands all stay routed through `globalThis.ModCDP.handleCommand(...)` in the service worker.
+
+Reverse mode is intentionally scoped to one local browser and one reverse extension connection per proxy process. The browser may still have other extensions installed; ModCDP does not require `--disable-extensions-except`.
+
 ## Routing modes
 
 `Mod.*` and `Custom.*` always go through the extension service worker. Routing only changes how _standard_ CDP methods (`Browser.*`, `Page.*`, `DOM.*`, …) are serviced:
@@ -184,6 +197,8 @@ dist/                     Built JS output used by the extension and Node CLI scr
 3. Attach a session to that SW target and `Runtime.enable` on it.
 4. Call `globalThis.ModCDP.configure(...)` to push the resolved loopback websocket and any explicit server route overrides into the SW. The clients do this automatically by default.
 
+Reverse proxy mode flips the bootstrap direction: `bridge/proxy.js --reverse` listens for the extension on `127.0.0.1:29292`, while still serving downstream clients from `--listen`. The extension service worker continuously dials the baked reverse endpoint, sends a `modcdp.reverse.hello` frame, and then accepts CDP-shaped command frames from the proxy. The proxy maps downstream request IDs to reverse request IDs and forwards reverse events back to the downstream CDP client.
+
 ### Send
 
 - `Mod.evaluate({ expression, params, cdpSessionId })` → `Runtime.evaluate` on the ext session, wrapping the expression with an IIFE that exposes `params` and `cdp = ModCDP.attachToSession(...)`.
@@ -192,9 +207,13 @@ dist/                     Built JS output used by the extension and Node CLI scr
 - `Mod.addMiddleware({ name, phase, expression })` → `Runtime.evaluate` registering a service-worker middleware for `phase: "request" | "response" | "event"`. Use `name: "*"` to match every method/event in that phase, or pass generated names like `cdp.Target.targetInfoChanged`.
 - `Custom.X(params)` → `Runtime.evaluate` calling `globalThis.ModCDP.handleCommand("Custom.X", params, cdpSessionId)`.
 
+In reverse mode, expression-backed commands cannot use `new Function` directly because MV3 extension CSP blocks unsafe eval. The service worker evaluates user expressions by attaching `chrome.debugger` to its own service-worker target and issuing `Runtime.evaluate`, preserving the normal ModCDP expression surface without weakening extension CSP.
+
 ### Receive
 
 When SW handlers `cdp.emit('Custom.X', payload)`, the SW invokes `globalThis.__ModCDP_custom_event__(JSON.stringify({ event, data, cdpSessionId }))`. CDP delivers `Runtime.bindingCalled` on the ext session; the client (or proxy) decodes the payload and re-dispatches it as a normal `cdp.on('Custom.X', ...)` event.
+
+In reverse mode, the same `publishEvent(...)` path also sends CDP-shaped event frames over the reverse websocket, so custom events and mirrored upstream events fan out through the standalone proxy to the downstream client.
 
 ### Why this works
 

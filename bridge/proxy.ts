@@ -58,8 +58,10 @@ import { events as TargetEvents } from "../types/zod/Target.js";
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EXTENSION_PATH = path.resolve(ROOT, "..", "extension");
 const DEFAULT_PORT = 9223;
+const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_UPSTREAM = "http://127.0.0.1:9222";
 export const DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS = 1_000;
+export const DEFAULT_REVERSE_WAIT_TIMEOUT_MS = 2_000;
 
 const DEBUG = process.env.PROXY_DEBUG === "1";
 const log = (...args) => console.log("[proxy]", ...args);
@@ -74,25 +76,52 @@ const isWsUrl = (url) => /^wss?:\/\//i.test(url);
 // --- public API -------------------------------------------------------------
 
 export async function startProxy({
+  host = DEFAULT_HOST,
   port = DEFAULT_PORT,
   upstream = DEFAULT_UPSTREAM,
+  reverse = null,
   extensionPath = DEFAULT_EXTENSION_PATH,
   forwardMirroredUpstreamEvents = false,
   upstreamMonitorIntervalMs = DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS,
+  reverseWaitTimeoutMs = DEFAULT_REVERSE_WAIT_TIMEOUT_MS,
 }: {
+  host?: string;
   port?: number;
   upstream?: string;
+  reverse?: string | null;
   extensionPath?: string;
   forwardMirroredUpstreamEvents?: boolean;
   upstreamMonitorIntervalMs?: number;
+  reverseWaitTimeoutMs?: number;
 } = {}) {
   const { WebSocket, WebSocketServer } = await loadWsForProxy();
+  const reverseOptions = reverse ? parseHostPort(reverse, DEFAULT_HOST, 29292) : null;
+  const reversePeer = reverseOptions ? createReversePeerState(reverseWaitTimeoutMs) : null;
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = req.url === "/json/version/" ? "/json/version" : req.url;
       if (requestUrl === "/json/version") {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ webSocketDebuggerUrl: `ws://${req.headers.host}/devtools/browser/proxy` }));
+        return;
+      }
+      if (reversePeer) {
+        if (requestUrl === "/json" || requestUrl === "/json/list" || requestUrl === "/json/list/") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify([
+              {
+                id: "proxy",
+                type: "browser",
+                title: "ModCDP Reverse Proxy",
+                webSocketDebuggerUrl: `ws://${req.headers.host}/devtools/browser/proxy`,
+              },
+            ]),
+          );
+          return;
+        }
+        res.writeHead(404);
+        res.end("Not found.");
         return;
       }
       if (isWsUrl(upstream)) {
@@ -119,6 +148,7 @@ export async function startProxy({
   });
 
   let stopUpstreamMonitor: (() => void) | null = null;
+  let reverseWss: InstanceType<typeof WebSocketServer> | null = null;
   const wss = new WebSocketServer({ server });
   let closing = false;
   let closePromise: Promise<void> | null = null;
@@ -133,7 +163,13 @@ export async function startProxy({
           socket.close();
         } catch {}
       }
+      if (reversePeer?.socket) {
+        try {
+          reversePeer.socket.close();
+        } catch {}
+      }
       await new Promise<void>((resolve) => wss.close(() => resolve()));
+      if (reverseWss) await new Promise<void>((resolve) => reverseWss?.close(() => resolve()));
       if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
     })();
     return closePromise;
@@ -145,6 +181,15 @@ export async function startProxy({
     const earlyBuffer = [];
     const earlyHandler = (buf) => earlyBuffer.push(buf);
     client.on("message", earlyHandler);
+    if (reversePeer) {
+      handleReverseConnection(client, earlyBuffer, earlyHandler, reversePeer).catch((err) => {
+        log("reverse connection failed:", err.message);
+        try {
+          client.close(1011, err.message.slice(0, 120));
+        } catch {}
+      });
+      return;
+    }
     handleConnection(client, earlyBuffer, earlyHandler, {
       upstream,
       extensionPath,
@@ -160,20 +205,35 @@ export async function startProxy({
     });
   });
 
-  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", () => resolve()));
-  stopUpstreamMonitor = monitorUpstream(
-    upstream,
-    upstreamMonitorIntervalMs,
-    () => {
-      void close().catch((error) => log("proxy close failed:", errorMessage(error)));
-    },
-    WebSocket,
+  if (reversePeer && reverseOptions) {
+    reverseWss = new WebSocketServer({ host: reverseOptions.host, port: reverseOptions.port });
+    reverseWss.on("connection", (socket, req) => {
+      log("reverse candidate connected", req.socket.remoteAddress);
+      acceptReversePeer(reversePeer, socket);
+    });
+    reverseWss.on("error", (error) => log("reverse listener error:", errorMessage(error)));
+  }
+
+  await new Promise<void>((resolve) => server.listen(port, host, () => resolve()));
+  if (!reversePeer) {
+    stopUpstreamMonitor = monitorUpstream(
+      upstream,
+      upstreamMonitorIntervalMs,
+      () => {
+        void close().catch((error) => log("proxy close failed:", errorMessage(error)));
+      },
+      WebSocket,
+    );
+  }
+  log(
+    reverseOptions
+      ? `listening on ws://${host}:${port}/  (reverse: ws://${reverseOptions.host}:${reverseOptions.port})`
+      : `listening on ws://${host}:${port}/  (upstream: ${upstream})`,
   );
-  log(`listening on ws://127.0.0.1:${port}/  (upstream: ${upstream})`);
 
   return {
-    url: `http://127.0.0.1:${port}`,
-    wsUrl: `ws://127.0.0.1:${port}`,
+    url: `http://${host}:${port}`,
+    wsUrl: `ws://${host}:${port}`,
     close,
   };
 }
@@ -252,7 +312,249 @@ function monitorUpstream(
   return close;
 }
 
+type HostPort = { host: string; port: number };
+type ReverseHello = {
+  type: "modcdp.reverse.hello";
+  role?: string;
+  version?: number;
+  extensionId?: string | null;
+};
+type ReversePeerState = {
+  socket: WebSocket | null;
+  info: ReverseHello | null;
+  waitTimeoutMs: number;
+  waiters: Set<{ resolve: (socket: WebSocket) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>;
+};
+type ReverseConnectionState = {
+  client: WebSocket;
+  reverse: WebSocket;
+  nextReverseId: number;
+  pending: Map<number, { clientId: number; clientSessionId: string | null }>;
+  clientSessionIds: Set<string>;
+  bootstrapped: boolean;
+  closing: boolean;
+  queuedFromClient: RawData[];
+};
+
+function parseHostPort(value: string, defaultHost: string, defaultPort: number): HostPort {
+  const raw = String(value || "");
+  const parsed = new URL(/^[a-z][a-z\d+\-.]*:\/\//i.test(raw) ? raw : `ws://${raw}`);
+  const host = parsed.hostname || defaultHost;
+  const port = Number(parsed.port || defaultPort);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error(`Invalid host:port ${value}`);
+  return { host, port };
+}
+
+function createReversePeerState(waitTimeoutMs: number): ReversePeerState {
+  return {
+    socket: null,
+    info: null,
+    waitTimeoutMs,
+    waiters: new Set(),
+  };
+}
+
+function isOpenSocket(socket: WebSocket | null) {
+  return socket != null && socket.readyState === socket.OPEN;
+}
+
+function waitForReversePeer(state: ReversePeerState) {
+  if (isOpenSocket(state.socket)) return Promise.resolve(state.socket);
+  return new Promise<WebSocket>((resolve, reject) => {
+    const waiter = {
+      resolve,
+      reject,
+      timeout: setTimeout(() => {
+        state.waiters.delete(waiter);
+        reject(new Error(`Timed out waiting ${state.waitTimeoutMs}ms for reverse ModCDP extension connection.`));
+      }, state.waitTimeoutMs),
+    };
+    state.waiters.add(waiter);
+  });
+}
+
+function resolveReverseWaiters(state: ReversePeerState, socket: WebSocket) {
+  for (const waiter of state.waiters) {
+    clearTimeout(waiter.timeout);
+    waiter.resolve(socket);
+  }
+  state.waiters.clear();
+}
+
+function rejectReverseWaiters(state: ReversePeerState, error: Error) {
+  for (const waiter of state.waiters) {
+    clearTimeout(waiter.timeout);
+    waiter.reject(error);
+  }
+  state.waiters.clear();
+}
+
+function acceptReversePeer(state: ReversePeerState, socket: WebSocket) {
+  const fail = (message: string) => {
+    try {
+      socket.close(1008, message.slice(0, 120));
+    } catch {}
+  };
+  const timeout = setTimeout(() => fail("reverse hello timeout"), state.waitTimeoutMs);
+  socket.once("message", (buf) => {
+    clearTimeout(timeout);
+    let hello: ReverseHello;
+    try {
+      const parsed = JSON.parse(String(buf));
+      if (parsed?.type !== "modcdp.reverse.hello") throw new Error("missing hello type");
+      hello = parsed;
+    } catch (error) {
+      fail(`invalid reverse hello: ${errorMessage(error)}`);
+      return;
+    }
+
+    if (isOpenSocket(state.socket) && state.socket !== socket) {
+      try {
+        state.socket?.close(1012, "reverse peer replaced");
+      } catch {}
+    }
+    state.socket = socket;
+    state.info = hello;
+    log("reverse extension connected", hello.extensionId || "(unknown extension)");
+    socket.addEventListener("close", () => {
+      if (state.socket !== socket) return;
+      state.socket = null;
+      state.info = null;
+      rejectReverseWaiters(state, new Error("Reverse ModCDP extension connection closed."));
+    });
+    socket.addEventListener("error", () => {
+      if (state.socket !== socket) return;
+      state.socket = null;
+      state.info = null;
+      rejectReverseWaiters(state, new Error("Reverse ModCDP extension connection errored."));
+    });
+    resolveReverseWaiters(state, socket);
+  });
+}
+
 // --- per-connection bridging ----------------------------------------------
+
+async function handleReverseConnection(
+  client: WebSocket,
+  earlyBuffer: RawData[],
+  earlyHandler: (buf: RawData) => void,
+  reversePeer: ReversePeerState,
+) {
+  const reverse = await waitForReversePeer(reversePeer);
+  if (!isOpenSocket(reverse)) throw new Error("Reverse ModCDP extension connection is not open.");
+
+  const state: ReverseConnectionState = {
+    client,
+    reverse,
+    nextReverseId: 1_000_000,
+    pending: new Map(),
+    clientSessionIds: new Set(),
+    bootstrapped: false,
+    closing: false,
+    queuedFromClient: [],
+  };
+
+  const onReverseMessage = (event) => {
+    let msg: CdpResponseFrame | CdpEventFrame;
+    try {
+      const parsed = JSON.parse(String(event.data));
+      msg = "id" in parsed ? CdpResponseFrameSchema.parse(parsed) : CdpEventFrameSchema.parse(parsed);
+    } catch (e) {
+      log("reverse parse error", e.message);
+      return;
+    }
+    dbg("reverse->", msg.id ?? "", msg.method ?? "(response)", msg.sessionId ?? "");
+    handleReverseUpstreamMessage(state, msg);
+  };
+  reverse.addEventListener("message", onReverseMessage);
+  reverse.addEventListener("close", () => {
+    reverse.removeEventListener("message", onReverseMessage);
+    state.closing = true;
+    try {
+      client.close();
+    } catch {}
+  });
+  reverse.addEventListener("error", () => {
+    reverse.removeEventListener("message", onReverseMessage);
+    state.closing = true;
+    try {
+      client.close(1011, "reverse upstream error");
+    } catch {}
+  });
+  client.on("close", () => {
+    state.closing = true;
+    reverse.removeEventListener("message", onReverseMessage);
+  });
+
+  client.off("message", earlyHandler);
+  for (const buf of earlyBuffer) state.queuedFromClient.push(buf);
+  client.on("message", (buf) => {
+    if (!state.bootstrapped) {
+      state.queuedFromClient.push(buf);
+      return;
+    }
+    handleReverseClientMessage(state, buf);
+  });
+  state.bootstrapped = true;
+  for (const buf of state.queuedFromClient) handleReverseClientMessage(state, buf);
+  state.queuedFromClient = [];
+}
+
+function handleReverseClientMessage(state: ReverseConnectionState, buf: RawData) {
+  let msg: CdpCommandFrame;
+  try {
+    msg = CdpCommandFrameSchema.parse(JSON.parse(String(buf)));
+  } catch (e) {
+    log("client parse error", e.message);
+    return;
+  }
+  dbg("client->reverse", msg.id ?? "", msg.method, msg.sessionId ?? "");
+  const upId = state.nextReverseId++;
+  state.pending.set(upId, { clientId: msg.id, clientSessionId: msg.sessionId || null });
+  const out: CdpCommandFrame = { id: upId, method: msg.method, params: msg.params ?? {} };
+  if (msg.sessionId) out.sessionId = msg.sessionId;
+  state.reverse.send(JSON.stringify(out));
+}
+
+function handleReverseUpstreamMessage(state: ReverseConnectionState, msg: CdpResponseFrame | CdpEventFrame) {
+  if ("id" in msg && typeof msg.id === "number") {
+    const response = CdpResponseFrameSchema.parse(msg);
+    const pending = state.pending.get(response.id);
+    if (!pending) return;
+    state.pending.delete(response.id);
+    const out: CdpResponseFrame = response.error
+      ? { id: pending.clientId, error: response.error }
+      : { id: pending.clientId, result: response.result ?? {} };
+    if (pending.clientSessionId) out.sessionId = pending.clientSessionId;
+    sendReverseToClient(state, out);
+    return;
+  }
+
+  const event = CdpEventFrameSchema.parse(msg);
+  const eventSessionId =
+    event.params &&
+    typeof event.params === "object" &&
+    "sessionId" in event.params &&
+    typeof event.params.sessionId === "string"
+      ? event.params.sessionId
+      : event.sessionId || null;
+  if (event.method === "Target.attachedToTarget" && eventSessionId) {
+    state.clientSessionIds.add(eventSessionId);
+  } else if (event.method === "Target.detachedFromTarget" && eventSessionId) {
+    state.clientSessionIds.delete(eventSessionId);
+  }
+
+  sendReverseToClient(state, event);
+  if (!event.sessionId) {
+    for (const sessionId of state.clientSessionIds) sendReverseToClient(state, { ...event, sessionId });
+  }
+}
+
+function sendReverseToClient(state: ReverseConnectionState, obj: CdpFrame) {
+  if (DEBUG)
+    dbg("client<-reverse", "id" in obj ? obj.id : "", "method" in obj ? obj.method : "(response)", obj.sessionId ?? "");
+  state.client.send(JSON.stringify(obj));
+}
 
 async function handleConnection(
   client: WebSocket,
@@ -561,11 +863,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         arg.startsWith("--") ? [[arg.slice(2), all[i + 1]?.startsWith("--") ? "true" : (all[i + 1] ?? "true")]] : [],
       ),
   );
-  const port = Number(argv.port || DEFAULT_PORT);
+  const listen = argv.listen ? parseHostPort(String(argv.listen), DEFAULT_HOST, DEFAULT_PORT) : null;
+  const host = listen?.host ?? DEFAULT_HOST;
+  const port = listen?.port ?? Number(argv.port || DEFAULT_PORT);
   const upstream = argv.upstream || DEFAULT_UPSTREAM;
+  const reverse = typeof argv.reverse === "string" && argv.reverse !== "true" ? argv.reverse : null;
   const extensionPath = argv.extension ? path.resolve(argv.extension) : DEFAULT_EXTENSION_PATH;
   const forwardMirroredUpstreamEvents = argv["forward-mirrored-upstream-events"] === "true";
-  startProxy({ port, upstream, extensionPath, forwardMirroredUpstreamEvents }).catch((e) => {
+  startProxy({ host, port, upstream, reverse, extensionPath, forwardMirroredUpstreamEvents }).catch((e) => {
     console.error(e);
     process.exitCode = 1;
   });
