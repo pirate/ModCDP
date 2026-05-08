@@ -48,11 +48,7 @@ import type { BrowserLauncher, BrowserLaunchOptions, LaunchedBrowser } from "../
 import { BBBrowserExtensionInjector } from "../../bridge/BBBrowserExtensionInjector.js";
 import { BorrowedExtensionInjector } from "../../bridge/BorrowedExtensionInjector.js";
 import { DiscoveredExtensionInjector } from "../../bridge/DiscoveredExtensionInjector.js";
-import {
-  ExtensionInjector,
-  type ExtensionInjectorConfig,
-  type SendCDP,
-} from "../../bridge/ExtensionInjector.js";
+import { ExtensionInjector, type ExtensionInjectorConfig, type SendCDP } from "../../bridge/ExtensionInjector.js";
 import { ExtensionsLoadUnpackedInjector } from "../../bridge/ExtensionsLoadUnpackedInjector.js";
 import { LocalBrowserLaunchExtensionInjector } from "../../bridge/LocalBrowserLaunchExtensionInjector.js";
 import type {
@@ -523,8 +519,8 @@ export class ModCDPClient extends ModCDPEventEmitter {
     if (this.extension.mode === "none") {
       throw new Error("extension.mode=none cannot be used with a raw_cdp upstream.");
     }
-    const ext = await this._injectExtension((method, params, session_id) =>
-      this._sendMessage(method, params, session_id) as Promise<ProtocolResult>,
+    const ext = await this._injectExtension(
+      (method, params, session_id) => this._sendMessage(method, params, session_id) as Promise<ProtocolResult>,
     );
     const extension_completed_at = Date.now();
     this.extension_id = typeof ext.extension_id === "string" ? ext.extension_id : null;

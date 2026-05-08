@@ -88,10 +88,8 @@ export class ExtensionInjector {
     this.options = {
       ...this.options,
       ...config,
-      service_worker_url_includes:
-        config.service_worker_url_includes ?? this.options.service_worker_url_includes ?? [],
-      service_worker_url_suffixes:
-        config.service_worker_url_suffixes ?? this.options.service_worker_url_suffixes ?? [],
+      service_worker_url_includes: config.service_worker_url_includes ?? this.options.service_worker_url_includes ?? [],
+      service_worker_url_suffixes: config.service_worker_url_suffixes ?? this.options.service_worker_url_suffixes ?? [],
     };
     return this;
   }
@@ -113,7 +111,8 @@ export class ExtensionInjector {
   }
 
   protected get send(): SendCDP {
-    if (typeof this.options.send !== "function") throw new Error(`${this.constructor.name} requires a CDP send function.`);
+    if (typeof this.options.send !== "function")
+      throw new Error(`${this.constructor.name} requires a CDP send function.`);
     return this.options.send;
   }
 
@@ -221,7 +220,10 @@ export class ExtensionInjector {
     return null;
   }
 
-  protected async waitForReadyServiceWorker(timeout_ms: number, { matched_only = false }: { matched_only?: boolean } = {}) {
+  protected async waitForReadyServiceWorker(
+    timeout_ms: number,
+    { matched_only = false }: { matched_only?: boolean } = {},
+  ) {
     const deadline = Date.now() + timeout_ms;
     while (Date.now() < deadline) {
       const discovered = await this.discoverReadyServiceWorker({ matched_only });

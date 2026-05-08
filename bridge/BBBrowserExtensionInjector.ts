@@ -62,7 +62,9 @@ export class BBBrowserExtensionInjector extends ExtensionInjector {
     if (!browserbase_api_key) {
       throw new Error("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.");
     }
-    const base_url = firstString(this.options.base_url, this.options.browserbase_base_url, process.env.BROWSERBASE_BASE_URL) ?? DEFAULT_BROWSERBASE_BASE_URL;
+    const base_url =
+      firstString(this.options.base_url, this.options.browserbase_base_url, process.env.BROWSERBASE_BASE_URL) ??
+      DEFAULT_BROWSERBASE_BASE_URL;
     const fs = await import("node:fs");
     const path = await import("node:path");
     const form = new FormData();
