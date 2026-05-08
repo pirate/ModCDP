@@ -54,6 +54,8 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
     if (typeof extension_id !== "string" || !extension_id) {
       throw new Error(`Extensions.loadUnpacked returned no extension id (got ${JSON.stringify(load_result)})`);
     }
+    this.options.extension_id = extension_id;
+    await this.wakeConfiguredExtension();
 
     const sw_url_prefix = `chrome-extension://${extension_id}/`;
     const deadline = Date.now() + (this.options.service_worker_ready_timeout_ms ?? 60_000);

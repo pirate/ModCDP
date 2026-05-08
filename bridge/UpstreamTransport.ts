@@ -14,6 +14,7 @@ export type UpstreamTransportConfig = {
   pipe_write?: NodeJS.WritableStream | null;
   manifest_path?: string | null;
   manifest_paths?: string[] | null;
+  extension_id?: string | null;
   nats_url?: string | null;
   nats_subject_prefix?: string | null;
   reversews_bind?: string | null;

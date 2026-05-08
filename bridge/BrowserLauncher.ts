@@ -52,6 +52,28 @@ export type LaunchedBrowser = {
 export const DEFAULT_CHROME_READY_TIMEOUT_MS = 45_000;
 export const DEFAULT_CHROME_READY_POLL_INTERVAL_MS = 100;
 
+function mergeChromeArgs(existing: string[] = [], incoming: string[] = []) {
+  const args = [...existing, ...incoming];
+  const load_extension_paths: string[] = [];
+  const merged: string[] = [];
+  for (const arg of args) {
+    if (!arg.startsWith("--load-extension=")) {
+      merged.push(arg);
+      continue;
+    }
+    for (const extension_path of arg.slice("--load-extension=".length).split(",")) {
+      if (extension_path && !load_extension_paths.includes(extension_path)) load_extension_paths.push(extension_path);
+    }
+  }
+  if (load_extension_paths.length > 0) {
+    const first_url_index = merged.findIndex((arg) => !arg.startsWith("-"));
+    const load_extension_arg = `--load-extension=${load_extension_paths.join(",")}`;
+    if (first_url_index === -1) merged.push(load_extension_arg);
+    else merged.splice(first_url_index, 0, load_extension_arg);
+  }
+  return merged;
+}
+
 export class BrowserLauncher {
   options: BrowserLaunchOptions;
   launched: LaunchedBrowser | null = null;
@@ -64,8 +86,8 @@ export class BrowserLauncher {
     this.options = {
       ...this.options,
       ...config,
-      ...(config.args ? { args: [...(this.options.args ?? []), ...config.args] } : {}),
-      ...(config.extra_args ? { extra_args: [...(this.options.extra_args ?? []), ...config.extra_args] } : {}),
+      ...(config.args ? { args: mergeChromeArgs(this.options.args, config.args) } : {}),
+      ...(config.extra_args ? { extra_args: mergeChromeArgs(this.options.extra_args, config.extra_args) } : {}),
     };
     return this;
   }

@@ -1,9 +1,13 @@
 import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
+import type { UpstreamTransportConfig } from "./UpstreamTransport.js";
 import type { ProtocolParams, ProtocolResult } from "../types/modcdp.js";
 import { commands as RuntimeCommands } from "../types/zod/Runtime.js";
 import { commands as TargetCommands } from "../types/zod/Target.js";
 
 const EXT_ID_FROM_URL = /^chrome-extension:\/\/([a-z]+)\//;
+export const DEFAULT_MODCDP_EXTENSION_ID = "mdedooklbnfejodmnhmkdpkaedafkehf";
+export const DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES = ["/modcdp/service_worker.js"];
+export const DEFAULT_MODCDP_WAKE_PATH = "/modcdp/wake.html";
 const MODCDP_READY_EXPRESSION =
   "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
 export const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
@@ -23,6 +27,8 @@ export type ExtensionInjectorConfig = {
   waitForExecutionContext?: ((session_id: string, timeout_ms: number) => Promise<number>) | null;
   extension_path?: string | null;
   extension_id?: string | null;
+  wake_path?: string | null;
+  wake_url?: string | null;
   service_worker_url_includes?: string[];
   service_worker_url_suffixes?: string[];
   trust_matched_service_worker?: boolean;
@@ -66,6 +72,8 @@ export class ExtensionInjector {
       waitForExecutionContext: null,
       extension_path: null,
       extension_id: null,
+      wake_path: DEFAULT_MODCDP_WAKE_PATH,
+      wake_url: null,
       service_worker_url_includes: [],
       service_worker_url_suffixes: [],
       trust_matched_service_worker: false,
@@ -100,6 +108,10 @@ export class ExtensionInjector {
 
   getLauncherConfig(): BrowserLaunchOptions {
     return {};
+  }
+
+  getTransportConfig(): UpstreamTransportConfig {
+    return this.options.extension_id ? { extension_id: this.options.extension_id } : {};
   }
 
   async prepare() {}
@@ -162,6 +174,25 @@ export class ExtensionInjector {
 
   protected async targetInfos() {
     return TargetCommands["Target.getTargets"].result.parse(await this.send("Target.getTargets")).targetInfos;
+  }
+
+  protected configuredWakeUrl() {
+    if (this.options.wake_url) return this.options.wake_url;
+    if (!this.options.extension_id) return null;
+    const wake_path = this.options.wake_path ?? DEFAULT_MODCDP_WAKE_PATH;
+    if (!wake_path) return null;
+    return `chrome-extension://${this.options.extension_id}${wake_path.startsWith("/") ? wake_path : `/${wake_path}`}`;
+  }
+
+  protected async wakeConfiguredExtension() {
+    const wake_url = this.configuredWakeUrl();
+    if (!wake_url || typeof this.options.send !== "function") return false;
+    try {
+      await this.sendWithTimeout("Target.createTarget", { url: wake_url });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   protected async probeTarget(
@@ -237,6 +268,7 @@ export class ExtensionInjector {
     const url = candidate.url ?? "";
     if (candidate.type !== "service_worker") return false;
     if (!url.startsWith("chrome-extension://")) return false;
+    if (this.options.extension_id && !url.startsWith(`chrome-extension://${this.options.extension_id}/`)) return false;
     const includes = this.options.service_worker_url_includes ?? [];
     const suffixes = this.options.service_worker_url_suffixes ?? [];
     if (includes.length > 0 && !includes.every((part) => url.includes(part))) return false;

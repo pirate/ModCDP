@@ -1,13 +1,12 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { CdpCommandMessage } from "../types/modcdp.js";
-import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
+import { DEFAULT_MODCDP_EXTENSION_ID } from "./ExtensionInjector.js";
 import { UpstreamTransport, type UpstreamTransportConfig } from "./UpstreamTransport.js";
 
 export const DEFAULT_NATIVE_MESSAGING_HOST_NAME = "com.modcdp.bridge";
 export const DEFAULT_NATIVE_MESSAGING_WAIT_TIMEOUT_MS = 10_000;
-export const DEFAULT_MODCDP_EXTENSION_ID = "mdedooklbnfejodmnhmkdpkaedafkehf";
 
 type NativeMessagingOptions = {
   manifest_path?: string | null;
@@ -27,9 +26,11 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
   private wait_timeout_ms: number;
   private manifest_path: string | null;
   private manifest_paths: string[];
+  private include_default_manifest_paths: boolean;
   private host_name: string;
   private extension_id: string;
   private user_data_dir: string | null = null;
+  private bound_port: number | null = null;
   private cdp_url: string | null = null;
 
   constructor({
@@ -42,27 +43,29 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     super();
     this.manifest_path = manifest_path;
     this.manifest_paths = manifest_paths ?? [];
+    this.include_default_manifest_paths = !manifest_path && !manifest_paths?.length;
     this.host_name = host_name || DEFAULT_NATIVE_MESSAGING_HOST_NAME;
     this.extension_id = extension_id || DEFAULT_MODCDP_EXTENSION_ID;
     this.wait_timeout_ms = wait_timeout_ms;
   }
 
   update(config: UpstreamTransportConfig = {}) {
-    this.manifest_path = config.manifest_path ?? this.manifest_path;
-    this.manifest_paths = config.manifest_paths ?? this.manifest_paths;
-    this.user_data_dir = config.user_data_dir ?? this.user_data_dir;
-    this.cdp_url = config.ws_url ?? config.cdp_url ?? this.cdp_url;
-    if (!this.manifest_path && this.user_data_dir) this.setProfileManifestPaths(this.user_data_dir);
-    return this;
-  }
-
-  getLauncherConfig(): BrowserLaunchOptions {
-    if (!this.manifest_path && !this.user_data_dir) {
-      this.user_data_dir = mkdtempSync(path.join(tmpdir(), "modcdp-native-profile-"));
-      this.setProfileManifestPaths(this.user_data_dir);
-      return { user_data_dir: this.user_data_dir, cleanup_user_data_dir: true };
+    if (config.manifest_path !== undefined) {
+      this.manifest_path = config.manifest_path;
+      this.include_default_manifest_paths = !config.manifest_path;
     }
-    return this.user_data_dir ? { user_data_dir: this.user_data_dir } : {};
+    if (config.manifest_paths !== undefined) {
+      this.manifest_paths = config.manifest_paths ?? [];
+      this.include_default_manifest_paths = !this.manifest_paths.length;
+    }
+    this.extension_id = config.extension_id ?? this.extension_id;
+    if (config.user_data_dir) {
+      this.user_data_dir = config.user_data_dir;
+      this.setProfileManifestPaths(config.user_data_dir);
+      if (this.bound_port != null) this.installNativeHost(this.bound_port);
+    }
+    this.cdp_url = config.ws_url ?? config.cdp_url ?? this.cdp_url;
+    return this;
   }
 
   getServerConfig() {
@@ -83,7 +86,8 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Native messaging bridge did not bind a TCP port.");
     this.url = `native://${this.host_name}@127.0.0.1:${address.port}`;
-    await this.installNativeHost(address.port);
+    this.bound_port = address.port;
+    this.installNativeHost(address.port);
   }
 
   send(message: CdpCommandMessage) {
@@ -142,10 +146,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     this.peer_waiters.clear();
   }
 
-  private async installNativeHost(port: number) {
-    const fs = await import("node:fs");
-    const os = await import("node:os");
-    const path = await import("node:path");
+  private installNativeHost(port: number) {
     const hostDir = path.join(os.homedir(), ".modcdp", "native-messaging");
     fs.mkdirSync(hostDir, { recursive: true });
 
@@ -162,7 +163,13 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
 
     const manifestPaths =
       this.manifest_path || this.manifest_paths.length > 0
-        ? [...(this.manifest_path ? [this.manifest_path] : []), ...this.manifest_paths]
+        ? [
+            ...(this.manifest_path ? [this.manifest_path] : []),
+            ...this.manifest_paths,
+            ...(this.include_default_manifest_paths
+              ? defaultNativeMessagingManifestPaths(this.host_name, os.homedir())
+              : []),
+          ]
         : defaultNativeMessagingManifestPaths(this.host_name, os.homedir());
     const manifest = JSON.stringify(
       {
@@ -182,11 +189,11 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
   }
 
   private setProfileManifestPaths(user_data_dir: string) {
-    this.manifest_path = path.join(user_data_dir, "NativeMessagingHosts", `${this.host_name}.json`);
-    this.manifest_paths = [
+    const profile_manifest_paths = [
+      path.join(user_data_dir, "NativeMessagingHosts", `${this.host_name}.json`),
       path.join(user_data_dir, "Default", "NativeMessagingHosts", `${this.host_name}.json`),
-      ...this.manifest_paths,
     ];
+    this.manifest_paths = [...profile_manifest_paths, ...this.manifest_paths];
   }
 }
 

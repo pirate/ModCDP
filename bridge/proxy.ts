@@ -622,9 +622,8 @@ async function handleConnection(
       service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       trust_service_worker_target: true,
     },
-    client: clientRoutes ? { routes: clientRoutes } : {},
+    client: { ...(clientRoutes ? { routes: clientRoutes } : {}), hydrate_aliases: false },
     server: server as any,
-    hydrate_aliases: false,
   });
   await cdp.connect();
   const upstream_socket = (cdp.transport as unknown as { ws?: WebSocket } | null)?.ws ?? null;
@@ -743,9 +742,8 @@ async function handleModCDPServerConnection(
       service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       trust_service_worker_target: true,
     },
-    client: clientRoutes ? { routes: clientRoutes } : {},
+    client: { ...(clientRoutes ? { routes: clientRoutes } : {}), hydrate_aliases: false },
     server: server as any,
-    hydrate_aliases: false,
   });
   await cdp.connect();
 

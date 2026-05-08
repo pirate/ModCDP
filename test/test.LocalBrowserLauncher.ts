@@ -38,6 +38,25 @@ describe("LocalBrowserLauncher", () => {
         expect(chrome.cdp_url).toBe(`http://127.0.0.1:${port}`);
         expect(chrome.ws_url).toEqual(expect.stringMatching(new RegExp(`^ws://127\\.0\\.0\\.1:${port}/`)));
         expect(chrome.profile_dir).toBe(userDataDir);
+        expect((chrome.proc as { spawnargs?: string[] }).spawnargs ?? []).toEqual(
+          expect.arrayContaining([
+            "--enable-unsafe-extension-debugging",
+            "--remote-allow-origins=*",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-default-apps",
+            "--disable-dev-shm-usage",
+            "--disable-background-networking",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-background-timer-throttling",
+            "--disable-sync",
+            "--disable-features=DisableLoadExtensionCommandLineSwitch",
+            "--password-store=basic",
+            "--use-mock-keychain",
+            "--window-size=900,700",
+          ]),
+        );
         await expect(stat(userDataDir)).resolves.toBeTruthy();
         cdp = await CdpSocket.connect(chrome.ws_url!);
         await expectCdpBrowserSurface(cdp);

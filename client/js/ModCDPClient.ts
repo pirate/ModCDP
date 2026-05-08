@@ -4,12 +4,8 @@
 //   launch            browser/session creation and cleanup
 //   upstream          message transport to either raw CDP or a ModCDP server
 //   extension         raw-CDP extension discovery/injection/borrowing
-//   client.routes     client-side direct_cdp/service_worker routing
+//   client            client-side routing, alias hydration, event mirroring, send/event timeouts
 //   server            ModCDPServer.configure params
-//   mirror_upstream_events
-//                     when false, do not mirror server-side upstream CDP events back through Runtime bindings
-//   *_timeout_ms / *_interval_ms
-//                     override default CDP send, service-worker probe, execution-context, event, and poll timings
 //
 // Public methods: connect, send(method, params), on(event, handler), close.
 
@@ -48,9 +44,16 @@ import type { BrowserLauncher, BrowserLaunchOptions, LaunchedBrowser } from "../
 import { BBBrowserExtensionInjector } from "../../bridge/BBBrowserExtensionInjector.js";
 import { BorrowedExtensionInjector } from "../../bridge/BorrowedExtensionInjector.js";
 import { DiscoveredExtensionInjector } from "../../bridge/DiscoveredExtensionInjector.js";
-import { ExtensionInjector, type ExtensionInjectorConfig, type SendCDP } from "../../bridge/ExtensionInjector.js";
+import {
+  DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
+  DEFAULT_MODCDP_WAKE_PATH,
+  ExtensionInjector,
+  type ExtensionInjectorConfig,
+  type SendCDP,
+} from "../../bridge/ExtensionInjector.js";
 import { ExtensionsLoadUnpackedInjector } from "../../bridge/ExtensionsLoadUnpackedInjector.js";
 import { LocalBrowserLaunchExtensionInjector } from "../../bridge/LocalBrowserLaunchExtensionInjector.js";
+import { AutoSessionRouter } from "./AutoSessionRouter.js";
 import type {
   CdpCommandMessage,
   CdpError,
@@ -109,35 +112,41 @@ type UpstreamOptions = {
   nats_subject_prefix?: string | null;
   reversews_bind?: string | null;
   nativemessaging_manifest?: string | null;
+  ws_connect_error_settle_timeout_ms?: number;
 };
 type ExtensionOptions = {
   mode?: ExtensionMode;
   path?: string | null;
+  extension_id?: string | null;
+  wake_path?: string | null;
+  wake_url?: string | null;
   service_worker_url_includes?: string[];
   service_worker_url_suffixes?: string[] | null;
   trust_service_worker_target?: boolean;
   require_service_worker_target?: boolean;
   service_worker_ready_expression?: string | null;
-};
-type ClientOptions = {
-  launch?: LaunchOptions;
-  upstream?: UpstreamOptions;
-  extension?: ExtensionOptions;
-  client?: { routes?: ModCDPRoutes };
-  server?: ModCDPServerOptions | null;
-  custom_commands?: ModCDPClientCustomCommandParams[];
-  custom_events?: ModCDPAddCustomEventObjectParams[];
-  custom_middlewares?: ModCDPAddMiddlewareParams[];
-  hydrate_aliases?: boolean;
-  mirror_upstream_events?: boolean;
-  cdp_send_timeout_ms?: number;
-  event_wait_timeout_ms?: number;
   execution_context_timeout_ms?: number;
   service_worker_probe_timeout_ms?: number;
   service_worker_ready_timeout_ms?: number;
   service_worker_poll_interval_ms?: number;
   target_session_poll_interval_ms?: number;
-  ws_connect_error_settle_timeout_ms?: number;
+};
+type ClientConfigOptions = {
+  routes?: ModCDPRoutes;
+  hydrate_aliases?: boolean;
+  mirror_upstream_events?: boolean;
+  cdp_send_timeout_ms?: number;
+  event_wait_timeout_ms?: number;
+};
+type ClientOptions = {
+  launch?: LaunchOptions;
+  upstream?: UpstreamOptions;
+  extension?: ExtensionOptions;
+  client?: ClientConfigOptions;
+  server?: ModCDPServerOptions | null;
+  custom_commands?: ModCDPClientCustomCommandParams[];
+  custom_events?: ModCDPAddCustomEventObjectParams[];
+  custom_middlewares?: ModCDPAddMiddlewareParams[];
   self?: {
     addEventListener?: (
       listener: (event: string, data: ProtocolPayload, cdpSessionId: string | null) => void,
@@ -146,11 +155,18 @@ type ClientOptions = {
     handleCommand: (method: string, params?: ProtocolParams, cdpSessionId?: string | null) => Promise<ProtocolResult>;
   } | null;
 };
+type ClientConfig = {
+  routes: ModCDPRoutes;
+  hydrate_aliases: boolean;
+  mirror_upstream_events: boolean;
+  cdp_send_timeout_ms: number;
+  event_wait_timeout_ms: number;
+};
 type NormalizedClientOptions = {
   launch: Required<LaunchOptions>;
   upstream: Required<UpstreamOptions>;
   extension: Required<ExtensionOptions>;
-  routes: ModCDPRoutes;
+  client: ClientConfig;
   server: ModCDPServerOptions | null;
   upstream_endpoint_kind: UpstreamEndpointKind;
 };
@@ -249,17 +265,37 @@ function normalizeClientOptions({
       nats_subject_prefix: upstream.nats_subject_prefix ?? null,
       reversews_bind: upstream.reversews_bind ?? DEFAULT_REVERSEWS_BIND,
       nativemessaging_manifest: upstream.nativemessaging_manifest ?? null,
+      ws_connect_error_settle_timeout_ms:
+        upstream.ws_connect_error_settle_timeout_ms ?? DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
     },
     extension: {
       mode: extension_mode,
       path: extension.path ?? defaultExtensionPath(),
+      extension_id: extension.extension_id ?? null,
+      wake_path: extension.wake_path ?? DEFAULT_MODCDP_WAKE_PATH,
+      wake_url: extension.wake_url ?? null,
       service_worker_url_includes: extension.service_worker_url_includes ?? [],
       service_worker_url_suffixes: extension.service_worker_url_suffixes ?? null,
       trust_service_worker_target: extension.trust_service_worker_target ?? false,
       require_service_worker_target: extension.require_service_worker_target ?? false,
       service_worker_ready_expression: extension.service_worker_ready_expression ?? null,
+      execution_context_timeout_ms: extension.execution_context_timeout_ms ?? DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS,
+      service_worker_probe_timeout_ms:
+        extension.service_worker_probe_timeout_ms ?? DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+      service_worker_ready_timeout_ms:
+        extension.service_worker_ready_timeout_ms ?? DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
+      service_worker_poll_interval_ms:
+        extension.service_worker_poll_interval_ms ?? DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS,
+      target_session_poll_interval_ms:
+        extension.target_session_poll_interval_ms ?? DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
     },
-    routes: { ...DEFAULT_CLIENT_ROUTES, ...(client.routes ?? {}) },
+    client: {
+      routes: { ...DEFAULT_CLIENT_ROUTES, ...(client.routes ?? {}) },
+      hydrate_aliases: client.hydrate_aliases ?? true,
+      mirror_upstream_events: client.mirror_upstream_events ?? true,
+      cdp_send_timeout_ms: client.cdp_send_timeout_ms ?? DEFAULT_CDP_SEND_TIMEOUT_MS,
+      event_wait_timeout_ms: client.event_wait_timeout_ms ?? DEFAULT_EVENT_WAIT_TIMEOUT_MS,
+    },
     server:
       server === null
         ? null
@@ -335,26 +371,15 @@ export class ModCDPClient extends ModCDPEventEmitter {
   launch: NormalizedClientOptions["launch"];
   upstream: NormalizedClientOptions["upstream"];
   extension: NormalizedClientOptions["extension"];
+  client: NormalizedClientOptions["client"];
   upstream_endpoint_kind: UpstreamEndpointKind;
   cdp_url: string | null;
-  routes: ModCDPRoutes;
   server: ModCDPServerOptions | null;
   custom_commands: ModCDPClientCustomCommandParams[];
   custom_events: ModCDPAddCustomEventObjectParams[];
   custom_middlewares: ModCDPAddMiddlewareParams[];
-  hydrate_aliases: boolean;
-  mirror_upstream_events: boolean;
   transport: UpstreamTransport | null;
   self: ClientOptions["self"];
-  cdp_send_timeout_ms: number;
-  event_wait_timeout_ms: number;
-  execution_context_timeout_ms: number;
-  service_worker_probe_timeout_ms: number;
-  service_worker_ready_timeout_ms: number;
-  service_worker_poll_interval_ms: number;
-  target_session_poll_interval_ms: number;
-  ws_connect_error_settle_timeout_ms: number;
-  server_options: ModCDPServerOptions;
   next_id: number;
   pending: Map<number, PendingCommand>;
   ext_session_id: string | null;
@@ -372,10 +397,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   self_event_listener_registered: boolean;
   cdp_aliases_hydrated: boolean;
   event_wait_cleanups: Set<() => void>;
-  auto_target_sessions: Map<string, string>;
-  auto_session_targets: Map<string, Record<string, unknown>>;
-  runtime_execution_contexts: Map<string, number>;
-  runtime_execution_context_waiters: Map<string, Set<(contextId: number) => void>>;
+  auto_sessions: AutoSessionRouter;
   _extension_injectors: ExtensionInjector[];
   _cdp: {
     send: (method: string, params?: ProtocolParams, sessionId?: string | null) => Promise<ProtocolResult>;
@@ -393,16 +415,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
     custom_commands = [],
     custom_events = [],
     custom_middlewares = [],
-    hydrate_aliases = true,
-    mirror_upstream_events = true,
-    cdp_send_timeout_ms = DEFAULT_CDP_SEND_TIMEOUT_MS,
-    event_wait_timeout_ms = DEFAULT_EVENT_WAIT_TIMEOUT_MS,
-    execution_context_timeout_ms = DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS,
-    service_worker_probe_timeout_ms = DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
-    service_worker_ready_timeout_ms = DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
-    service_worker_poll_interval_ms = DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS,
-    target_session_poll_interval_ms = DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
-    ws_connect_error_settle_timeout_ms = DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
     self = null,
   }: ClientOptions = {}) {
     super();
@@ -410,28 +422,13 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.launch = normalized.launch;
     this.upstream = normalized.upstream;
     this.extension = normalized.extension;
+    this.client = normalized.client;
     this.upstream_endpoint_kind = normalized.upstream_endpoint_kind;
     this.cdp_url = this.upstream.ws_url;
-    this.routes = normalized.routes;
     this.server = normalized.server;
     this.custom_commands = custom_commands;
     this.custom_events = custom_events;
     this.custom_middlewares = custom_middlewares;
-    this.hydrate_aliases = hydrate_aliases;
-    this.mirror_upstream_events = mirror_upstream_events;
-    this.cdp_send_timeout_ms = cdp_send_timeout_ms;
-    this.event_wait_timeout_ms = event_wait_timeout_ms;
-    this.execution_context_timeout_ms = execution_context_timeout_ms;
-    this.service_worker_probe_timeout_ms = service_worker_probe_timeout_ms;
-    this.service_worker_ready_timeout_ms = service_worker_ready_timeout_ms;
-    this.service_worker_poll_interval_ms = service_worker_poll_interval_ms;
-    this.target_session_poll_interval_ms = target_session_poll_interval_ms;
-    this.ws_connect_error_settle_timeout_ms = ws_connect_error_settle_timeout_ms;
-    this.server_options = {
-      cdp_send_timeout_ms,
-      loopback_execution_context_timeout_ms: execution_context_timeout_ms,
-      ws_connect_error_settle_timeout_ms,
-    };
     this.self = self;
 
     this.transport = null;
@@ -452,10 +449,11 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.self_event_listener_registered = false;
     this.cdp_aliases_hydrated = false;
     this.event_wait_cleanups = new Set();
-    this.auto_target_sessions = new Map();
-    this.auto_session_targets = new Map();
-    this.runtime_execution_contexts = new Map();
-    this.runtime_execution_context_waiters = new Map();
+    this.auto_sessions = new AutoSessionRouter(
+      (method, params = {}, session_id = null) =>
+        this._sendMessage(method, params, session_id) as Promise<ProtocolResult>,
+      () => this.extension.execution_context_timeout_ms,
+    );
     this._extension_injectors = [];
     this._launched = null;
 
@@ -528,21 +526,21 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.ext_session_id = ext.session_id as string;
     this.event_schemas.set("Mod.pong", Mod.PongEvent);
 
-    const ext_context = this._waitForExecutionContext(this.ext_session_id, {
-      timeout_ms: this.execution_context_timeout_ms,
+    const ext_context = this.auto_sessions.waitForExecutionContext(this.ext_session_id, {
+      timeout_ms: this.extension.execution_context_timeout_ms,
     });
     await this._sendMessage("Runtime.enable", {}, this.ext_session_id);
     this.ext_execution_context_id = await ext_context;
     await Promise.all([
       this._sendMessage("Runtime.addBinding", { name: CUSTOM_EVENT_BINDING_NAME }, this.ext_session_id),
-      this.mirror_upstream_events
+      this.client.mirror_upstream_events
         ? this._sendMessage("Runtime.addBinding", { name: UPSTREAM_EVENT_BINDING_NAME }, this.ext_session_id)
         : Promise.resolve(),
     ]);
     if (this.server !== null) {
       await this._sendRaw(
         wrapCommandIfNeeded("Mod.configure", this._serverConfigureParams(), {
-          routes: this.routes,
+          routes: this.client.routes,
           cdpSessionId: this.ext_session_id,
         }),
       );
@@ -622,7 +620,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
       return result;
     }
     const command = wrapCommandIfNeeded(method, command_params as ProtocolParams, {
-      routes: this.routes,
+      routes: this.client.routes,
     });
     const result = await this._sendRaw(command);
     const completed_at = Date.now();
@@ -647,7 +645,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   async _hydrateCdpAliases() {
-    if (!this.hydrate_aliases || this.cdp_aliases_hydrated) return;
+    if (!this.client.hydrate_aliases || this.cdp_aliases_hydrated) return;
     Object.assign(
       this,
       createCdpAliases((method, params) => this.send(method, params), {
@@ -712,10 +710,10 @@ export class ModCDPClient extends ModCDPEventEmitter {
         ...(this.upstream.nats_subject_prefix ? { nats_subject_prefix: this.upstream.nats_subject_prefix } : {}),
       },
       client: {
-        routes: this.routes,
+        routes: this.client.routes,
       },
       server: {
-        ...this.server_options,
+        ...this._serverDefaults(),
         ...(this.server ?? {}),
       },
       custom_commands: this.custom_commands.filter(hasCommandExpression).map((command) => ({
@@ -736,6 +734,14 @@ export class ModCDPClient extends ModCDPEventEmitter {
     };
   }
 
+  _serverDefaults(): ModCDPServerOptions {
+    return {
+      cdp_send_timeout_ms: this.client.cdp_send_timeout_ms,
+      loopback_execution_context_timeout_ms: this.extension.execution_context_timeout_ms,
+      ws_connect_error_settle_timeout_ms: this.upstream.ws_connect_error_settle_timeout_ms,
+    };
+  }
+
   async _connectUpstreamTransport() {
     if (this.transport) return;
     const launcher = this._browserLauncher();
@@ -748,9 +754,9 @@ export class ModCDPClient extends ModCDPEventEmitter {
     for (const injector of injectors) injector.update(launcher.getInjectorConfig());
     for (const injector of injectors) await injector.prepare();
     for (const injector of injectors) launcher.update(injector.getLauncherConfig());
+    for (const injector of injectors) transport.update(injector.getTransportConfig());
     transport.update(initial_transport_config);
     launcher.update(transport.getLauncherConfig());
-    this.launch.user_data_dir = launcher.options.user_data_dir ?? this.launch.user_data_dir;
     transport.update(launcher.getTransportConfig());
 
     if (transport.endpoint_kind === "modcdp_server") await transport.connect();
@@ -758,6 +764,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
       this._launched = await launcher.launch();
       transport.update(launcher.getTransportConfig());
       for (const injector of injectors) injector.update(launcher.getInjectorConfig());
+      for (const injector of injectors) transport.update(injector.getTransportConfig());
     }
     const launched_cdp_url = this._launched?.ws_url ?? this._launched?.cdp_url ?? null;
     if (transport.endpoint_kind === "raw_cdp") await transport.connect();
@@ -776,6 +783,9 @@ export class ModCDPClient extends ModCDPEventEmitter {
       ) {
         this.server = { ...this.server, ...server_config };
       }
+    }
+    if (transport.endpoint_kind === "modcdp_server" && launched_cdp_url && injectors.length > 0) {
+      await this._bootstrapModCDPServerExtension(launched_cdp_url, injectors);
     }
   }
 
@@ -815,6 +825,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
       nats_subject_prefix: this.upstream.nats_subject_prefix,
       reversews_bind: this.upstream.reversews_bind,
       manifest_path: this.upstream.nativemessaging_manifest,
+      extension_id: this.extension.extension_id,
     };
   }
 
@@ -843,28 +854,25 @@ export class ModCDPClient extends ModCDPEventEmitter {
       service_worker_url_suffixes.some((suffix) => suffix.split("/").filter(Boolean).length > 1);
     return {
       send,
-      sessionIdForTarget: (target_id) => this.auto_target_sessions.get(target_id) ?? null,
-      attachToTarget: async (target_id) => {
-        const existing_session_id = this.auto_target_sessions.get(target_id);
-        if (existing_session_id != null) return existing_session_id;
-        if (!send) return null;
-        const result = await send("Target.attachToTarget", { targetId: target_id, flatten: true });
-        const session_id = result && typeof result === "object" ? (result as Record<string, unknown>).sessionId : null;
-        return typeof session_id === "string" && session_id.length > 0 ? session_id : null;
-      },
-      waitForExecutionContext: (session_id, timeout_ms) => this._waitForExecutionContext(session_id, { timeout_ms }),
+      sessionIdForTarget: (target_id) => this.auto_sessions.sessionIdForTarget(target_id),
+      attachToTarget: send ? (target_id) => this.auto_sessions.attachToTarget(target_id) : async () => null,
+      waitForExecutionContext: (session_id, timeout_ms) =>
+        this.auto_sessions.waitForExecutionContext(session_id, { timeout_ms }),
       extension_path: this.extension.path,
+      extension_id: this.extension.extension_id,
+      wake_path: this.extension.wake_path,
+      wake_url: this.extension.wake_url,
       service_worker_url_includes: this.extension.service_worker_url_includes,
       service_worker_url_suffixes,
       trust_matched_service_worker,
       require_service_worker_target: this.extension.require_service_worker_target || this.extension.mode === "discover",
       service_worker_ready_expression: this.extension.service_worker_ready_expression,
-      cdp_send_timeout_ms: this.cdp_send_timeout_ms,
-      execution_context_timeout_ms: this.execution_context_timeout_ms,
-      service_worker_probe_timeout_ms: this.service_worker_probe_timeout_ms,
-      service_worker_ready_timeout_ms: this.service_worker_ready_timeout_ms,
-      service_worker_poll_interval_ms: this.service_worker_poll_interval_ms,
-      target_session_poll_interval_ms: this.target_session_poll_interval_ms,
+      cdp_send_timeout_ms: this.client.cdp_send_timeout_ms,
+      execution_context_timeout_ms: this.extension.execution_context_timeout_ms,
+      service_worker_probe_timeout_ms: this.extension.service_worker_probe_timeout_ms,
+      service_worker_ready_timeout_ms: this.extension.service_worker_ready_timeout_ms,
+      service_worker_poll_interval_ms: this.extension.service_worker_poll_interval_ms,
+      target_session_poll_interval_ms: this.extension.target_session_poll_interval_ms,
     };
   }
 
@@ -898,6 +906,54 @@ export class ModCDPClient extends ModCDPEventEmitter {
       }),
       this._sendMessage("Target.setDiscoverTargets", { discover: true }),
     ]);
+  }
+
+  async _bootstrapModCDPServerExtension(launched_cdp_url: string, injectors: ExtensionInjector[]) {
+    const bootstrap = new WebSocketUpstreamTransport();
+    const pending = new Map<number, PendingCommand>();
+    let next_id = 1;
+    bootstrap.update({ ws_url: launched_cdp_url });
+    await bootstrap.connect();
+
+    const send: SendCDP = (method, params = {}, session_id = null) =>
+      new Promise((resolve, reject) => {
+        const id = next_id++;
+        pending.set(id, { method, resolve, reject });
+        bootstrap.send({ id, method, params, ...(session_id ? { sessionId: session_id } : {}) });
+      });
+    const stop_recv = bootstrap.onRecv((message) => {
+      if ("id" in message) {
+        const response = CdpResponseMessageSchema.parse(message);
+        const command = pending.get(response.id);
+        if (!command) return;
+        pending.delete(response.id);
+        if (response.error) {
+          const error = new Error(response.error.message);
+          (error as Error & { cdp?: CdpError }).cdp = response.error;
+          command.reject(error);
+        } else {
+          command.resolve(response.result || {});
+        }
+        return;
+      }
+      const event = CdpEventMessageSchema.parse(message);
+      this.auto_sessions.recordProtocolEvent(event.method, event.params || {}, event.sessionId || null);
+    });
+
+    try {
+      await Promise.all([
+        send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }),
+        send("Target.setDiscoverTargets", { discover: true }),
+      ]);
+      const ext = await this._injectExtension(send, injectors);
+      if (ext.extension_id && !this.extension.extension_id) this.extension.extension_id = ext.extension_id;
+      return ext;
+    } finally {
+      stop_recv();
+      for (const command of pending.values()) command.reject(new Error("Bootstrap CDP transport closed."));
+      pending.clear();
+      await bootstrap.close();
+    }
   }
 
   async close() {
@@ -959,7 +1015,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   _waitForEvent(event_name: ModCDPEventNameInput, { timeout_ms }: { timeout_ms?: number } = {}) {
-    const effective_timeout_ms = timeout_ms ?? this.event_wait_timeout_ms;
+    const effective_timeout_ms = timeout_ms ?? this.client.event_wait_timeout_ms;
     let settled = false;
     let timeout: ReturnType<typeof setTimeout> | null = null;
     let cancel: () => void = () => {};
@@ -1033,8 +1089,8 @@ export class ModCDPClient extends ModCDPEventEmitter {
               ...step.params,
               executionContextId:
                 this.ext_execution_context_id ??
-                (await this._waitForExecutionContext(this.ext_session_id, {
-                  timeout_ms: this.execution_context_timeout_ms,
+                (await this.auto_sessions.waitForExecutionContext(this.ext_session_id, {
+                  timeout_ms: this.extension.execution_context_timeout_ms,
                 })),
             }
           : (step.params ?? {});
@@ -1047,7 +1103,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   _ensureSelfEventListener() {
     if (!this.self || this.self_event_listener_registered) return;
     this.self.addEventListener?.((event, data, cdp_session_id) => {
-      this._recordTargetSession(event, data, cdp_session_id);
+      this.auto_sessions.recordProtocolEvent(event, data, cdp_session_id);
       this.emit(event, this.event_schemas.get(event)?.parse(data) ?? data, cdp_session_id);
     });
     this.self_event_listener_registered = true;
@@ -1065,7 +1121,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     const message: CdpCommandMessage = { id, method, params };
     if (session_id) message.sessionId = session_id;
     return new Promise((resolve, reject) => {
-      const timeout_ms = options.timeout_ms ?? this.cdp_send_timeout_ms;
+      const timeout_ms = options.timeout_ms ?? this.client.cdp_send_timeout_ms;
       let timeout: ReturnType<typeof setTimeout> | null = null;
       const finish = (callback: () => void) => {
         if (timeout != null) clearTimeout(timeout);
@@ -1128,7 +1184,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     const event = CdpEventMessageSchema.parse(msg);
     if (event.sessionId === this.ext_session_id) {
       if (event.method === "Runtime.executionContextCreated") {
-        this._recordTargetSession(event.method, event.params || {}, event.sessionId || null);
+        this.auto_sessions.recordProtocolEvent(event.method, event.params || {}, event.sessionId || null);
       }
       if (event.method !== "Runtime.bindingCalled") return;
       const u = unwrapEventIfNeeded(
@@ -1138,75 +1194,28 @@ export class ModCDPClient extends ModCDPEventEmitter {
         this.ext_session_id,
       );
       if (u) {
-        this._recordTargetSession(u.event, u.data, u.sessionId);
+        this.auto_sessions.recordProtocolEvent(u.event, u.data, u.sessionId);
         this.emit(u.event, this.event_schemas.get(u.event)?.parse(u.data) ?? u.data, u.sessionId);
       }
       return;
     }
     if (event.method) {
       const data = event.params || {};
-      this._recordTargetSession(event.method, data, event.sessionId || null);
+      this.auto_sessions.recordProtocolEvent(event.method, data, event.sessionId || null);
       this.emit(event.method, this.event_schemas.get(event.method)?.parse(data) ?? data, event.sessionId || null);
     }
   }
 
-  _recordTargetSession(method: string, data: unknown, session_id: string | null) {
-    const event_data =
-      data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
-    if (method === "Target.attachedToTarget") {
-      const attached_session_id = typeof event_data.sessionId === "string" ? event_data.sessionId : session_id;
-      const target_info =
-        event_data.targetInfo && typeof event_data.targetInfo === "object"
-          ? (event_data.targetInfo as Record<string, unknown>)
-          : null;
-      const target_id = typeof target_info?.targetId === "string" ? target_info.targetId : null;
-      if (attached_session_id && target_id && target_info) {
-        this.auto_target_sessions.set(target_id, attached_session_id);
-        this.auto_session_targets.set(attached_session_id, target_info);
-      }
-    } else if (method === "Runtime.executionContextCreated") {
-      const context = event_data.context && typeof event_data.context === "object" ? event_data.context : null;
-      const context_id = context && "id" in context && typeof context.id === "number" ? context.id : null;
-      if (session_id && context_id != null) {
-        this.runtime_execution_contexts.set(session_id, context_id);
-        const waiters = this.runtime_execution_context_waiters.get(session_id);
-        if (waiters) {
-          this.runtime_execution_context_waiters.delete(session_id);
-          for (const resolve of waiters) resolve(context_id);
-        }
-      }
-    } else if (method === "Target.detachedFromTarget") {
-      const detached_session_id = typeof event_data.sessionId === "string" ? event_data.sessionId : session_id;
-      if (detached_session_id) {
-        const target_info = this.auto_session_targets.get(detached_session_id);
-        const target_id = typeof target_info?.targetId === "string" ? target_info.targetId : null;
-        if (target_id) this.auto_target_sessions.delete(target_id);
-        this.auto_session_targets.delete(detached_session_id);
-        this.runtime_execution_contexts.delete(detached_session_id);
-      }
-    }
+  get auto_target_sessions() {
+    return this.auto_sessions.target_sessions;
   }
 
-  _waitForExecutionContext(session_id: string | null, { timeout_ms }: { timeout_ms?: number } = {}) {
-    const effective_timeout_ms = timeout_ms ?? this.execution_context_timeout_ms;
-    if (!session_id) return Promise.reject(new Error("Cannot wait for a Runtime execution context without a session."));
-    const existing = this.runtime_execution_contexts.get(session_id);
-    if (existing != null) return Promise.resolve(existing);
-    return new Promise<number>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        const waiters = this.runtime_execution_context_waiters.get(session_id);
-        waiters?.delete(complete);
-        if (waiters?.size === 0) this.runtime_execution_context_waiters.delete(session_id);
-        reject(new Error(`Timed out waiting for Runtime.executionContextCreated for session ${session_id}.`));
-      }, effective_timeout_ms);
-      const complete = (context_id: number) => {
-        clearTimeout(timeout);
-        resolve(context_id);
-      };
-      const waiters = this.runtime_execution_context_waiters.get(session_id);
-      if (waiters) waiters.add(complete);
-      else this.runtime_execution_context_waiters.set(session_id, new Set([complete]));
-    });
+  get auto_session_targets() {
+    return this.auto_sessions.session_targets;
+  }
+
+  get runtime_execution_contexts() {
+    return this.auto_sessions.execution_contexts;
   }
 }
 

@@ -38,7 +38,7 @@ test.skipIf(process.platform === "win32")(
       assert.equal(
         existsSync(
           path.join(
-            native_client.launch.user_data_dir,
+            native_client._launched?.profile_dir ?? "",
             "NativeMessagingHosts",
             `${DEFAULT_NATIVE_MESSAGING_HOST_NAME}.json`,
           ),

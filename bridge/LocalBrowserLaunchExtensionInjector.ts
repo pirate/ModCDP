@@ -1,8 +1,16 @@
 import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
 import { ExtensionInjector } from "./ExtensionInjector.js";
 
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
   private unpacked_extension_path: string | null = null;
+  private extension_id: string | null = null;
   private cleanup: (() => Promise<void>) | null = null;
 
   async prepare() {
@@ -17,6 +25,7 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
     }
     if (!extension_path.endsWith(".zip")) {
       this.unpacked_extension_path = extension_path;
+      await this.resolveExtensionId();
       await super.prepare();
       return;
     }
@@ -30,17 +39,15 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
     execFileSync("unzip", ["-q", extension_path, "-d", unpacked_path]);
     this.unpacked_extension_path = unpacked_path;
     this.cleanup = async () => fs.rmSync(unpacked_path, { recursive: true, force: true });
+    await this.resolveExtensionId();
     await super.prepare();
   }
 
   getLauncherConfig(): BrowserLaunchOptions {
     const extension_path = this.unpacked_extension_path;
     if (!extension_path) return {};
-    const existing_args = [] as string[];
-    if (!existing_args.some((arg) => arg.startsWith("--load-extension="))) {
-      existing_args.push(`--load-extension=${extension_path}`);
-    }
-    return { extra_args: existing_args };
+    const wake_url = this.configuredWakeUrl();
+    return { extra_args: [`--load-extension=${extension_path}`, ...(wake_url ? [wake_url] : [])] };
   }
 
   async inject() {
@@ -56,4 +63,26 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
     await this.cleanup?.();
     this.cleanup = null;
   }
+
+  private async resolveExtensionId() {
+    if (this.extension_id) return this.extension_id;
+    this.extension_id = firstString(this.options.extension_id);
+    if (!this.extension_id && this.unpacked_extension_path) {
+      this.extension_id = await extensionIdFromManifestKey(this.unpacked_extension_path);
+    }
+    if (this.extension_id) this.options.extension_id = this.extension_id;
+    return this.extension_id;
+  }
+}
+
+async function extensionIdFromManifestKey(extension_path: string) {
+  const [crypto, fs, path] = await Promise.all([import("node:crypto"), import("node:fs"), import("node:path")]);
+  const manifest_path = path.join(extension_path, "manifest.json");
+  if (!fs.existsSync(manifest_path)) return null;
+  const manifest = JSON.parse(fs.readFileSync(manifest_path, "utf8")) as Record<string, unknown>;
+  const key = firstString(manifest.key);
+  if (!key) return null;
+  const digest = crypto.createHash("sha256").update(Buffer.from(key, "base64")).digest().subarray(0, 16);
+  const alphabet = "abcdefghijklmnop";
+  return [...digest].map((byte) => alphabet[byte >> 4] + alphabet[byte & 0x0f]).join("");
 }

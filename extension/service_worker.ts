@@ -169,10 +169,26 @@ if (bridge) {
   }
 }
 
-bridge.startReverseBridge?.(DEFAULT_REVERSE_PROXY_URL, { reconnect_interval_ms: 2_000 });
-bridge.startNativeBridge?.(DEFAULT_NATIVE_HOST_NAME, { reconnect_interval_ms: 2_000 });
+const startConfiguredTransports = () => {
+  bridge.startOffscreenKeepAlive?.();
+  bridge.startReverseBridge?.(DEFAULT_REVERSE_PROXY_URL, { reconnect_interval_ms: 2_000 });
+  bridge.startNativeBridge?.(DEFAULT_NATIVE_HOST_NAME, { reconnect_interval_ms: 2_000 });
+};
+
+startConfiguredTransports();
+chrome.runtime.onInstalled.addListener(startConfiguredTransports);
+chrome.runtime.onStartup.addListener(startConfiguredTransports);
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "modcdp.wake") {
+    startConfiguredTransports();
+    sendResponse({
+      ok: true,
+      extension_id: chrome.runtime.id,
+      service_worker_url: chrome.runtime.getURL("modcdp/service_worker.js"),
+    });
+    return false;
+  }
   if (message?.type !== "modcdp.options.status") return false;
   const self = {
     id: "self",
