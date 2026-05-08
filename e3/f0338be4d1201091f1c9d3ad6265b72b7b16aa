@@ -1,0 +1,23 @@
+test/typed-event-inference.test.ts
+  s_da40c27be267ee::t_f180d6f0bc22fd 1-11,16-30
+  s_da40c27be267ee::t_4eb0b9a3129ba0 12-15
+client/js/ModCDPClient.ts
+  s_da40c27be267ee::t_219597ba41cf01 108,777-781,792-796,807-811
+  s_da40c27be267ee::t_a9f5bcfa7ce6de 782,797,812
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "e3f0338be4d1201091f1c9d3ad6265b72b7b16aa",
+  "prompts": {},
+  "sessions": {
+    "s_da40c27be267ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0672-e176-70b2-b59b-7d59c3a22768",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
