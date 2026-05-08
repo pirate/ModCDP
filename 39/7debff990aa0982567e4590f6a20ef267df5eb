@@ -1,0 +1,24 @@
+client/go/ModCDPClient_test.go
+  s_b97125cfd29900::t_9eb527f6e26888 1-90
+client/go/ModCDPClient.go
+  s_b97125cfd29900::t_3b41609461ef6c 224,476-477,513-514,535-536,546,548,559,561,572,574
+  s_b97125cfd29900::t_074a547ed03d7e 1105-1108,1115,1118,1128-1135,1142,1145
+  s_b97125cfd29900::t_9b034b10765aa4 49,155,221-223,281-293,590-613,627-633
+  s_b97125cfd29900::t_1f754c317d171c 449-475,478-512,515-534,537-545,547,549-558,560,562-571,573,575-584
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "397debff990aa0982567e4590f6a20ef267df5eb",
+  "prompts": {},
+  "sessions": {
+    "s_b97125cfd29900": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfbaf-cdd3-7450-a6a6-0d68da00b802",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
