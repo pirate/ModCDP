@@ -1,0 +1,19 @@
+client/js/ModCDPClient.ts
+  s_da40c27be267ee::t_1df63d542500ce 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "d23b49e6970a15b76590e15fdc803573e47ae6dd",
+  "prompts": {},
+  "sessions": {
+    "s_da40c27be267ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0672-e176-70b2-b59b-7d59c3a22768",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Nick Sweeting <git@sweeting.me>"
+    }
+  }
+}
