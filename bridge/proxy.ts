@@ -161,9 +161,14 @@ export async function startProxy({
   });
 
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", () => resolve()));
-  stopUpstreamMonitor = monitorUpstream(upstream, upstreamMonitorIntervalMs, () => {
-    void close().catch((error) => log("proxy close failed:", errorMessage(error)));
-  });
+  stopUpstreamMonitor = monitorUpstream(
+    upstream,
+    upstreamMonitorIntervalMs,
+    () => {
+      void close().catch((error) => log("proxy close failed:", errorMessage(error)));
+    },
+    WebSocket,
+  );
   log(`listening on ws://127.0.0.1:${port}/  (upstream: ${upstream})`);
 
   return {
@@ -204,7 +209,12 @@ function errorMessage(error: unknown): string {
   return "";
 }
 
-function monitorUpstream(upstream: string, upstreamMonitorIntervalMs: number, onClosed: () => void) {
+function monitorUpstream(
+  upstream: string,
+  upstreamMonitorIntervalMs: number,
+  onClosed: () => void,
+  WebSocketCtor: new (url: string) => WebSocket,
+) {
   let stopped = false;
   let socket: WebSocket | null = null;
   let interval: NodeJS.Timeout | null = null;
@@ -223,7 +233,7 @@ function monitorUpstream(upstream: string, upstreamMonitorIntervalMs: number, on
   };
 
   if (isWsUrl(upstream)) {
-    socket = new WebSocket(upstream);
+    socket = new WebSocketCtor(upstream);
     socket.addEventListener("close", upstreamClosed);
     socket.addEventListener("error", upstreamClosed);
     return close;

@@ -50,9 +50,6 @@
   "dependencies": {
     "zod": "^4.4.1"
   },
-  "optionalDependencies": {
-    "ws": "^8.18.0"
-  },
   "devDependencies": {
     "@j178/prek": "0.3.10",
     "@types/chrome": "^0.1.40",
@@ -63,6 +60,9 @@
     "playwright": "^1.59.1",
     "puppeteer-core": "^24.42.0",
     "typescript": "^6.0.3"
+  },
+  "optionalDependencies": {
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=22"

@@ -373,9 +373,18 @@ export const ProxyUpstreamStateSchema = z
   .passthrough();
 export type ProxyUpstreamState = z.infer<typeof ProxyUpstreamStateSchema>;
 
+export type ProxyRawData = Buffer | ArrayBuffer | Buffer[];
+export type ProxyWebSocketLike = {
+  CLOSED: number;
+  CLOSING: number;
+  readyState: number;
+  close(code?: number, reason?: string | Buffer): void;
+  send(data: string): void;
+};
+
 export const ProxyConnectionStateSchema = z.object({
-  client: z.custom<import("ws").WebSocket>(),
-  upstream: z.custom<import("ws").WebSocket>(),
+  client: z.custom<ProxyWebSocketLike>(),
+  upstream: z.custom<ProxyWebSocketLike>(),
   nextUpstreamId: z.number(),
   pending: z.custom<Map<number, ProxyPending>>(),
   extSessionId: z.string().nullable(),
@@ -388,7 +397,7 @@ export const ProxyConnectionStateSchema = z.object({
   forwardMirroredUpstreamEvents: z.boolean(),
   bootstrapped: z.boolean(),
   closing: z.boolean(),
-  queuedFromClient: z.array(z.custom<import("ws").RawData>()),
+  queuedFromClient: z.array(z.custom<ProxyRawData>()),
 });
 export type ProxyConnectionState = z.infer<typeof ProxyConnectionStateSchema>;
 
