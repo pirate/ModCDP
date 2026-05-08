@@ -207,6 +207,61 @@ type CDPEvent struct {
 }
 
 type ModCDPClient struct {
+	Accessibility        AccessibilityDomain
+	Animation            AnimationDomain
+	Audits               AuditsDomain
+	Autofill             AutofillDomain
+	BackgroundService    BackgroundServiceDomain
+	BluetoothEmulation   BluetoothEmulationDomain
+	Browser              BrowserDomain
+	CSS                  CSSDomain
+	CacheStorage         CacheStorageDomain
+	Cast                 CastDomain
+	Console              ConsoleDomain
+	DOM                  DOMDomain
+	DOMDebugger          DOMDebuggerDomain
+	DOMSnapshot          DOMSnapshotDomain
+	DOMStorage           DOMStorageDomain
+	Debugger             DebuggerDomain
+	DeviceAccess         DeviceAccessDomain
+	DeviceOrientation    DeviceOrientationDomain
+	Emulation            EmulationDomain
+	EventBreakpoints     EventBreakpointsDomain
+	Extensions           ExtensionsDomain
+	FedCm                FedCmDomain
+	Fetch                FetchDomain
+	FileSystem           FileSystemDomain
+	HeadlessExperimental HeadlessExperimentalDomain
+	HeapProfiler         HeapProfilerDomain
+	IO                   IODomain
+	IndexedDB            IndexedDBDomain
+	Input                InputDomain
+	Inspector            InspectorDomain
+	LayerTree            LayerTreeDomain
+	Log                  LogDomain
+	Media                MediaDomain
+	Memory               MemoryDomain
+	Network              NetworkDomain
+	Overlay              OverlayDomain
+	PWA                  PWADomain
+	Page                 PageDomain
+	Performance          PerformanceDomain
+	PerformanceTimeline  PerformanceTimelineDomain
+	Preload              PreloadDomain
+	Profiler             ProfilerDomain
+	Runtime              RuntimeDomain
+	Schema               SchemaDomain
+	Security             SecurityDomain
+	ServiceWorker        ServiceWorkerDomain
+	SmartCardEmulation   SmartCardEmulationDomain
+	Storage              StorageDomain
+	SystemInfo           SystemInfoDomain
+	Target               TargetDomain
+	Tethering            TetheringDomain
+	Tracing              TracingDomain
+	WebAudio             WebAudioDomain
+	WebAuthn             WebAuthnDomain
+
 	opts                 Options
 	CDPURL               string
 	conn                 net.Conn
@@ -289,6 +344,7 @@ func New(opts Options) *ModCDPClient {
 		targetSessions:       map[string]string{},
 		sessionTargets:       map[string]map[string]any{},
 	}
+	initCDPSurface(client)
 	client.hydrateCustomSurface()
 	return client
 }
@@ -583,6 +639,10 @@ func (c *ModCDPClient) validateEventData(event string, data any) (any, bool) {
 }
 
 func (c *ModCDPClient) Send(method string, params map[string]any) (any, error) {
+	return c.sendCommand(method, params, "", true)
+}
+
+func (c *ModCDPClient) sendCommand(method string, params map[string]any, targetSessionID string, validateSchema bool) (any, error) {
 	startedAt := time.Now().UnixMilli()
 	if params == nil {
 		params = map[string]any{}
@@ -608,10 +668,12 @@ func (c *ModCDPClient) Send(method string, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	if err := c.validateCommandParams(method, params); err != nil {
-		return nil, err
+	if validateSchema {
+		if err := c.validateCommandParams(method, params); err != nil {
+			return nil, err
+		}
 	}
-	command, err := wrapCommandIfNeeded(method, params, c.opts.Routes, c.ExtSessionID)
+	command, err := wrapCommandIfNeeded(method, params, c.opts.Routes, c.ExtSessionID, targetSessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -627,8 +689,10 @@ func (c *ModCDPClient) Send(method string, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := c.validateCommandResult(method, result); err != nil {
-		return nil, err
+	if validateSchema {
+		if err := c.validateCommandResult(method, result); err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
 }
@@ -874,7 +938,7 @@ func (c *ModCDPClient) extractExtensionZip(files []*zip.File) error {
 func (c *ModCDPClient) sendRaw(command rawCommand) (any, error) {
 	if command.Target == "direct_cdp" {
 		step := command.Steps[0]
-		return c.sendFrame(step.Method, step.Params, "")
+		return c.sendFrame(step.Method, step.Params, step.SessionID)
 	}
 	if command.Target != "service_worker" {
 		return nil, fmt.Errorf("unsupported command target %q", command.Target)

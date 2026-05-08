@@ -44,9 +44,10 @@ func routeFor(method string, routes map[string]string) string {
 }
 
 type rawStep struct {
-	Method string
-	Params map[string]any
-	Unwrap string
+	Method    string
+	Params    map[string]any
+	Unwrap    string
+	SessionID string
 }
 
 type rawCommand struct {
@@ -126,9 +127,12 @@ func wrapCustomCommand(method string, params map[string]any, sessionID string) m
 	return evalParams(fmt.Sprintf(`globalThis.ModCDP.handleCommand(%s, %s, %s)`, string(m), string(p), string(sid)))
 }
 
-func wrapServiceWorkerCommand(method string, params map[string]any, sessionID string) []rawStep {
+func wrapServiceWorkerCommand(method string, params map[string]any, sessionID string, targetSessionID string) []rawStep {
 	if params == nil {
 		params = map[string]any{}
+	}
+	if targetSessionID == "" {
+		targetSessionID = sessionID
 	}
 	if method == "Mod.ping" {
 		if _, ok := params["sentAt"]; !ok {
@@ -149,7 +153,7 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 	runtimeParams := map[string]any{}
 	switch method {
 	case "Mod.evaluate":
-		runtimeParams = wrapModCDPEvaluate(params, sessionID)
+		runtimeParams = wrapModCDPEvaluate(params, targetSessionID)
 	case "Mod.addCustomCommand":
 		runtimeParams = wrapModCDPAddCustomCommand(params)
 	case "Mod.addMiddleware":
@@ -157,20 +161,24 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 	default:
 		cdpSessionID, _ := params["cdpSessionId"].(string)
 		if cdpSessionID == "" {
-			cdpSessionID = sessionID
+			cdpSessionID = targetSessionID
 		}
 		runtimeParams = wrapCustomCommand(method, params, cdpSessionID)
 	}
 	return []rawStep{{Method: "Runtime.evaluate", Params: runtimeParams, Unwrap: "evaluate"}}
 }
 
-func wrapCommandIfNeeded(method string, params map[string]any, routes map[string]string, sessionID string) (rawCommand, error) {
+func wrapCommandIfNeeded(method string, params map[string]any, routes map[string]string, sessionID string, targetSessionID ...string) (rawCommand, error) {
+	targetSession := ""
+	if len(targetSessionID) > 0 {
+		targetSession = targetSessionID[0]
+	}
 	route := routeFor(method, routes)
 	if route == "direct_cdp" {
-		return rawCommand{Route: route, Target: "direct_cdp", Steps: []rawStep{{Method: method, Params: params}}}, nil
+		return rawCommand{Route: route, Target: "direct_cdp", Steps: []rawStep{{Method: method, Params: params, SessionID: targetSession}}}, nil
 	}
 	if route == "service_worker" {
-		return rawCommand{Route: route, Target: "service_worker", Steps: wrapServiceWorkerCommand(method, params, sessionID)}, nil
+		return rawCommand{Route: route, Target: "service_worker", Steps: wrapServiceWorkerCommand(method, params, sessionID, targetSession)}, nil
 	}
 	return rawCommand{}, fmt.Errorf("unsupported client route %q for %s", route, method)
 }

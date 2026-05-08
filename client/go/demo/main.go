@@ -172,13 +172,11 @@ func main() {
 	cdp := modcdp.New(optionsFor(mode, cdpURL, extensionPath, launchOptions))
 	var (
 		eventsMu            sync.Mutex
-		targetCreatedEvents []map[string]any
+		targetCreatedEvents []modcdp.TargetTargetCreatedEvent
 		foregroundEvents    []map[string]any
 	)
-	cdp.On("Target.targetCreated", func(data any) {
-		event, _ := data.(map[string]any)
-		targetInfo, _ := event["targetInfo"].(map[string]any)
-		fmt.Printf("Target.targetCreated -> %v\n", targetInfo["targetId"])
+	cdp.Target.OnTargetCreated(func(event modcdp.TargetTargetCreatedEvent) {
+		fmt.Printf("Target.targetCreated -> %s\n", event.TargetID())
 		eventsMu.Lock()
 		targetCreatedEvents = append(targetCreatedEvents, event)
 		eventsMu.Unlock()
@@ -222,10 +220,7 @@ func main() {
 	fmt.Println("Mod.ping/pong    ->", ping, pong)
 
 	if mode == "debugger" {
-		if r, err := cdp.Send("Browser.getVersion", nil); err == nil {
-			version := mustMap(r, "Browser.getVersion")
-			_ = mustString(version["protocolVersion"], "Browser.getVersion.protocolVersion")
-			_ = mustString(version["product"], "Browser.getVersion.product")
+		if version, err := cdp.Browser.GetVersion(); err == nil {
 			b, _ := json.Marshal(version)
 			fmt.Println("Browser.getVersion ->", string(b))
 		} else {
@@ -242,9 +237,10 @@ func main() {
 		b, _ := json.Marshal(runtimeEval)
 		fmt.Println("Runtime.evaluate ->", string(b))
 	} else {
-		version := mustMap(mustSend(cdp, "Browser.getVersion", nil), "Browser.getVersion")
-		_ = mustString(version["protocolVersion"], "Browser.getVersion.protocolVersion")
-		_ = mustString(version["product"], "Browser.getVersion.product")
+		version, err := cdp.Browser.GetVersion()
+		if err != nil {
+			log.Fatalf("Browser.getVersion: %v", err)
+		}
 		b, _ := json.Marshal(version)
 		fmt.Println("Browser.getVersion ->", string(b))
 	}
@@ -365,26 +361,27 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if _, err := cdp.Send("Target.setDiscoverTargets", map[string]any{"discover": true}); err != nil {
+	if _, err := cdp.Target.SetDiscoverTargets(modcdp.TargetSetDiscoverTargetsParams{Discover: true}); err != nil {
 		log.Fatal(err)
 	}
-	createdRaw, err := cdp.Send("Target.createTarget", map[string]any{"url": "https://example.com", "background": true})
+	createdTarget, err := cdp.Target.CreateTarget(modcdp.TargetCreateTargetParams{
+		URL:        "https://example.com",
+		Background: modcdp.Bool(true),
+	})
 	if err != nil {
 		log.Fatalf("Target.createTarget: %v", err)
 	}
-	createdTarget, _ := createdRaw.(map[string]any)
-	createdTargetID, _ := createdTarget["targetId"].(string)
+	createdTargetID := string(createdTarget.TargetID)
 	if createdTargetID == "" {
 		log.Fatalf("Target.createTarget returned no targetId: %v", createdTarget)
 	}
 	deadline := time.Now().Add(3 * time.Second)
-	var matchedTargetEvent map[string]any
+	var matchedTargetEvent *modcdp.TargetTargetCreatedEvent
 	for time.Now().Before(deadline) {
 		eventsMu.Lock()
-		for _, event := range targetCreatedEvents {
-			targetInfo, _ := event["targetInfo"].(map[string]any)
-			if targetInfo["targetId"] == createdTargetID {
-				matchedTargetEvent = event
+		for i := range targetCreatedEvents {
+			if targetCreatedEvents[i].TargetID() == createdTargetID {
+				matchedTargetEvent = &targetCreatedEvents[i]
 				break
 			}
 		}
@@ -399,7 +396,7 @@ func main() {
 	}
 	fmt.Println("normal event matched ->", createdTargetID)
 
-	if _, err := cdp.Send("Target.activateTarget", map[string]any{"targetId": createdTargetID}); err != nil {
+	if _, err := cdp.Target.ActivateTarget(modcdp.TargetActivateTargetParams{TargetID: modcdp.TargetTargetID(createdTargetID)}); err != nil {
 		log.Fatalf("Target.activateTarget: %v", err)
 	}
 	deadline = time.Now().Add(3 * time.Second)
