@@ -301,6 +301,41 @@ test("proxy CLI maps user-facing flags into a real reversews local launch", asyn
   }
 }, 90_000);
 
+test("proxy CLI maps user-facing flags into a real nativemessaging local launch", async () => {
+  const proxy_port = await LocalBrowserLauncher.freePort();
+  const manifest_dir = await mkdtemp(path.join(tmpdir(), "modcdp-proxy-native-"));
+  const manifest_path = path.join(manifest_dir, "com.modcdp.bridge.json");
+  const proxy_script = path.resolve(HERE, "..", "dist", "bridge", "proxy.js");
+  const proc = spawn(
+    process.execPath,
+    [
+      proxy_script,
+      "--port",
+      String(proxy_port),
+      "--launch=local",
+      "--launch-options",
+      JSON.stringify({ headless: true, sandbox: process.platform !== "linux" }),
+      "--upstream=nativemessaging",
+      "--upstream-nativemessaging-manifest",
+      manifest_path,
+      "--extension=auto",
+      "--extension-path",
+      EXTENSION_PATH,
+      "--server-routes",
+      JSON.stringify({ "*.*": "loopback_cdp" }),
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  try {
+    await waitForHttpJsonVersion(`http://127.0.0.1:${proxy_port}/json/version`, 20_000);
+    await expectProxyCdpWorks(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-nativemessaging");
+  } finally {
+    await closeProcess(proc);
+    await rm(manifest_dir, { recursive: true, force: true });
+  }
+}, 90_000);
+
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nats upstream", async () => {
   const nats = await startNatsServer();
   const proxy_port = await LocalBrowserLauncher.freePort();
