@@ -21,6 +21,16 @@ const bootstrap_modcdp_server_expression = `
 
 export class BorrowedExtensionInjector extends ExtensionInjector {
   async inject() {
+    const deadline = Date.now() + (this.options.service_worker_ready_timeout_ms ?? 60_000);
+    do {
+      const borrowed = await this.borrowVisibleServiceWorkers();
+      if (borrowed) return borrowed;
+      await new Promise((resolve) => setTimeout(resolve, this.options.service_worker_poll_interval_ms ?? 100));
+    } while (Date.now() < deadline);
+    return null;
+  }
+
+  private async borrowVisibleServiceWorkers() {
     const borrowed: ExtensionInjectionResult[] = [];
     for (const target of await this.targetInfos()) {
       if (target.type !== "service_worker") continue;
