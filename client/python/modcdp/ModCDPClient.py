@@ -230,6 +230,7 @@ class ModCDPClient(CDPSurfaceMixin):
                 upstream_input.get("reversews_wait_timeout_ms") or DEFAULT_REVERSEWS_WAIT_TIMEOUT_MS
             ),
             "nativemessaging_manifest": upstream_input.get("nativemessaging_manifest"),
+            "nativemessaging_host_name": upstream_input.get("nativemessaging_host_name"),
             "ws_connect_error_settle_timeout_ms": int(
                 upstream_input.get("ws_connect_error_settle_timeout_ms")
                 or DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS
@@ -718,6 +719,7 @@ class ModCDPClient(CDPSurfaceMixin):
             "reversews_bind": self.upstream.get("reversews_bind"),
             "reversews_wait_timeout_ms": self.upstream.get("reversews_wait_timeout_ms"),
             "manifest_path": self.upstream.get("nativemessaging_manifest"),
+            "native_host_name": self.upstream.get("nativemessaging_host_name"),
             "extension_id": self.extension.get("extension_id"),
         }
 

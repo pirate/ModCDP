@@ -181,6 +181,7 @@ type UpstreamConfig struct {
 	ReverseWSBind                 string `json:"reversews_bind,omitempty"`
 	ReverseWSWaitTimeoutMS        int    `json:"reversews_wait_timeout_ms,omitempty"`
 	NativeMessagingManifest       string `json:"nativemessaging_manifest,omitempty"`
+	NativeMessagingHostName       string `json:"nativemessaging_host_name,omitempty"`
 	WSConnectErrorSettleTimeoutMS int    `json:"ws_connect_error_settle_timeout_ms,omitempty"`
 }
 
@@ -680,6 +681,7 @@ func (c *ModCDPClient) upstreamTransportConfig() map[string]any {
 		"reversews_bind":            c.opts.Upstream.ReverseWSBind,
 		"reversews_wait_timeout_ms": c.opts.Upstream.ReverseWSWaitTimeoutMS,
 		"manifest_path":             c.opts.Upstream.NativeMessagingManifest,
+		"native_host_name":          c.opts.Upstream.NativeMessagingHostName,
 		"extension_id":              c.opts.Extension.ExtensionID,
 	}
 }
@@ -1076,6 +1078,7 @@ func (c *ModCDPClient) upstreamTransport() upstreamTransportClient {
 	case "nativemessaging":
 		return NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
 			ManifestPath: c.opts.Upstream.NativeMessagingManifest,
+			HostName:     c.opts.Upstream.NativeMessagingHostName,
 		})
 	case "nats":
 		return NewNatsUpstreamTransport(NatsUpstreamTransportOptions{

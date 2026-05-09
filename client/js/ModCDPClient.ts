@@ -114,6 +114,7 @@ export type UpstreamOptions = {
   reversews_bind?: string | null;
   reversews_wait_timeout_ms?: number;
   nativemessaging_manifest?: string | null;
+  nativemessaging_host_name?: string | null;
   ws_connect_error_settle_timeout_ms?: number;
 };
 export type ExtensionOptions = {
@@ -265,6 +266,7 @@ function normalizeClientOptions({
       reversews_bind: upstream.reversews_bind ?? DEFAULT_REVERSEWS_BIND,
       reversews_wait_timeout_ms: upstream.reversews_wait_timeout_ms ?? DEFAULT_REVERSEWS_WAIT_TIMEOUT_MS,
       nativemessaging_manifest: upstream.nativemessaging_manifest ?? null,
+      nativemessaging_host_name: upstream.nativemessaging_host_name ?? null,
       ws_connect_error_settle_timeout_ms:
         upstream.ws_connect_error_settle_timeout_ms ?? DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
     },
@@ -812,6 +814,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
       reversews_bind: this.upstream.reversews_bind,
       reversews_wait_timeout_ms: this.upstream.reversews_wait_timeout_ms,
       manifest_path: this.upstream.nativemessaging_manifest,
+      native_host_name: this.upstream.nativemessaging_host_name,
       extension_id: this.extension.extension_id,
     };
   }

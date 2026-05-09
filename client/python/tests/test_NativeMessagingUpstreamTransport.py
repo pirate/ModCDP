@@ -3,13 +3,14 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+import os
 import socket
 from pathlib import Path
 from queue import Queue
 from typing import cast
 
 from modcdp import ModCDPClient
-from modcdp.NativeMessagingUpstreamTransport import DEFAULT_NATIVE_MESSAGING_HOST_NAME, NativeMessagingUpstreamTransport
+from modcdp.NativeMessagingUpstreamTransport import NativeMessagingUpstreamTransport
 
 
 class NativeMessagingUpstreamTransportTests(unittest.TestCase):
@@ -97,9 +98,10 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
         )
 
     def test_installs_launch_profile_native_host_manifest_and_connects_to_real_extension(self) -> None:
+        host_name = f"com.modcdp.test.python.{os.getpid()}"
         cdp = ModCDPClient(
             launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "nativemessaging"},
+            upstream={"mode": "nativemessaging", "nativemessaging_host_name": host_name},
             extension={
                 "mode": "auto",
                 "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
@@ -113,11 +115,9 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertEqual(cdp.transport.mode if cdp.transport else None, "nativemessaging")
             self.assertEqual(cdp.upstream_endpoint_kind, "modcdp_server")
             transport_url = cdp.transport.url if cdp.transport and cdp.transport.url else ""
-            self.assertRegex(transport_url, r"^native://com\.modcdp\.bridge@127\.0\.0\.1:\d+$")
+            self.assertRegex(transport_url, rf"^native://{host_name}@127\.0\.0\.1:\d+$")
             profile_dir = cdp._launched_browser.get("profile_dir") if cdp._launched_browser else ""
-            self.assertTrue(
-                (Path(profile_dir) / "NativeMessagingHosts" / f"{DEFAULT_NATIVE_MESSAGING_HOST_NAME}.json").exists()
-            )
+            self.assertTrue((Path(profile_dir) / "NativeMessagingHosts" / f"{host_name}.json").exists())
             version = cdp.send("Browser.getVersion")
             self.assertIsInstance(version["product"], str)
         finally:

@@ -30,6 +30,7 @@ func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
 			Mode:                          "ws",
 			WSURL:                         "http://127.0.0.1:9222",
 			ReverseWSWaitTimeoutMS:        456,
+			NativeMessagingHostName:       "com.modcdp.custom",
 			WSConnectErrorSettleTimeoutMS: 321,
 		},
 		Extension: ExtensionConfig{
@@ -73,6 +74,9 @@ func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
 	}
 	if cdp.opts.Upstream.ReverseWSWaitTimeoutMS != 456 {
 		t.Fatalf("Upstream.ReverseWSWaitTimeoutMS = %d", cdp.opts.Upstream.ReverseWSWaitTimeoutMS)
+	}
+	if cdp.opts.Upstream.NativeMessagingHostName != "com.modcdp.custom" {
+		t.Fatalf("Upstream.NativeMessagingHostName = %q", cdp.opts.Upstream.NativeMessagingHostName)
 	}
 	if cdp.opts.Extension.ExecutionContextTimeoutMS != 4321 {
 		t.Fatalf("Extension.ExecutionContextTimeoutMS = %d", cdp.opts.Extension.ExecutionContextTimeoutMS)
@@ -147,6 +151,7 @@ func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 			NATSSubjectPrefix:             "modcdp.test",
 			ReverseWSWaitTimeoutMS:        1_234,
 			NativeMessagingManifest:       "/tmp/native.json",
+			NativeMessagingHostName:       "com.modcdp.custom",
 			WSConnectErrorSettleTimeoutMS: 321,
 		},
 		Extension: ExtensionConfig{
@@ -175,7 +180,7 @@ func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 	raw := string(encoded)
 	for _, wrong := range []string{
 		"Launch", "ExecutablePath", "RemoteDebugging", "BrowserbaseAPIKey",
-		"Upstream", "NATSSubjectPrefix", "ReverseWSWaitTimeoutMS",
+		"Upstream", "NATSSubjectPrefix", "ReverseWSWaitTimeoutMS", "NativeMessagingHostName",
 		"Extension", "ServiceWorkerURLSuffixes", "TrustServiceWorkerTarget",
 		"Client", "HydrateAliases", "CustomCommands",
 	} {
@@ -193,6 +198,7 @@ func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 		`"nats_subject_prefix"`,
 		`"reversews_wait_timeout_ms"`,
 		`"nativemessaging_manifest"`,
+		`"nativemessaging_host_name"`,
 		`"extension"`,
 		`"service_worker_url_suffixes"`,
 		`"trust_service_worker_target"`,

@@ -759,6 +759,7 @@ async function handleClientManagedConnection(
       nats_url: upstream.nats_url,
       nats_subject_prefix: upstream.nats_subject_prefix,
       nativemessaging_manifest: upstream.nativemessaging_manifest,
+      nativemessaging_host_name: upstream.nativemessaging_host_name,
       ws_connect_error_settle_timeout_ms: upstream.ws_connect_error_settle_timeout_ms,
     },
     extension: proxyExtensionOptions(extension, "none"),
@@ -1104,6 +1105,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         typeof argv["upstream-nativemessaging-manifest"] === "string" &&
         argv["upstream-nativemessaging-manifest"] !== "true"
           ? String(argv["upstream-nativemessaging-manifest"])
+          : null,
+      nativemessaging_host_name:
+        typeof argv["upstream-nativemessaging-host-name"] === "string" &&
+        argv["upstream-nativemessaging-host-name"] !== "true"
+          ? String(argv["upstream-nativemessaging-host-name"])
           : null,
     },
     extension: { mode: String(argv.extension || "auto") as ExtensionOptions["mode"], path: extensionPath },

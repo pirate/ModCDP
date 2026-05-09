@@ -2,6 +2,7 @@ package modcdp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -114,6 +115,7 @@ func TestNativeMessagingUpstreamTransportCloseRejectsPendingPeerWaits(t *testing
 }
 
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {
+	hostName := fmt.Sprintf("com.modcdp.test.go.%d", os.Getpid())
 	cdp := New(Options{
 		Launch: LaunchConfig{
 			Mode: "local",
@@ -122,7 +124,7 @@ func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnect
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: UpstreamConfig{Mode: "nativemessaging"},
+		Upstream: UpstreamConfig{Mode: "nativemessaging", NativeMessagingHostName: hostName},
 		Extension: ExtensionConfig{
 			Mode:                     "auto",
 			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
@@ -142,7 +144,7 @@ func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnect
 	if !ok {
 		t.Fatalf("transport = %T", cdp.transport)
 	}
-	if !regexp.MustCompile(`^native://com\.modcdp\.bridge@127\.0\.0\.1:\d+$`).MatchString(transport.URL) {
+	if !regexp.MustCompile(`^native://` + regexp.QuoteMeta(hostName) + `@127\.0\.0\.1:\d+$`).MatchString(transport.URL) {
 		t.Fatalf("transport.URL = %q", transport.URL)
 	}
 	if cdp.launchedBrowser == nil {
@@ -151,7 +153,7 @@ func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnect
 	manifestPath := filepath.Join(
 		cdp.launchedBrowser.ProfileDir,
 		"NativeMessagingHosts",
-		DefaultNativeMessagingHostName+".json",
+		hostName+".json",
 	)
 	if _, err := os.Stat(manifestPath); err != nil {
 		t.Fatalf("native messaging profile manifest was not installed at %s", manifestPath)

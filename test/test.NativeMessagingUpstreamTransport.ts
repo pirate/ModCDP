@@ -4,14 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
-import {
-  DEFAULT_NATIVE_MESSAGING_HOST_NAME,
-  NativeMessagingUpstreamTransport,
-} from "../bridge/NativeMessagingUpstreamTransport.js";
+import { NativeMessagingUpstreamTransport } from "../bridge/NativeMessagingUpstreamTransport.js";
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
+const nativeHostName = (label: string) => `com.modcdp.test.${label}.${process.pid}`;
 
 test("nativemessaging upstream config owns manifest, host, wait timeout, loopback, and injector config", async () => {
   const transport = new NativeMessagingUpstreamTransport({
@@ -92,12 +90,13 @@ test("nativemessaging upstream close resets peer wait state", async () => {
 });
 
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
+  const host_name = nativeHostName("client");
   const native_client = new ModCDPClient({
     launch: {
       mode: "local",
       options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { mode: "nativemessaging" },
+    upstream: { mode: "nativemessaging", nativemessaging_host_name: host_name },
     extension: {
       mode: "auto",
       path: EXTENSION_PATH,
@@ -113,15 +112,10 @@ test("nativemessaging upstream installs the launch-profile native host manifest 
     await native_client.connect();
     assert.equal(native_client.transport?.mode, "nativemessaging");
     assert.equal(native_client.upstream_endpoint_kind, "modcdp_server");
-    assert.match(native_client.transport?.url ?? "", /^native:\/\/com\.modcdp\.bridge@127\.0\.0\.1:\d+$/);
+    assert.match(native_client.transport?.url ?? "", /^native:\/\/.+@127\.0\.0\.1:\d+$/);
+    assert.equal(native_client.transport?.url?.startsWith(`native://${host_name}@`), true);
     assert.equal(
-      existsSync(
-        path.join(
-          native_client._launched?.profile_dir ?? "",
-          "NativeMessagingHosts",
-          `${DEFAULT_NATIVE_MESSAGING_HOST_NAME}.json`,
-        ),
-      ),
+      existsSync(path.join(native_client._launched?.profile_dir ?? "", "NativeMessagingHosts", `${host_name}.json`)),
       true,
     );
     const version = (await native_client.send("Browser.getVersion")) as Record<string, unknown>;

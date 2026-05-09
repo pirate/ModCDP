@@ -16,6 +16,7 @@ import { CdpSocket } from "./helpers.BrowserLauncher.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
 const LOCAL_TEST_LAUNCH_OPTIONS = { headless: true, sandbox: process.platform !== "linux" };
+const nativeHostName = (label: string) => `com.modcdp.test.proxy.${label}.${process.pid}`;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -308,6 +309,7 @@ test("proxy CLI maps user-facing flags into a real nativemessaging local launch"
   const proxy_port = await LocalBrowserLauncher.freePort();
   const manifest_dir = await mkdtemp(path.join(tmpdir(), "modcdp-proxy-native-"));
   const manifest_path = path.join(manifest_dir, "com.modcdp.bridge.json");
+  const host_name = nativeHostName("cli");
   const proxy_script = path.resolve(HERE, "..", "dist", "bridge", "proxy.js");
   const proc = spawn(
     process.execPath,
@@ -321,6 +323,8 @@ test("proxy CLI maps user-facing flags into a real nativemessaging local launch"
       "--upstream=nativemessaging",
       "--upstream-nativemessaging-manifest",
       manifest_path,
+      "--upstream-nativemessaging-host-name",
+      host_name,
       "--extension=auto",
       "--extension-path",
       EXTENSION_PATH,
@@ -372,13 +376,14 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
 
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nativemessaging upstream", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
+  const host_name = nativeHostName("client");
   const proxy = await startProxy({
     port: proxy_port,
     launch: {
       mode: "local",
       options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
-    upstream: { mode: "nativemessaging" },
+    upstream: { mode: "nativemessaging", nativemessaging_host_name: host_name },
     extension: {
       mode: "auto",
       path: EXTENSION_PATH,

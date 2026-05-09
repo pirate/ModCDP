@@ -26,6 +26,7 @@ test("ModCDPClient normalizes nested config owners", () => {
       mode: "ws",
       ws_url: "http://127.0.0.1:9222",
       reversews_wait_timeout_ms: 456,
+      nativemessaging_host_name: "com.modcdp.custom",
       ws_connect_error_settle_timeout_ms: 321,
     },
     extension: {
@@ -62,6 +63,7 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(cdp._launchOptions().executable_path, "/tmp/chrome");
   assert.equal(cdp._launchOptions().user_data_dir, "/tmp/profile");
   assert.equal(cdp.upstream.reversews_wait_timeout_ms, 456);
+  assert.equal(cdp.upstream.nativemessaging_host_name, "com.modcdp.custom");
   assert.equal(cdp.upstream.ws_connect_error_settle_timeout_ms, 321);
   assert.equal(cdp.extension.execution_context_timeout_ms, 4321);
   assert.equal(cdp.extension.service_worker_probe_timeout_ms, 5432);
