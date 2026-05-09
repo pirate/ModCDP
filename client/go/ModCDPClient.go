@@ -297,9 +297,7 @@ type ModCDPClient struct {
 	eventSchemas         map[string]map[string]any
 	schemaMu             sync.RWMutex
 	handlersMu           sync.Mutex
-	targetSessions       map[string]string
-	sessionTargets       map[string]map[string]any
-	targetSessionsMu     sync.Mutex
+	autoSessions         *AutoSessionRouter
 	ExtensionID          string
 	ExtTargetID          string
 	ExtSessionID         string
@@ -414,9 +412,13 @@ func New(opts Options) *ModCDPClient {
 		commandParamsSchemas: map[string]map[string]any{},
 		commandResultSchemas: map[string]map[string]any{},
 		eventSchemas:         map[string]map[string]any{},
-		targetSessions:       map[string]string{},
-		sessionTargets:       map[string]map[string]any{},
 	}
+	client.autoSessions = NewAutoSessionRouter(
+		func(method string, params map[string]any, sessionID string) (map[string]any, error) {
+			return client.sendMessage(method, params, sessionID)
+		},
+		func() int { return client.opts.Extension.ExecutionContextTimeoutMS },
+	)
 	initCDPSurface(client)
 	client.hydrateCustomSurface()
 	return client
@@ -1183,9 +1185,13 @@ func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInject
 	trustMatchedServiceWorker := c.trustServiceWorkerTarget()
 	return ExtensionInjectorConfig{
 		Send:               send,
-		SessionIDForTarget: func(targetID string) string { return c.sessionIDForTarget(targetID, 0) },
+		SessionIDForTarget: func(targetID string) string { return c.autoSessions.SessionIDForTarget(targetID) },
 		AttachToTarget: func(targetID string) string {
 			return c.ensureSessionIDForTarget(targetID, time.Duration(c.opts.Extension.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true)
+		},
+		WaitForExecutionContext: func(sessionID string, timeoutMS int) int {
+			contextID, _ := c.autoSessions.WaitForExecutionContext(sessionID, timeoutMS)
+			return contextID
 		},
 		ExtensionPath:                c.opts.Extension.Path,
 		ExtensionID:                  c.opts.Extension.ExtensionID,
@@ -1495,28 +1501,7 @@ func (c *ModCDPClient) handleEventMessage(msg map[string]any) {
 	method, _ := msg["method"].(string)
 	sessionID, _ := msg["sessionId"].(string)
 	params, _ := msg["params"].(map[string]any)
-	if method == "Target.attachedToTarget" {
-		attachedSessionID, _ := params["sessionId"].(string)
-		targetInfo, _ := params["targetInfo"].(map[string]any)
-		targetID, _ := targetInfo["targetId"].(string)
-		if attachedSessionID != "" && targetID != "" {
-			c.targetSessionsMu.Lock()
-			c.targetSessions[targetID] = attachedSessionID
-			c.sessionTargets[attachedSessionID] = targetInfo
-			c.targetSessionsMu.Unlock()
-		}
-	} else if method == "Target.detachedFromTarget" {
-		detachedSessionID, _ := params["sessionId"].(string)
-		if detachedSessionID != "" {
-			c.targetSessionsMu.Lock()
-			targetInfo := c.sessionTargets[detachedSessionID]
-			delete(c.sessionTargets, detachedSessionID)
-			if targetID, _ := targetInfo["targetId"].(string); targetID != "" {
-				delete(c.targetSessions, targetID)
-			}
-			c.targetSessionsMu.Unlock()
-		}
-	}
+	c.autoSessions.RecordProtocolEvent(method, params, sessionID)
 	if sessionID == c.ExtSessionID {
 		bindingName, _ := params["name"].(string)
 		if event, data, ok := unwrapEventIfNeeded(method, params, sessionID, c.ExtSessionID); ok {
@@ -1588,16 +1573,11 @@ func (c *ModCDPClient) trustServiceWorkerTarget() bool {
 
 func (c *ModCDPClient) sessionIDForTarget(targetID string, timeout time.Duration) string {
 	if timeout <= 0 {
-		c.targetSessionsMu.Lock()
-		sessionID := c.targetSessions[targetID]
-		c.targetSessionsMu.Unlock()
-		return sessionID
+		return c.autoSessions.SessionIDForTarget(targetID)
 	}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline.Add(time.Millisecond)) {
-		c.targetSessionsMu.Lock()
-		sessionID := c.targetSessions[targetID]
-		c.targetSessionsMu.Unlock()
+		sessionID := c.autoSessions.SessionIDForTarget(targetID)
 		if sessionID != "" {
 			return sessionID
 		}
@@ -1607,22 +1587,14 @@ func (c *ModCDPClient) sessionIDForTarget(targetID string, timeout time.Duration
 }
 
 func (c *ModCDPClient) ensureSessionIDForTarget(targetID string, timeout time.Duration, allowAttach bool) string {
-	c.targetSessionsMu.Lock()
-	sessionID := c.targetSessions[targetID]
-	c.targetSessionsMu.Unlock()
+	sessionID := c.autoSessions.SessionIDForTarget(targetID)
 	if sessionID != "" {
 		return sessionID
 	}
 	if allowAttach {
-		result, err := c.sendMessageTimeout("Target.attachToTarget", map[string]any{"targetId": targetID, "flatten": true}, "", timeout)
-		if err == nil {
-			attachedSessionID, _ := result["sessionId"].(string)
-			if attachedSessionID != "" {
-				c.targetSessionsMu.Lock()
-				c.targetSessions[targetID] = attachedSessionID
-				c.targetSessionsMu.Unlock()
-				return attachedSessionID
-			}
+		attachedSessionID := c.autoSessions.AttachToTarget(targetID)
+		if attachedSessionID != "" {
+			return attachedSessionID
 		}
 	}
 	return c.sessionIDForTarget(targetID, timeout)

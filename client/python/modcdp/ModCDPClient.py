@@ -31,6 +31,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
+from .AutoSessionRouter import AutoSessionRouter
 from .jsonschema import type_adapter_from_json_schema
 from .cdp.surface import AwaitableDict, CDPEvent, CDPSurfaceMixin, cdp_event_name, install_cdp_surface
 from .BrowserbaseBrowserLauncher import BrowserbaseBrowserLauncher
@@ -83,7 +84,6 @@ from .types import (
     ProtocolParams,
     ProtocolPayload,
     ProtocolResult,
-    TargetInfo,
     TranslatedCommand,
     WebSocketLike,
 )
@@ -342,8 +342,10 @@ class ModCDPClient(CDPSurfaceMixin):
         self._pending: dict[int, PendingEntry] = {}
         self._handlers: dict[str, list[Handler]] = {}
         self._lock = threading.Lock()
-        self._target_sessions: dict[str, str] = {}
-        self._session_targets: dict[str, TargetInfo] = {}
+        self.auto_sessions = AutoSessionRouter(
+            lambda method, params=None, session_id=None: self._send_message(method, params or {}, session_id),
+            lambda: self.extension["execution_context_timeout_ms"],
+        )
         self._schema_lock = threading.RLock()
         self._command_params_schemas: dict[str, TypeAdapter[Any]] = {}
         self._command_result_schemas: dict[str, TypeAdapter[Any]] = {}
@@ -723,28 +725,22 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def _session_id_for_target(self, target_id: str, timeout: float = 0) -> str | None:
         if timeout <= 0:
-            return self._target_sessions.get(target_id)
+            return self.auto_sessions.sessionIdForTarget(target_id)
         deadline = time.time() + timeout
         while time.time() <= deadline:
-            session_id = self._target_sessions.get(target_id)
+            session_id = self.auto_sessions.sessionIdForTarget(target_id)
             if session_id:
                 return session_id
             time.sleep(self.extension["target_session_poll_interval_ms"] / 1000)
         return None
 
     def _ensure_session_id_for_target(self, target_id: str, timeout: float = 0, allow_attach: bool = False) -> str | None:
-        session_id = self._target_sessions.get(target_id)
+        session_id = self.auto_sessions.sessionIdForTarget(target_id)
         if session_id:
             return session_id
         if allow_attach:
-            result = self._send_message(
-                "Target.attachToTarget",
-                {"targetId": target_id, "flatten": True},
-                timeout=max(timeout, self.client["cdp_send_timeout_ms"] / 1000),
-            )
-            attached_session_id = result.get("sessionId")
-            if isinstance(attached_session_id, str) and attached_session_id:
-                self._target_sessions[target_id] = attached_session_id
+            attached_session_id = self.auto_sessions.attachToTarget(target_id)
+            if attached_session_id:
                 return attached_session_id
         return self._session_id_for_target(target_id, timeout=timeout)
 
@@ -825,9 +821,9 @@ class ModCDPClient(CDPSurfaceMixin):
 
         return {
             "send": send_cdp if send is not None else None,
-            "sessionIdForTarget": lambda target_id: self._target_sessions.get(target_id),
+            "sessionIdForTarget": self.auto_sessions.sessionIdForTarget,
             "attachToTarget": attach_to_target if send is not None else None,
-            "waitForExecutionContext": None,
+            "waitForExecutionContext": self.auto_sessions.waitForExecutionContext,
             "extension_path": cast(str | None, self.extension.get("path")),
             "extension_id": cast(str | None, self.extension.get("extension_id")),
             "wake_path": cast(str | None, self.extension.get("wake_path")),
@@ -1095,20 +1091,9 @@ class ModCDPClient(CDPSurfaceMixin):
         method = msg.get("method")
         raw_params = msg.get("params")
         params = cast(ProtocolParams, raw_params) if isinstance(raw_params, Mapping) else {}
-        if method == "Target.attachedToTarget":
-            session_id = params.get("sessionId")
-            raw_target_info = params.get("targetInfo")
-            target_info = cast(TargetInfo, raw_target_info) if isinstance(raw_target_info, dict) else None
-            target_id = target_info.get("targetId") if target_info else None
-            if isinstance(session_id, str) and isinstance(target_id, str) and target_info:
-                self._target_sessions[target_id] = session_id
-                self._session_targets[session_id] = target_info
-        elif method == "Target.detachedFromTarget":
-            session_id = params.get("sessionId")
-            target_info = self._session_targets.pop(session_id, None) if isinstance(session_id, str) else None
-            target_id = target_info.get("targetId") if target_info else None
-            if target_id:
-                self._target_sessions.pop(target_id, None)
+        if isinstance(method, str):
+            session_id = msg.get("sessionId")
+            self.auto_sessions.recordProtocolEvent(method, params, session_id if isinstance(session_id, str) else None)
         if method and msg.get("sessionId") == self.ext_session_id:
             session_id = msg.get("sessionId")
             u = unwrap_event_if_needed(

@@ -1,3 +1,4 @@
+from .AutoSessionRouter import AutoSessionRouter
 from .BrowserbaseBrowserLauncher import BrowserbaseBrowserLauncher
 from .BrowserLauncher import BrowserLauncher
 from .LocalBrowserLauncher import LocalBrowserLauncher
@@ -13,6 +14,7 @@ from .WebSocketUpstreamTransport import WebSocketUpstreamTransport
 from .cdp.surface import CDPEvent, CDPModel, CDPParams
 
 __all__ = [
+    "AutoSessionRouter",
     "BrowserbaseBrowserLauncher",
     "BrowserLauncher",
     "LocalBrowserLauncher",
