@@ -139,11 +139,12 @@ def main():
         print(f"connected; ext {cdp.extension_id} session {cdp.ext_session_id}")
         print(f"ping latency      -> {cdp.latency}")
 
-        configure_params: ProtocolPayload = {"routes": server_routes_for(mode)}
+        server_config: ProtocolPayload = {"routes": server_routes_for(mode)}
         if mode == "loopback":
             if cdp.cdp_url is None:
                 raise RuntimeError("loopback mode requires a resolved cdp_url after connect")
-            configure_params["loopback_cdp_url"] = cdp.cdp_url
+            server_config["loopback_cdp_url"] = cdp.cdp_url
+        configure_params: ProtocolPayload = {"server": server_config}
         configure_result = expect_object(cdp.send("Mod.configure", configure_params), "Mod.configure")
         if expect_object(configure_result.get("routes"), "Mod.configure.routes").get("*.*") != server_routes_for(mode)["*.*"]:
             raise RuntimeError(f"unexpected Mod.configure result {configure_result}")

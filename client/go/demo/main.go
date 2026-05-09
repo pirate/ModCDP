@@ -185,10 +185,11 @@ func main() {
 		fmt.Println("ping latency      ->", string(b))
 	}
 
-	configureParams := map[string]any{"routes": serverRoutesFor(mode)}
+	serverConfig := map[string]any{"routes": serverRoutesFor(mode)}
 	if mode == "loopback" {
-		configureParams["loopback_cdp_url"] = cdp.CDPURL
+		serverConfig["loopback_cdp_url"] = cdp.CDPURL
 	}
+	configureParams := map[string]any{"server": serverConfig}
 	configure := mustMap(mustSend(cdp, "Mod.configure", configureParams), "Mod.configure")
 	configureRoutes := mustMap(configure["routes"], "Mod.configure.routes")
 	if configureRoutes["*.*"] != serverRoutesFor(mode)["*.*"] {
