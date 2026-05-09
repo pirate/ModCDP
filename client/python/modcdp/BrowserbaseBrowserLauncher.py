@@ -25,7 +25,6 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
             merged.get("project_id"),
             merged.get("browserbase_project_id"),
             os.environ.get("BROWSERBASE_PROJECT_ID"),
-            os.environ.get("BB_PROJECT_ID"),
         )
         base_url = _first_string(
             merged.get("base_url"),

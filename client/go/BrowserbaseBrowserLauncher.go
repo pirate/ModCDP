@@ -46,7 +46,6 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 		merged.ProjectID,
 		merged.BrowserbaseProjectID,
 		os.Getenv("BROWSERBASE_PROJECT_ID"),
-		os.Getenv("BB_PROJECT_ID"),
 	)
 	baseURL := firstString(merged.BaseURL, merged.BrowserbaseBaseURL, os.Getenv("BROWSERBASE_BASE_URL"), DefaultBrowserbaseLauncherBaseURL)
 	resumeSessionID := firstString(merged.SessionID, merged.ResumeSessionID)

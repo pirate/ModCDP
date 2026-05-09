@@ -101,7 +101,6 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
       merged.project_id,
       merged.browserbase_project_id,
       process.env.BROWSERBASE_PROJECT_ID,
-      process.env.BB_PROJECT_ID,
     );
     const base_url =
       firstString(merged.base_url, merged.browserbase_base_url, process.env.BROWSERBASE_BASE_URL) ??
