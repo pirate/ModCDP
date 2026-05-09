@@ -21,11 +21,11 @@ type LocalBrowserLauncher struct {
 	BrowserLauncher
 }
 
-func NewLocalBrowserLauncher(options LaunchOptions) LocalBrowserLauncher {
-	return LocalBrowserLauncher{BrowserLauncher: NewBrowserLauncher(options)}
+func NewLocalBrowserLauncher(options LaunchOptions) *LocalBrowserLauncher {
+	return &LocalBrowserLauncher{BrowserLauncher: NewBrowserLauncher(options)}
 }
 
-func (l LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, error) {
+func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, error) {
 	if options.ExecutablePath == "" {
 		options.ExecutablePath = l.Options.ExecutablePath
 	}
@@ -162,14 +162,16 @@ func (l LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, e
 			close()
 			return nil, err
 		}
-		return &LaunchedBrowser{
+		launched := &LaunchedBrowser{
 			CDPURL:     fmt.Sprintf("pipe://%d", cmd.Process.Pid),
 			WSURL:      "",
 			Close:      close,
 			ProfileDir: profileDir,
 			PipeRead:   pipeRead,
 			PipeWrite:  pipeWrite,
-		}, nil
+		}
+		l.Launched = launched
+		return launched, nil
 	}
 	cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	deadline := time.Now().Add(time.Duration(DefaultChromeReadyTimeoutMS) * time.Millisecond)
@@ -181,7 +183,9 @@ func (l LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, e
 			_ = resp.Body.Close()
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				wsURL, _ := version["webSocketDebuggerUrl"].(string)
-				return &LaunchedBrowser{CDPURL: cdpURL, WSURL: wsURL, Close: close, ProfileDir: profileDir}, nil
+				launched := &LaunchedBrowser{CDPURL: cdpURL, WSURL: wsURL, Close: close, ProfileDir: profileDir}
+				l.Launched = launched
+				return launched, nil
 			}
 		}
 		time.Sleep(time.Duration(DefaultServiceWorkerPollIntervalMS) * time.Millisecond)

@@ -35,7 +35,8 @@ func TestBrowserbaseBrowserLauncherCreatesVerifiesResumesAndReleasesRealSession(
 	if region := os.Getenv("BROWSERBASE_REGION"); region != "" {
 		options.Region = region
 	}
-	browser, err := NewBrowserbaseBrowserLauncher(options).Launch(LaunchOptions{})
+	launcher := NewBrowserbaseBrowserLauncher(options)
+	browser, err := launcher.Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +55,16 @@ func TestBrowserbaseBrowserLauncherCreatesVerifiesResumesAndReleasesRealSession(
 
 	if browser.BrowserbaseSessionID == "" {
 		t.Fatal("expected browserbase session id")
+	}
+	if launcher.Launched != browser {
+		t.Fatal("expected launcher to retain launched browser")
+	}
+	transportConfig := launcher.GetTransportConfig()
+	if transportConfig["cdp_url"] != browser.CDPURL {
+		t.Fatalf("transport cdp_url = %v, want %s", transportConfig["cdp_url"], browser.CDPURL)
+	}
+	if transportConfig["ws_url"] != browser.WSURL {
+		t.Fatalf("transport ws_url = %v, want %s", transportConfig["ws_url"], browser.WSURL)
 	}
 	if !strings.Contains(browser.BrowserbaseSessionURL, browser.BrowserbaseSessionID) {
 		t.Fatalf("browserbase session url = %q", browser.BrowserbaseSessionURL)
