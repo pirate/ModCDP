@@ -121,6 +121,8 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 		ExtensionID:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 		ReverseProxyURL:          "ws://127.0.0.1:29292",
+		NATSURL:                  "ws://127.0.0.1:4223",
+		NATSSubjectPrefix:        "modcdp.test",
 	})
 	injector.Update(ExtensionInjectorConfig{NativeHostName: "com.modcdp.bridge"})
 
@@ -147,7 +149,7 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := "{\n  \"native_host_name\": \"com.modcdp.bridge\",\n  \"reverse_proxy_url\": \"ws://127.0.0.1:29292\"\n}\n"
+	expected := "{\n  \"native_host_name\": \"com.modcdp.bridge\",\n  \"nats_subject_prefix\": \"modcdp.test\",\n  \"nats_url\": \"ws://127.0.0.1:4223\",\n  \"reverse_proxy_url\": \"ws://127.0.0.1:29292\"\n}\n"
 	if string(config) != expected {
 		t.Fatalf("config.json = %s", config)
 	}

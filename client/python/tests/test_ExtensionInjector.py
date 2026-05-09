@@ -85,6 +85,8 @@ class ExtensionInjectorTests(unittest.TestCase):
                 "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "reverse_proxy_url": "ws://127.0.0.1:29292",
+                "nats_url": "ws://127.0.0.1:4223",
+                "nats_subject_prefix": "modcdp.test",
             }
         )
         injector.update({"native_host_name": "com.modcdp.bridge"})
@@ -103,8 +105,13 @@ class ExtensionInjectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as extension_path:
             injector.writeExtensionRuntimeConfig(extension_path)
             self.assertEqual(
-                (Path(extension_path) / "modcdp" / "config.json").read_text(),
-                '{\n  "reverse_proxy_url": "ws://127.0.0.1:29292",\n  "native_host_name": "com.modcdp.bridge"\n}\n',
+                json.loads((Path(extension_path) / "modcdp" / "config.json").read_text()),
+                {
+                    "reverse_proxy_url": "ws://127.0.0.1:29292",
+                    "native_host_name": "com.modcdp.bridge",
+                    "nats_url": "ws://127.0.0.1:4223",
+                    "nats_subject_prefix": "modcdp.test",
+                },
             )
 
         with self.assertRaisesRegex(NotImplementedError, "ExtensionInjector.inject is not implemented"):
