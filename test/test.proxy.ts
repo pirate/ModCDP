@@ -15,6 +15,7 @@ import { CdpSocket } from "./helpers.BrowserLauncher.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
+const LOCAL_TEST_LAUNCH_OPTIONS = { headless: true, sandbox: process.platform !== "linux" };
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -128,6 +129,7 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     port: proxy_port,
     launch: {
       mode: "local",
+      options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
     upstream: { mode: "ws" },
     extension: {
@@ -152,6 +154,7 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     port: proxy_port,
     launch: {
       mode: "local",
+      options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
     upstream: { mode: "pipe" },
     extension: {
@@ -343,6 +346,7 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     port: proxy_port,
     launch: {
       mode: "local",
+      options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
     upstream: {
       mode: "nats",
@@ -372,6 +376,7 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     port: proxy_port,
     launch: {
       mode: "local",
+      options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
     upstream: { mode: "nativemessaging" },
     extension: {
