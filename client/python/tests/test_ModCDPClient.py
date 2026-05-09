@@ -103,6 +103,18 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertEqual(cdp.extension["service_worker_url_suffixes"], [])
         self.assertEqual(cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"), [])
 
+    def test_defaults_launched_modcdp_server_upstreams_to_extension_auto(self) -> None:
+        for mode in ("nativemessaging", "reversews", "nats"):
+            launched = ModCDPClient(launch={"mode": "local"}, upstream={"mode": mode})
+            self.assertEqual(launched.launch["mode"], "local")
+            self.assertEqual(launched.upstream_endpoint_kind, "modcdp_server")
+            self.assertEqual(launched.extension["mode"], "auto")
+
+            attach_only = ModCDPClient(upstream={"mode": mode})
+            self.assertEqual(attach_only.launch["mode"], "none")
+            self.assertEqual(attach_only.upstream_endpoint_kind, "modcdp_server")
+            self.assertEqual(attach_only.extension["mode"], "none")
+
     def test_connects_with_local_launch_and_injector_chain(self) -> None:
         cdp = ModCDPClient(
             launch={"mode": "local", "options": {"headless": True, "sandbox": False}},

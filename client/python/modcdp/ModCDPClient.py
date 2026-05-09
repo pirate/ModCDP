@@ -246,7 +246,7 @@ class ModCDPClient(CDPSurfaceMixin):
             "options": dict(cast(Mapping[str, Any], launch_input.get("options") or {})),
         }
         extension_mode = extension_input.get("mode") or (
-            "auto" if self.upstream_endpoint_kind == "raw_cdp" else "none"
+            "auto" if self.upstream_endpoint_kind == "raw_cdp" or launch_mode != "none" else "none"
         )
         raw_service_worker_url_suffixes = extension_input.get("service_worker_url_suffixes")
         self.extension: dict[str, Any] = {

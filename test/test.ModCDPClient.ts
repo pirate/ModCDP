@@ -104,6 +104,20 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
   assert.deepEqual((await cdp._baseExtensionInjectorConfig()).service_worker_url_suffixes, []);
 });
 
+test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto", () => {
+  for (const mode of ["nativemessaging", "reversews", "nats"] as const) {
+    const launched = new ModCDPClient({ launch: { mode: "local" }, upstream: { mode } });
+    assert.equal(launched.launch.mode, "local");
+    assert.equal(launched.upstream_endpoint_kind, "modcdp_server");
+    assert.equal(launched.extension.mode, "auto");
+
+    const attach_only = new ModCDPClient({ upstream: { mode } });
+    assert.equal(attach_only.launch.mode, "none");
+    assert.equal(attach_only.upstream_endpoint_kind, "modcdp_server");
+    assert.equal(attach_only.extension.mode, "none");
+  }
+});
+
 test("ModCDPClient.close does not close a remote browser it did not launch", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,

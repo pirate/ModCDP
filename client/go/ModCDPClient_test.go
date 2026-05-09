@@ -146,6 +146,37 @@ func TestModCDPClientPreservesExplicitEmptyServiceWorkerSuffixConfig(t *testing.
 	}
 }
 
+func TestModCDPClientDefaultsLaunchedModCDPServerUpstreamsToExtensionAuto(t *testing.T) {
+	for _, mode := range []string{"nativemessaging", "reversews", "nats"} {
+		launched := New(Options{
+			Launch:   LaunchConfig{Mode: "local"},
+			Upstream: UpstreamConfig{Mode: mode},
+		})
+		if launched.opts.Launch.Mode != "local" {
+			t.Fatalf("%s launched Launch.Mode = %q", mode, launched.opts.Launch.Mode)
+		}
+		if endpointKindForUpstream(launched.opts.Upstream.Mode) != UpstreamEndpointKindModCDPServer {
+			t.Fatalf("%s launched endpoint kind = %q", mode, endpointKindForUpstream(launched.opts.Upstream.Mode))
+		}
+		if launched.opts.Extension.Mode != "auto" {
+			t.Fatalf("%s launched Extension.Mode = %q", mode, launched.opts.Extension.Mode)
+		}
+
+		attachOnly := New(Options{
+			Upstream: UpstreamConfig{Mode: mode},
+		})
+		if attachOnly.opts.Launch.Mode != "none" {
+			t.Fatalf("%s attach-only Launch.Mode = %q", mode, attachOnly.opts.Launch.Mode)
+		}
+		if endpointKindForUpstream(attachOnly.opts.Upstream.Mode) != UpstreamEndpointKindModCDPServer {
+			t.Fatalf("%s attach-only endpoint kind = %q", mode, endpointKindForUpstream(attachOnly.opts.Upstream.Mode))
+		}
+		if attachOnly.opts.Extension.Mode != "none" {
+			t.Fatalf("%s attach-only Extension.Mode = %q", mode, attachOnly.opts.Extension.Mode)
+		}
+	}
+}
+
 func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	cdp := New(Options{
 		Launch: LaunchConfig{

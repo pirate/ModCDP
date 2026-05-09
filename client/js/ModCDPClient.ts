@@ -245,7 +245,8 @@ function normalizeClientOptions({
   const upstream_endpoint_kind = endpointKindForUpstream(upstream_mode);
   const launch_mode =
     launch.mode ?? (upstream_endpoint_kind === "modcdp_server" ? "none" : upstream.ws_url ? "remote" : "local");
-  const extension_mode = extension.mode ?? (upstream_endpoint_kind === "raw_cdp" ? "auto" : "none");
+  const extension_mode =
+    extension.mode ?? (upstream_endpoint_kind === "raw_cdp" || launch_mode !== "none" ? "auto" : "none");
   return {
     launch: {
       mode: launch_mode,

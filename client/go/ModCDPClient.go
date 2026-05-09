@@ -358,7 +358,7 @@ func New(opts Options) *ModCDPClient {
 		}
 	}
 	if opts.Extension.Mode == "" {
-		if upstreamEndpointKind == "raw_cdp" {
+		if upstreamEndpointKind == "raw_cdp" || opts.Launch.Mode != "none" {
 			opts.Extension.Mode = "auto"
 		} else {
 			opts.Extension.Mode = "none"
