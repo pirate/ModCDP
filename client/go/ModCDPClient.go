@@ -170,6 +170,9 @@ type UpstreamConfig struct {
 type ExtensionConfig struct {
 	Mode                         string
 	Path                         string
+	ExtensionID                  string
+	WakePath                     string
+	WakeURL                      string
 	ServiceWorkerURLIncludes     []string
 	ServiceWorkerURLSuffixes     []string
 	TrustServiceWorkerTarget     bool
@@ -295,6 +298,15 @@ type ModCDPClient struct {
 	LastRawTiming        map[string]any
 	launchedBrowser      *LaunchedBrowser
 	preparedExtensionDir string
+	extensionInjectors   []extensionInjector
+}
+
+type extensionInjector interface {
+	Update(ExtensionInjectorConfig) *ExtensionInjector
+	GetLauncherConfig() LaunchOptions
+	Prepare() error
+	Inject() (*ExtensionInjectionResult, error)
+	Close() error
 }
 
 func New(opts Options) *ModCDPClient {
@@ -343,7 +355,7 @@ func New(opts Options) *ModCDPClient {
 		opts.Server.Routes = map[string]string{"*.*": "chrome_debugger"}
 	}
 	if opts.Extension.ServiceWorkerURLSuffixes == nil {
-		opts.Extension.ServiceWorkerURLSuffixes = []string{"/service_worker.js", "/background.js"}
+		opts.Extension.ServiceWorkerURLSuffixes = append([]string{}, DefaultModCDPServiceWorkerURLSuffixes...)
 	}
 	if opts.CDPSendTimeoutMS == 0 {
 		opts.CDPSendTimeoutMS = DefaultCDPSendTimeoutMS
@@ -390,15 +402,23 @@ func (c *ModCDPClient) Connect() error {
 	if c.opts.Upstream.Mode != "ws" {
 		return c.upstreamTransport().Connect()
 	}
-	if c.opts.Upstream.WSURL == "" {
-		if c.opts.Upstream.WSURL == "" {
-			if err := c.prepareExtensionPath(); err != nil {
+	injectors := c.extensionInjectorsForConfig()
+	c.extensionInjectors = injectors
+	launchOptions := c.opts.Launch.Options
+	if c.opts.Extension.Mode != "none" {
+		if err := c.prepareExtensionPath(); err != nil {
+			return err
+		}
+		for _, injector := range injectors {
+			injector.Update(c.baseExtensionInjectorConfig(nil))
+			if err := injector.Prepare(); err != nil {
 				return err
 			}
-			launchOptions := c.opts.Launch.Options
-			if c.opts.Extension.Mode != "none" && c.opts.Extension.Path != "" {
-				launchOptions.ExtraArgs = append(append([]string{}, launchOptions.ExtraArgs...), fmt.Sprintf("--load-extension=%s", c.opts.Extension.Path))
-			}
+			launchOptions = mergeLaunchOptions(launchOptions, injector.GetLauncherConfig())
+		}
+	}
+	if c.opts.Upstream.WSURL == "" {
+		if c.opts.Upstream.WSURL == "" {
 			launched, err := c.browserLauncher().Launch(launchOptions)
 			if err != nil {
 				return err
@@ -444,19 +464,15 @@ func (c *ModCDPClient) Connect() error {
 	// once the reader goroutine is running, any further error must call Close
 	// to tear it down; otherwise the goroutine + ws connection leak.
 	extensionStartedAt := time.Now().UnixMilli()
-	if err := c.prepareExtensionPath(); err != nil {
-		c.Close()
-		return err
-	}
-	ext, err := c.ensureExtension()
+	ext, err := c.injectExtension(injectors)
 	if err != nil {
 		c.Close()
 		return err
 	}
 	extensionCompletedAt := time.Now().UnixMilli()
-	c.ExtensionID = ext["extension_id"].(string)
-	c.ExtTargetID = ext["target_id"].(string)
-	c.ExtSessionID = ext["session_id"].(string)
+	c.ExtensionID = ext.ExtensionID
+	c.ExtTargetID = ext.TargetID
+	c.ExtSessionID = ext.SessionID
 	if _, err := c.sendMessage("Runtime.enable", map[string]any{}, c.ExtSessionID); err != nil {
 		c.Close()
 		return err
@@ -534,7 +550,7 @@ func (c *ModCDPClient) Connect() error {
 	connectedAt := time.Now().UnixMilli()
 	c.ConnectTiming = map[string]any{
 		"started_at":             connectStartedAt,
-		"extension_source":       ext["source"],
+		"extension_source":       ext.Source,
 		"extension_started_at":   extensionStartedAt,
 		"extension_completed_at": extensionCompletedAt,
 		"extension_duration_ms":  extensionCompletedAt - extensionStartedAt,
@@ -809,6 +825,10 @@ func (c *ModCDPClient) Close() {
 			_ = c.conn.Close()
 		}
 	}
+	for _, injector := range c.extensionInjectors {
+		_ = injector.Close()
+	}
+	c.extensionInjectors = nil
 	if c.launchedBrowser != nil {
 		c.launchedBrowser.Close()
 		c.launchedBrowser = nil
@@ -853,6 +873,85 @@ func (c *ModCDPClient) upstreamTransport() interface {
 	default:
 		return NewNatsUpstreamTransport("")
 	}
+}
+
+func (c *ModCDPClient) extensionInjectorsForConfig() []extensionInjector {
+	if c.opts.Extension.Mode == "none" {
+		return nil
+	}
+	var injectors []extensionInjector
+	if c.opts.Extension.Mode == "auto" || c.opts.Extension.Mode == "discover" {
+		injector := NewDiscoveredExtensionInjector(ExtensionInjectorConfig{})
+		injectors = append(injectors, &injector)
+	}
+	if c.opts.Extension.Mode == "auto" || c.opts.Extension.Mode == "inject" {
+		if c.opts.Launch.Mode == "local" {
+			injector := NewLocalBrowserLaunchExtensionInjector(ExtensionInjectorConfig{})
+			injectors = append(injectors, &injector)
+		}
+		injector := NewExtensionsLoadUnpackedInjector(ExtensionInjectorConfig{})
+		injectors = append(injectors, &injector)
+	}
+	return injectors
+}
+
+func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInjectorConfig {
+	trustMatchedServiceWorker := c.trustServiceWorkerTarget()
+	return ExtensionInjectorConfig{
+		Send:               send,
+		SessionIDForTarget: func(targetID string) string { return c.sessionIDForTarget(targetID, 0) },
+		AttachToTarget: func(targetID string) string {
+			return c.ensureSessionIDForTarget(targetID, time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true)
+		},
+		ExtensionPath:                c.opts.Extension.Path,
+		ExtensionID:                  c.opts.Extension.ExtensionID,
+		WakePath:                     firstNonEmptyString(c.opts.Extension.WakePath, DefaultModCDPWakePath),
+		WakeURL:                      c.opts.Extension.WakeURL,
+		ServiceWorkerURLIncludes:     c.opts.Extension.ServiceWorkerURLIncludes,
+		ServiceWorkerURLSuffixes:     c.opts.Extension.ServiceWorkerURLSuffixes,
+		TrustMatchedServiceWorker:    trustMatchedServiceWorker,
+		RequireServiceWorkerTarget:   c.opts.Extension.RequireServiceWorkerTarget || c.opts.Extension.Mode == "discover",
+		ServiceWorkerReadyExpression: c.opts.Extension.ServiceWorkerReadyExpression,
+		CDPSendTimeoutMS:             c.opts.CDPSendTimeoutMS,
+		ExecutionContextTimeoutMS:    c.opts.ExecutionContextTimeoutMS,
+		ServiceWorkerProbeTimeoutMS:  c.opts.ServiceWorkerProbeTimeoutMS,
+		ServiceWorkerReadyTimeoutMS:  c.opts.ServiceWorkerReadyTimeoutMS,
+		ServiceWorkerPollIntervalMS:  c.opts.ServiceWorkerPollIntervalMS,
+		TargetSessionPollIntervalMS:  c.opts.TargetSessionPollIntervalMS,
+	}
+}
+
+func (c *ModCDPClient) injectExtension(injectors []extensionInjector) (*ExtensionInjectionResult, error) {
+	if len(injectors) == 0 {
+		return nil, fmt.Errorf("extension.mode='none' cannot be used with a raw_cdp upstream")
+	}
+	send := func(method string, params map[string]any, sessionID string) (map[string]any, error) {
+		return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
+	}
+	var errors []string
+	for _, injector := range injectors {
+		injector.Update(c.baseExtensionInjectorConfig(send))
+		if err := injector.Prepare(); err != nil {
+			errors = append(errors, fmt.Sprintf("%T: %v", injector, err))
+			continue
+		}
+		result, err := injector.Inject()
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%T: %v", injector, err))
+			continue
+		}
+		if result != nil {
+			return result, nil
+		}
+	}
+	return nil, fmt.Errorf("cannot install, discover, or borrow the ModCDP extension in the running browser.%s", formatInjectorErrors(errors))
+}
+
+func formatInjectorErrors(errors []string) string {
+	if len(errors) == 0 {
+		return ""
+	}
+	return "\n\n" + strings.Join(errors, "\n")
 }
 
 // --- internals -----------------------------------------------------------
@@ -922,7 +1021,7 @@ func (c *ModCDPClient) extractExtensionZip(files []*zip.File) error {
 		}
 	}
 	c.preparedExtensionDir = dir
-	c.opts.Extension.Path = dir
+	c.opts.Extension.Path = extensionRoot(dir)
 	return nil
 }
 

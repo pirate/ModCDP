@@ -7,6 +7,48 @@ import (
 	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
 )
 
+func boolPtr(value bool) *bool {
+	return &value
+}
+
+func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
+	cdp := New(Options{
+		Launch: LaunchConfig{
+			Mode: "local",
+			Options: LaunchOptions{
+				Headless: boolPtr(true),
+				Sandbox:  boolPtr(false),
+			},
+		},
+		Upstream: UpstreamConfig{Mode: "ws"},
+		Extension: ExtensionConfig{
+			Mode:                     "inject",
+			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			TrustServiceWorkerTarget: true,
+		},
+	})
+	defer cdp.Close()
+
+	if err := cdp.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if cdp.ConnectTiming["extension_source"] != "local_launch" {
+		t.Fatalf("extension_source = %v", cdp.ConnectTiming["extension_source"])
+	}
+	if cdp.ExtensionID != DefaultModCDPExtensionID {
+		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
+	}
+	result, err := cdp.Send("Mod.evaluate", map[string]any{
+		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js" {
+		t.Fatalf("Mod.evaluate = %#v", result)
+	}
+}
+
 func TestCustomCommandSchemasValidateParamsAndResults(t *testing.T) {
 	cdp := New(Options{
 		CustomCommands: []CustomCommand{
