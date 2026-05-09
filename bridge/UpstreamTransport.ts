@@ -1,6 +1,7 @@
 import type { CdpCommandMessage, CdpEventMessage, CdpResponseMessage } from "../types/modcdp.js";
 import type { ModCDPServerOptions } from "../types/modcdp.js";
 import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
+import type { ExtensionInjectorConfig } from "./ExtensionInjector.js";
 import { CdpEventMessageSchema, CdpResponseMessageSchema } from "../types/modcdp.js";
 
 export type UpstreamMode = "ws" | "pipe" | "nativemessaging" | "reversews" | "nats";
@@ -36,6 +37,10 @@ export class UpstreamTransport {
   }
 
   getLauncherConfig(): BrowserLaunchOptions {
+    return {};
+  }
+
+  getInjectorConfig(): ExtensionInjectorConfig {
     return {};
   }
 

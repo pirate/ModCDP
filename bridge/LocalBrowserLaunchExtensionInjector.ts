@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
 import { ExtensionInjector } from "./ExtensionInjector.js";
 
@@ -24,20 +27,24 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
       return;
     }
     if (!extension_path.endsWith(".zip")) {
-      this.unpacked_extension_path = extension_path;
+      if (this.extensionRuntimeConfig()) {
+        const unpacked_path = fs.mkdtempSync(path.join(os.tmpdir(), "modcdp-extension-"));
+        fs.cpSync(extension_path, unpacked_path, { recursive: true });
+        this.unpacked_extension_path = unpacked_path;
+        this.cleanup = async () => fs.rmSync(unpacked_path, { recursive: true, force: true });
+      } else {
+        this.unpacked_extension_path = extension_path;
+      }
+      this.writeExtensionRuntimeConfig(this.unpacked_extension_path);
       await this.resolveExtensionId();
       await super.prepare();
       return;
     }
-    const [{ execFileSync }, fs, os, path] = await Promise.all([
-      import("node:child_process"),
-      import("node:fs"),
-      import("node:os"),
-      import("node:path"),
-    ]);
+    const { execFileSync } = await import("node:child_process");
     const unpacked_path = fs.mkdtempSync(path.join(os.tmpdir(), "modcdp-extension-"));
     execFileSync("unzip", ["-q", extension_path, "-d", unpacked_path]);
     this.unpacked_extension_path = unpacked_path;
+    this.writeExtensionRuntimeConfig(unpacked_path);
     this.cleanup = async () => fs.rmSync(unpacked_path, { recursive: true, force: true });
     await this.resolveExtensionId();
     await super.prepare();

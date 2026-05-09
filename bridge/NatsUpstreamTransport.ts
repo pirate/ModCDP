@@ -57,6 +57,10 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     return this;
   }
 
+  getInjectorConfig() {
+    return { nats_url: this.url, nats_subject_prefix: this.subject_prefix };
+  }
+
   async connect() {
     if (this.connected) return;
     const parsed = new URL(this.url);

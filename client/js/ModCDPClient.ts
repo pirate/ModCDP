@@ -749,13 +749,14 @@ export class ModCDPClient extends ModCDPEventEmitter {
     const injectors = await this._extensionInjectors();
     this._extension_injectors = injectors;
     const initial_transport_config = this._upstreamTransportConfig();
+    transport.update(initial_transport_config);
     launcher.update(await this._launchOptions());
     for (const injector of injectors) injector.update(await this._baseExtensionInjectorConfig());
     for (const injector of injectors) injector.update(launcher.getInjectorConfig());
+    for (const injector of injectors) injector.update(transport.getInjectorConfig());
     for (const injector of injectors) await injector.prepare();
     for (const injector of injectors) launcher.update(injector.getLauncherConfig());
     for (const injector of injectors) transport.update(injector.getTransportConfig());
-    transport.update(initial_transport_config);
     launcher.update(transport.getLauncherConfig());
     transport.update(launcher.getTransportConfig());
 
@@ -773,7 +774,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.cdp_url =
       transport.endpoint_kind === "raw_cdp" ? ((transport.url || launched_cdp_url) ?? null) : launched_cdp_url;
     if (transport.mode === "ws" && transport.url) this.upstream.ws_url = transport.url;
-    const server_config = transport.getServerConfig();
+    const server_config = {
+      ...(transport.endpoint_kind === "modcdp_server" && launched_cdp_url
+        ? { loopback_cdp_url: launched_cdp_url }
+        : {}),
+      ...transport.getServerConfig(),
+    };
     if (this.server !== null && server_config.loopback_cdp_url) {
       const configured_loopback = this.server.loopback_cdp_url;
       if (
@@ -783,9 +789,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
       ) {
         this.server = { ...this.server, ...server_config };
       }
-    }
-    if (transport.endpoint_kind === "modcdp_server" && launched_cdp_url && injectors.length > 0) {
-      await this._bootstrapModCDPServerExtension(launched_cdp_url, injectors);
     }
   }
 
@@ -906,54 +909,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
       }),
       this._sendMessage("Target.setDiscoverTargets", { discover: true }),
     ]);
-  }
-
-  async _bootstrapModCDPServerExtension(launched_cdp_url: string, injectors: ExtensionInjector[]) {
-    const bootstrap = new WebSocketUpstreamTransport();
-    const pending = new Map<number, PendingCommand>();
-    let next_id = 1;
-    bootstrap.update({ ws_url: launched_cdp_url });
-    await bootstrap.connect();
-
-    const send: SendCDP = (method, params = {}, session_id = null) =>
-      new Promise((resolve, reject) => {
-        const id = next_id++;
-        pending.set(id, { method, resolve, reject });
-        bootstrap.send({ id, method, params, ...(session_id ? { sessionId: session_id } : {}) });
-      });
-    const stop_recv = bootstrap.onRecv((message) => {
-      if ("id" in message) {
-        const response = CdpResponseMessageSchema.parse(message);
-        const command = pending.get(response.id);
-        if (!command) return;
-        pending.delete(response.id);
-        if (response.error) {
-          const error = new Error(response.error.message);
-          (error as Error & { cdp?: CdpError }).cdp = response.error;
-          command.reject(error);
-        } else {
-          command.resolve(response.result || {});
-        }
-        return;
-      }
-      const event = CdpEventMessageSchema.parse(message);
-      this.auto_sessions.recordProtocolEvent(event.method, event.params || {}, event.sessionId || null);
-    });
-
-    try {
-      await Promise.all([
-        send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }),
-        send("Target.setDiscoverTargets", { discover: true }),
-      ]);
-      const ext = await this._injectExtension(send, injectors);
-      if (ext.extension_id && !this.extension.extension_id) this.extension.extension_id = ext.extension_id;
-      return ext;
-    } finally {
-      stop_recv();
-      for (const command of pending.values()) command.reject(new Error("Bootstrap CDP transport closed."));
-      pending.clear();
-      await bootstrap.close();
-    }
   }
 
   async close() {

@@ -1,5 +1,6 @@
 // Extension service worker entry point.
 
+import "./config.js";
 import { ModCDPServer } from "./ModCDPServer.js";
 
 const ModCDP = (
@@ -11,6 +12,17 @@ const bridge = (ModCDP ?? ModCDPServer) as Record<string, any>;
 const started_at = new Date().toISOString();
 const DEFAULT_REVERSE_PROXY_URL = "ws://127.0.0.1:29292";
 const DEFAULT_NATIVE_HOST_NAME = "com.modcdp.bridge";
+type RuntimeConfig = {
+  reverse_proxy_url?: string | null;
+  native_host_name?: string | null;
+  nats_url?: string | null;
+  nats_subject_prefix?: string | null;
+};
+const runtime_config = (
+  globalThis as typeof globalThis & {
+    __MODCDP_RUNTIME_CONFIG__?: RuntimeConfig;
+  }
+).__MODCDP_RUNTIME_CONFIG__;
 const downstream_clients: Record<string, any> = {};
 const upstream_servers: Record<string, any> = {};
 const client_id_by_config_session = new Map<string, string>();
@@ -170,9 +182,16 @@ if (bridge) {
 }
 
 const startConfiguredTransports = () => {
+  const config = runtime_config ?? {};
   bridge.startOffscreenKeepAlive?.();
-  bridge.startReverseBridge?.(DEFAULT_REVERSE_PROXY_URL, { reconnect_interval_ms: 2_000 });
-  bridge.startNativeBridge?.(DEFAULT_NATIVE_HOST_NAME, { reconnect_interval_ms: 2_000 });
+  bridge.startReverseBridge?.(config.reverse_proxy_url || DEFAULT_REVERSE_PROXY_URL, { reconnect_interval_ms: 2_000 });
+  bridge.startNativeBridge?.(config.native_host_name || DEFAULT_NATIVE_HOST_NAME, { reconnect_interval_ms: 2_000 });
+  if (config.nats_url) {
+    bridge.startNatsBridge?.(config.nats_url, {
+      subject_prefix: config.nats_subject_prefix,
+      reconnect_interval_ms: 2_000,
+    });
+  }
 };
 
 startConfiguredTransports();

@@ -120,7 +120,7 @@ function candidatePaths() {
             ),
           ]
         : ["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"];
-  return [process.env.CHROME_PATH, ...canary, ...chromeForTestingCandidates(), ...stock].filter(
+  return [process.env.CHROME_PATH, ...chromeForTestingCandidates(), ...canary, ...stock].filter(
     (candidate): candidate is string => Boolean(candidate),
   );
 }

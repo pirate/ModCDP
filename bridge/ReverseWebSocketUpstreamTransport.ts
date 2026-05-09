@@ -39,6 +39,10 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
     return this;
   }
 
+  getInjectorConfig() {
+    return { reverse_proxy_url: this.url };
+  }
+
   private setBind(bind: string) {
     const { host, port } = parseHostPort(bind, "127.0.0.1", 29292);
     this.url = `ws://${host}:${port}`;

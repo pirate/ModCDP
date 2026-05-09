@@ -1,6 +1,8 @@
 import type { BrowserLaunchOptions } from "./BrowserLauncher.js";
 import type { UpstreamTransportConfig } from "./UpstreamTransport.js";
 import type { ProtocolParams, ProtocolResult } from "../types/modcdp.js";
+import fs from "node:fs";
+import path from "node:path";
 import { commands as RuntimeCommands } from "../types/zod/Runtime.js";
 import { commands as TargetCommands } from "../types/zod/Target.js";
 
@@ -43,6 +45,10 @@ export type ExtensionInjectorConfig = {
   browserbase_api_key?: string | null;
   base_url?: string | null;
   browserbase_base_url?: string | null;
+  reverse_proxy_url?: string | null;
+  native_host_name?: string | null;
+  nats_url?: string | null;
+  nats_subject_prefix?: string | null;
 };
 
 export type ExtensionInjectionResult = {
@@ -88,6 +94,10 @@ export class ExtensionInjector {
       browserbase_api_key: null,
       base_url: null,
       browserbase_base_url: null,
+      reverse_proxy_url: null,
+      native_host_name: null,
+      nats_url: null,
+      nats_subject_prefix: null,
       ...options,
     };
   }
@@ -126,6 +136,28 @@ export class ExtensionInjector {
     if (typeof this.options.send !== "function")
       throw new Error(`${this.constructor.name} requires a CDP send function.`);
     return this.options.send;
+  }
+
+  protected extensionRuntimeConfig() {
+    const config = {
+      ...(this.options.reverse_proxy_url ? { reverse_proxy_url: this.options.reverse_proxy_url } : {}),
+      ...(this.options.native_host_name ? { native_host_name: this.options.native_host_name } : {}),
+      ...(this.options.nats_url ? { nats_url: this.options.nats_url } : {}),
+      ...(this.options.nats_subject_prefix ? { nats_subject_prefix: this.options.nats_subject_prefix } : {}),
+    };
+    return Object.keys(config).length > 0 ? config : null;
+  }
+
+  protected writeExtensionRuntimeConfig(unpacked_extension_path: string) {
+    const config = this.extensionRuntimeConfig();
+    if (!config) return;
+    const config_dir = path.join(unpacked_extension_path, "modcdp");
+    fs.mkdirSync(config_dir, { recursive: true });
+    fs.writeFileSync(path.join(config_dir, "config.json"), `${JSON.stringify(config, null, 2)}\n`);
+    fs.writeFileSync(
+      path.join(unpacked_extension_path, "config.js"),
+      `globalThis.__MODCDP_RUNTIME_CONFIG__ = ${JSON.stringify(config, null, 2)};\nexport {};\n`,
+    );
   }
 
   protected readyExpression() {

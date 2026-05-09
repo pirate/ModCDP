@@ -4,6 +4,12 @@ export class DiscoveredExtensionInjector extends ExtensionInjector {
   async inject() {
     const discovered = await this.discoverReadyServiceWorker();
     if (discovered) return { ...discovered, source: "discovered" };
+    if (this.options.trust_matched_service_worker) {
+      const waited = await this.waitForReadyServiceWorker(this.options.service_worker_probe_timeout_ms ?? 10_000, {
+        matched_only: true,
+      });
+      if (waited) return { ...waited, source: "discovered" };
+    }
     const woke = await this.wakeConfiguredExtension();
     if (woke) {
       const waited = await this.waitForReadyServiceWorker(this.options.service_worker_probe_timeout_ms ?? 10_000, {

@@ -86,48 +86,28 @@ async function start_nats_server() {
 test("nats upstream relays CDP through a real extension over a real NATS server", async () => {
   const nats = await start_nats_server();
   const subject_prefix = `modcdp.test.${Date.now()}`;
-  const browser = new ModCDPClient({
+  const nats_client = new ModCDPClient({
     launch: {
       mode: "local",
       options: { headless: process.platform === "linux", sandbox: process.platform !== "linux" },
     },
-    upstream: { mode: "ws" },
+    upstream: {
+      mode: "nats",
+      nats_url: nats.url,
+      nats_subject_prefix: subject_prefix,
+    },
     extension: {
       mode: "auto",
       path: EXTENSION_PATH,
       service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       trust_service_worker_target: true,
     },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
   });
-  let nats_client: ModCDPClient | null = null;
 
   try {
-    await browser.connect();
-    await browser.send("Mod.configure", {
-      upstream: {
-        mode: "nats",
-        nats_url: nats.url,
-        nats_subject_prefix: subject_prefix,
-      },
-      server: {
-        loopback_cdp_url: browser.cdp_url,
-        routes: { "*.*": "loopback_cdp" },
-      },
-    });
-
-    nats_client = new ModCDPClient({
-      launch: { mode: "none" },
-      upstream: {
-        mode: "nats",
-        nats_url: nats.url,
-        nats_subject_prefix: subject_prefix,
-      },
-      extension: { mode: "none" },
-      server: {
-        loopback_cdp_url: browser.cdp_url,
-        routes: { "*.*": "loopback_cdp" },
-      },
-    });
     await nats_client.connect();
     assert.equal(nats_client.transport?.mode, "nats");
     assert.equal(nats_client.upstream_endpoint_kind, "modcdp_server");
@@ -136,8 +116,7 @@ test("nats upstream relays CDP through a real extension over a real NATS server"
     const version = (await nats_client.send("Browser.getVersion")) as Record<string, unknown>;
     assert.equal(typeof version.product, "string");
   } finally {
-    await nats_client?.close();
-    await browser.close();
+    await nats_client.close();
     await nats.close();
   }
 }, 90_000);

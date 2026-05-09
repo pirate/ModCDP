@@ -72,6 +72,10 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     return this.cdp_url ? { loopback_cdp_url: this.cdp_url } : {};
   }
 
+  getInjectorConfig() {
+    return { native_host_name: this.host_name };
+  }
+
   async connect() {
     if (typeof process !== "object" || !process?.versions?.node) {
       throw new Error("upstream.mode=nativemessaging requires Node.");
