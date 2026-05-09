@@ -14,7 +14,6 @@ from typing import Any, cast
 from websocket import create_connection
 
 from modcdp import ModCDPClient
-from modcdp.cdp import AwaitableDict
 from modcdp.LocalBrowserLauncher import LocalBrowserLauncher
 from modcdp.types import JsonValue
 
@@ -272,38 +271,82 @@ class ModCDPClientTests(unittest.TestCase):
             cdp.sendRaw("Browser.getVersion")
 
     def test_generated_cdp_surface_exposes_direct_domain_commands(self) -> None:
-        sent: list[tuple[str, dict[str, object], str | None, bool]] = []
+        client = ModCDPClient(
+            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
+            upstream={"mode": "ws"},
+            extension={
+                "mode": "auto",
+                "path": str(EXTENSION_PATH),
+                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "trust_service_worker_target": True,
+            },
+            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"routes": {"*.*": "loopback_cdp"}},
+        )
+        target_ids: list[str] = []
 
-        class RecordingClient(ModCDPClient):
-            def _send_command(
-                self,
-                method: str,
-                params: Mapping[str, object] | None = None,
-                session_id: str | None = None,
-                validate_custom_schema: bool = True,
-            ) -> JsonValue:
-                sent.append((method, dict(params or {}), session_id, validate_custom_schema))
-                return AwaitableDict({"targetId": "target-1"})
+        client.connect()
+        try:
+            result = client.Target.createTarget(url="https://example.com")
+            raw_result = client.send("Target.createTarget", {"url": "https://example.org"})
+            target_ids.append(str(result.targetId))
+            target_ids.append(str(raw_result["targetId"]))
 
-        client = RecordingClient(client={"routes": {"Custom.*": "direct_cdp"}})
+            self.assertRegex(str(result.targetId), r"^[A-F0-9]+$")
+            self.assertRegex(str(raw_result["targetId"]), r"^[A-F0-9]+$")
+            attached = client.Target.attachToTarget(targetId=result.targetId, flatten=True)
+            evaluated = client.Runtime.evaluate(expression="1 + 1", returnByValue=True, session_id=str(attached.sessionId))
+            self.assertEqual(evaluated.result["value"], 2)
+            self.assertIsNotNone(client.last_command_timing)
+            timing = cast(Mapping[str, Any], client.last_command_timing)
+            self.assertEqual(timing["target"], "direct_cdp")
+            raw_version = cast(Mapping[str, Any], client.send("Browser.getVersion"))
+            self.assertIn("product", raw_version)
+            self.assertIsNotNone(client.last_command_timing)
+            timing = cast(Mapping[str, Any], client.last_command_timing)
+            self.assertEqual(timing["target"], "direct_cdp")
+        finally:
+            for target_id in target_ids:
+                try:
+                    client.Target.closeTarget(targetId=target_id)
+                except Exception:
+                    pass
+            client.close()
 
-        result = client.Target.createTarget(url="https://example.com", session_id="session-1")
-        raw_result = client.send("Target.createTarget", {"url": "https://example.com"})
-
-        self.assertEqual(result.targetId, "target-1")
-        self.assertEqual(raw_result, {"targetId": "target-1"})
-        self.assertEqual(sent[0], ("Target.createTarget", {"url": "https://example.com"}, "session-1", True))
-        self.assertEqual(sent[1], ("Target.createTarget", {"url": "https://example.com"}, None, False))
         with self.assertRaises(Exception):
             client.Target._CreateTargetParams.model_validate({"url": "https://example.com", "unknown": True})
 
         async def run_awaited_calls() -> None:
             awaited_result = await client.Target.createTarget(url="https://example.com")
-            awaited_raw_result = await client.send("Target.createTarget", {"url": "https://example.com"})
-            self.assertEqual(awaited_result.targetId, "target-1")
-            self.assertEqual(awaited_raw_result["targetId"], "target-1")
+            target_ids.append(str(awaited_result.targetId))
+            self.assertRegex(str(awaited_result.targetId), r"^[A-F0-9]+$")
+            awaited_raw_result = await client.send("Target.createTarget", {"url": "https://example.net"})
+            target_ids.append(str(awaited_raw_result["targetId"]))
+            self.assertRegex(str(awaited_raw_result["targetId"]), r"^[A-F0-9]+$")
 
-        asyncio.run(run_awaited_calls())
+        client = ModCDPClient(
+            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
+            upstream={"mode": "ws"},
+            extension={
+                "mode": "auto",
+                "path": str(EXTENSION_PATH),
+                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "trust_service_worker_target": True,
+            },
+            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"routes": {"*.*": "loopback_cdp"}},
+        )
+        target_ids = []
+        client.connect()
+        try:
+            asyncio.run(run_awaited_calls())
+        finally:
+            for target_id in target_ids:
+                try:
+                    client.Target.closeTarget(targetId=target_id)
+                except Exception:
+                    pass
+            client.close()
 
     def test_generated_event_surface_supports_awaited_on_and_async_callbacks(self) -> None:
         client = ModCDPClient()

@@ -115,6 +115,7 @@ class _TranslatedStepRequired(TypedDict):
 
 class TranslatedStep(_TranslatedStepRequired, total=False):
     params: MessageParams
+    sessionId: str | None
     unwrap: Literal["evaluate"]
 
 

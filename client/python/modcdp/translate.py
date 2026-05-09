@@ -193,7 +193,10 @@ def wrap_command_if_needed(
     params = params or {}
     route = route_for(method, routes or DEFAULT_CLIENT_ROUTES)
     if route == "direct_cdp":
-        return {"route": route, "target": "direct_cdp", "steps": [{"method": method, "params": params}]}
+        step: TranslatedStep = {"method": method, "params": params}
+        if target_cdp_session_id:
+            step["sessionId"] = target_cdp_session_id
+        return {"route": route, "target": "direct_cdp", "steps": [step]}
     if route == "service_worker":
         if cdp_session_id is None:
             raise RuntimeError(f"service_worker route requires a CDP session id for {method}")

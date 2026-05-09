@@ -116,6 +116,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     },
   });
 
+  let direct_session_target_id: string | null = null;
   try {
     await cdp.connect();
     assert.equal(cdp.launch.mode, "local");
@@ -146,6 +147,20 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       true,
     );
     assert.equal(typeof (await cdp.Browser.getVersion()).product, "string");
+    const direct_target = (await cdp.send("Target.createTarget", {
+      url: "about:blank#direct-session-routing",
+    })) as Record<string, unknown>;
+    direct_session_target_id = String(direct_target.targetId);
+    const direct_session = (await cdp.send("Target.attachToTarget", {
+      targetId: direct_session_target_id,
+      flatten: true,
+    })) as Record<string, unknown>;
+    const direct_eval = (await cdp.send(
+      "Runtime.evaluate",
+      { expression: "1 + 1", returnByValue: true },
+      String(direct_session.sessionId),
+    )) as { result?: { value?: unknown } };
+    assert.equal(direct_eval.result?.value, 2);
     const sent_at = Date.now();
     const pong = new Promise<Record<string, unknown>>((resolve) => {
       const listener = (payload: Record<string, unknown>) => {
@@ -162,6 +177,9 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(typeof pong_payload.received_at, "number");
     assert.equal(pong_payload.from, "extension-service-worker");
   } finally {
+    if (direct_session_target_id) {
+      await cdp.send("Target.closeTarget", { targetId: direct_session_target_id }).catch(() => ({}));
+    }
     await cdp.close();
   }
 }, 60_000);

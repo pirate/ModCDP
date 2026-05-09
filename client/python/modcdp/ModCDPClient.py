@@ -844,7 +844,7 @@ class ModCDPClient(CDPSurfaceMixin):
     def _send_raw(self, wrapped: TranslatedCommand) -> Any:
         if wrapped["target"] == "direct_cdp":
             step = wrapped["steps"][0]
-            return self._send_message(step["method"], step.get("params") or {})
+            return self._send_message(step["method"], step.get("params") or {}, step.get("sessionId"))
         if wrapped["target"] != "service_worker":
             raise RuntimeError(f"Unsupported command target {wrapped['target']!r}")
 

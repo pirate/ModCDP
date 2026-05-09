@@ -1,37 +1,50 @@
 from __future__ import annotations
 
 import asyncio
+from queue import Queue
 import unittest
-from contextlib import redirect_stderr
-from io import StringIO
-from typing import Any
+from pathlib import Path
 
 from pydantic import BaseModel
 
 from modcdp import ModCDPClient
-from modcdp.types import JsonValue
+
+
+ROOT = Path(__file__).resolve().parents[3]
+EXTENSION_PATH = ROOT / "dist" / "extension"
 
 
 class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
-    def test_pydantic_custom_command_installs_flat_dynamic_method(self) -> None:
+    def test_pydantic_custom_command_installs_flat_dynamic_method_through_real_service_worker(self) -> None:
         class ParamsSchema(BaseModel):
             id: str
 
         class ResultSchema(BaseModel):
             success: bool
 
-        class RecordingClient(ModCDPClient):
-            def _send_raw(self, wrapped: Any) -> JsonValue:
-                self.last_wrapped = wrapped
-                return {"success": True}
-
-        client = RecordingClient(client={"routes": {"Custom.*": "direct_cdp"}})
+        client = ModCDPClient(
+            launch={
+                "mode": "local",
+                "options": {"headless": True, "sandbox": False},
+            },
+            upstream={"mode": "ws"},
+            extension={
+                "mode": "auto",
+                "path": str(EXTENSION_PATH),
+                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "trust_service_worker_target": True,
+            },
+            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"routes": {"*.*": "loopback_cdp"}},
+        )
 
         async def run() -> None:
+            client.connect()
             registered = await client.Mod.addCustomCommand(
                 "Custom.doSomething",
                 params_schema=ParamsSchema,
                 result_schema=ResultSchema,
+                expression="async ({ id }) => ({ success: id === 'abc' })",
             )
             self.assertEqual(registered, {"name": "Custom.doSomething", "registered": True})
             success: bool = await client.Custom.doSomething(id="abc")
@@ -39,33 +52,50 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
             self.assertIs(success, True)
             self.assertIs(raw_success, True)
 
-        asyncio.run(run())
-        with self.assertRaises(ValueError):
-            client.Custom.doSomething(id=123)
+        try:
+            asyncio.run(run())
+            with self.assertRaises(ValueError):
+                client.Custom.doSomething(id=123)
+        finally:
+            client.close()
 
-    def test_pydantic_custom_event_schema_coerces_raw_string_handlers(self) -> None:
+    def test_pydantic_custom_event_schema_coerces_raw_string_handlers_through_real_service_worker(self) -> None:
         class EventSchema(BaseModel):
             data: str
 
-        client = ModCDPClient()
-        seen: list[str] = []
+        client = ModCDPClient(
+            launch={
+                "mode": "local",
+                "options": {"headless": True, "sandbox": False},
+            },
+            upstream={"mode": "ws"},
+            extension={
+                "mode": "auto",
+                "path": str(EXTENSION_PATH),
+                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "trust_service_worker_target": True,
+            },
+            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"routes": {"*.*": "loopback_cdp"}},
+        )
+        seen: Queue[str] = Queue()
 
         async def callback(event: EventSchema) -> None:
-            seen.append(event.data)
+            seen.put(event.data)
 
-        async def register() -> None:
+        async def run() -> None:
+            client.connect()
             await client.Mod.addCustomEvent("Custom.someEvent", event_schema=EventSchema)
             await client.on("Custom.someEvent", callback)
+            await client.Mod.evaluate(
+                expression="async () => await globalThis.ModCDP.emit('Custom.someEvent', { data: 'ok' })"
+            )
 
-        asyncio.run(register())
-        client._run_handler(
-            client._handlers["Custom.someEvent"][0],
-            client._validate_event_payload("Custom.someEvent", {"data": "ok"}),
-            "Custom.someEvent",
-        )
-        self.assertEqual(seen, ["ok"])
-        with redirect_stderr(StringIO()):
-            self.assertIsNone(client._validate_event_payload("Custom.someEvent", {"data": 123}))
+        try:
+            asyncio.run(run())
+            self.assertEqual(seen.get(timeout=10), "ok")
+        finally:
+            client.close()
 
 
 if __name__ == "__main__":

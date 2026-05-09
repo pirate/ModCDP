@@ -355,6 +355,7 @@ export const TranslatedStepSchema = z
   .object({
     method: z.string(),
     params: ProtocolParamsSchema.optional(),
+    sessionId: z.string().nullable().optional(),
     unwrap: z.literal("runtime").optional(),
   })
   .passthrough();

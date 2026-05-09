@@ -551,7 +551,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     return this;
   }
 
-  async send(method: string, params: unknown = {}) {
+  async send(method: string, params: unknown = {}, session_id: string | null = null) {
     const started_at = Date.now();
     let command_params = this.command_params_schemas.get(method)?.parse(params ?? {}) ?? params ?? {};
     if (method === "Mod.addCustomCommand") {
@@ -607,6 +607,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     }
     const command = wrapCommandIfNeeded(method, command_params as ProtocolParams, {
       routes: this.client.routes,
+      targetCdpSessionId: session_id,
     });
     const result = await this._sendRaw(command);
     const completed_at = Date.now();
@@ -1010,7 +1011,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   async _sendRaw(command: TranslatedCommand) {
     if (command.target === "direct_cdp") {
       const [step] = command.steps;
-      return this._sendMessage(step.method, step.params ?? {}) as Promise<ProtocolResult>;
+      return this._sendMessage(step.method, step.params ?? {}, step.sessionId ?? null) as Promise<ProtocolResult>;
     }
     if (command.target !== "service_worker") {
       throw new Error(`Unsupported command target "${command.target}"`);
