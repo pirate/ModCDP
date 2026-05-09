@@ -136,19 +136,31 @@ type CustomMiddleware struct {
 }
 
 type LaunchOptions struct {
-	ExecutablePath     string
-	ExtraArgs          []string
-	Headless           *bool
-	Port               int
-	RemoteDebugging    string
-	Sandbox            *bool
-	UserDataDir        string
-	CDPURL             string
-	WSURL              string
-	BrowserbaseAPIKey  string
-	BaseURL            string
-	BrowserbaseBaseURL string
-	ExtensionID        string
+	ExecutablePath                 string
+	ExtraArgs                      []string
+	Headless                       *bool
+	Port                           int
+	RemoteDebugging                string
+	Sandbox                        *bool
+	UserDataDir                    string
+	CDPURL                         string
+	WSURL                          string
+	BrowserbaseAPIKey              string
+	ProjectID                      string
+	BrowserbaseProjectID           string
+	BaseURL                        string
+	BrowserbaseBaseURL             string
+	SessionID                      string
+	ResumeSessionID                string
+	KeepAlive                      *bool
+	CloseSessionOnClose            *bool
+	Region                         string
+	Timeout                        int
+	ExtensionID                    string
+	BrowserSettings                map[string]any
+	UserMetadata                   map[string]any
+	SessionCreateParams            map[string]any
+	BrowserbaseSessionCreateParams map[string]any
 }
 
 type LaunchConfig struct {

@@ -7,12 +7,15 @@ import (
 )
 
 type LaunchedBrowser struct {
-	CDPURL     string
-	WSURL      string
-	Close      func()
-	ProfileDir string
-	PipeRead   *os.File
-	PipeWrite  *os.File
+	CDPURL                string
+	WSURL                 string
+	Close                 func()
+	ProfileDir            string
+	PipeRead              *os.File
+	PipeWrite             *os.File
+	BrowserbaseSessionID  string
+	BrowserbaseSessionURL string
+	BrowserbaseDebugURL   string
 }
 
 type BrowserLauncher struct {
@@ -84,14 +87,50 @@ func mergeLaunchOptions(existing LaunchOptions, incoming LaunchOptions) LaunchOp
 	if incoming.BrowserbaseAPIKey != "" {
 		merged.BrowserbaseAPIKey = incoming.BrowserbaseAPIKey
 	}
+	if incoming.ProjectID != "" {
+		merged.ProjectID = incoming.ProjectID
+	}
+	if incoming.BrowserbaseProjectID != "" {
+		merged.BrowserbaseProjectID = incoming.BrowserbaseProjectID
+	}
 	if incoming.BaseURL != "" {
 		merged.BaseURL = incoming.BaseURL
 	}
 	if incoming.BrowserbaseBaseURL != "" {
 		merged.BrowserbaseBaseURL = incoming.BrowserbaseBaseURL
 	}
+	if incoming.SessionID != "" {
+		merged.SessionID = incoming.SessionID
+	}
+	if incoming.ResumeSessionID != "" {
+		merged.ResumeSessionID = incoming.ResumeSessionID
+	}
+	if incoming.KeepAlive != nil {
+		merged.KeepAlive = incoming.KeepAlive
+	}
+	if incoming.CloseSessionOnClose != nil {
+		merged.CloseSessionOnClose = incoming.CloseSessionOnClose
+	}
+	if incoming.Region != "" {
+		merged.Region = incoming.Region
+	}
+	if incoming.Timeout != 0 {
+		merged.Timeout = incoming.Timeout
+	}
 	if incoming.ExtensionID != "" {
 		merged.ExtensionID = incoming.ExtensionID
+	}
+	if incoming.BrowserSettings != nil {
+		merged.BrowserSettings = incoming.BrowserSettings
+	}
+	if incoming.UserMetadata != nil {
+		merged.UserMetadata = incoming.UserMetadata
+	}
+	if incoming.SessionCreateParams != nil {
+		merged.SessionCreateParams = incoming.SessionCreateParams
+	}
+	if incoming.BrowserbaseSessionCreateParams != nil {
+		merged.BrowserbaseSessionCreateParams = incoming.BrowserbaseSessionCreateParams
 	}
 	return merged
 }
