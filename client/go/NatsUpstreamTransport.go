@@ -68,6 +68,12 @@ func (t *NatsUpstreamTransport) Update(config map[string]any) {
 	if natsURL != "" || subjectPrefix != "" {
 		t.URL, t.SubjectPrefix = normalizeNATSURL(firstNonEmptyString(natsURL, t.URL), firstNonEmptyString(subjectPrefix, t.SubjectPrefix))
 	}
+	if role, _ := config["role"].(string); role == "client" || role == "browser" {
+		t.Role = role
+	}
+	if waitTimeoutMS, ok := intFromConfig(config["wait_timeout_ms"]); ok {
+		t.WaitTimeoutMS = waitTimeoutMS
+	}
 }
 
 func (t *NatsUpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {

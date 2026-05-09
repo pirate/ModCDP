@@ -53,6 +53,12 @@ class NatsUpstreamTransport(UpstreamTransport):
                 nats_url if isinstance(nats_url, str) and nats_url else current_url,
                 nats_subject_prefix if isinstance(nats_subject_prefix, str) and nats_subject_prefix else self.subject_prefix,
             )
+        role = config.get("role")
+        if role in ("client", "browser"):
+            self.role = str(role)
+        wait_timeout_ms = config.get("wait_timeout_ms")
+        if isinstance(wait_timeout_ms, int | float):
+            self.wait_timeout_ms = int(wait_timeout_ms)
         return self
 
     def getInjectorConfig(self) -> dict[str, Any]:

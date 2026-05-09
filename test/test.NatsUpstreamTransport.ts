@@ -15,7 +15,7 @@ import { ModCDPClient } from "../client/js/ModCDPClient.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
 
-test("nats upstream config owns url, subject prefix, and injector config", () => {
+test("nats upstream config owns url, subject prefix, wait timeout, and injector config", async () => {
   const transport = new NatsUpstreamTransport({ url: "ws://127.0.0.1:4223", subject_prefix: "modcdp.one" });
   assert.equal(transport.url, "ws://127.0.0.1:4223/");
   assert.equal(transport.subject_prefix, "modcdp.one");
@@ -24,11 +24,17 @@ test("nats upstream config owns url, subject prefix, and injector config", () =>
     nats_subject_prefix: "modcdp.one",
   });
   assert.equal(
-    transport.update({ nats_url: "nats://127.0.0.1:4222", nats_subject_prefix: "modcdp.two" }),
+    transport.update({
+      nats_url: "nats://127.0.0.1:4222",
+      nats_subject_prefix: "modcdp.two",
+      role: "browser",
+      wait_timeout_ms: 5,
+    }),
     transport,
   );
   assert.equal(transport.url, "nats://127.0.0.1:4222");
   assert.equal(transport.subject_prefix, "modcdp.two");
+  await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms for NATS ModCDP peer/);
 });
 
 function delay(ms: number) {

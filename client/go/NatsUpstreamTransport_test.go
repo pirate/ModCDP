@@ -13,7 +13,7 @@ import (
 	"github.com/gobwas/ws"
 )
 
-func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixAndInjectorConfig(t *testing.T) {
+func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixWaitTimeoutAndInjectorConfig(t *testing.T) {
 	transport := NewNatsUpstreamTransport(NatsUpstreamTransportOptions{
 		URL:           "ws://127.0.0.1:4223",
 		SubjectPrefix: "modcdp.one",
@@ -28,12 +28,23 @@ func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixAndInjectorConfig(t *tes
 	if injectorConfig.NATSURL != "ws://127.0.0.1:4223/" || injectorConfig.NATSSubjectPrefix != "modcdp.one" {
 		t.Fatalf("injector config = %#v", injectorConfig)
 	}
-	transport.Update(map[string]any{"nats_url": "nats://127.0.0.1:4222", "nats_subject_prefix": "modcdp.two"})
+	transport.Update(map[string]any{
+		"nats_url":            "nats://127.0.0.1:4222",
+		"nats_subject_prefix": "modcdp.two",
+		"role":                "browser",
+		"wait_timeout_ms":     5,
+	})
 	if transport.URL != "nats://127.0.0.1:4222" {
 		t.Fatalf("URL after update = %q", transport.URL)
 	}
 	if transport.SubjectPrefix != "modcdp.two" {
 		t.Fatalf("SubjectPrefix after update = %q", transport.SubjectPrefix)
+	}
+	if transport.Role != "browser" {
+		t.Fatalf("Role after update = %q", transport.Role)
+	}
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms for NATS ModCDP peer") {
+		t.Fatalf("WaitForPeer error = %v", err)
 	}
 }
 

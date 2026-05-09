@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class NatsUpstreamTransportTests(unittest.TestCase):
-    def test_config_owns_url_subject_prefix_and_injector_config(self) -> None:
+    def test_config_owns_url_subject_prefix_wait_timeout_and_injector_config(self) -> None:
         transport = NatsUpstreamTransport({"url": "ws://127.0.0.1:4223", "subject_prefix": "modcdp.one"})
         self.assertEqual(transport.url, "ws://127.0.0.1:4223/")
         self.assertEqual(transport.subject_prefix, "modcdp.one")
@@ -26,11 +26,20 @@ class NatsUpstreamTransportTests(unittest.TestCase):
             {"nats_url": "ws://127.0.0.1:4223/", "nats_subject_prefix": "modcdp.one"},
         )
         self.assertIs(
-            transport.update({"nats_url": "nats://127.0.0.1:4222", "nats_subject_prefix": "modcdp.two"}),
+            transport.update(
+                {
+                    "nats_url": "nats://127.0.0.1:4222",
+                    "nats_subject_prefix": "modcdp.two",
+                    "role": "browser",
+                    "wait_timeout_ms": 5,
+                }
+            ),
             transport,
         )
         self.assertEqual(transport.url, "nats://127.0.0.1:4222")
         self.assertEqual(transport.subject_prefix, "modcdp.two")
+        with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms for NATS ModCDP peer"):
+            transport.waitForPeer()
 
     def test_relays_cdp_through_real_extension_over_real_nats_server(self) -> None:
         nats = _start_nats_server()

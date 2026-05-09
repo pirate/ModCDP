@@ -54,6 +54,8 @@ export class NatsUpstreamTransport extends UpstreamTransport {
       this.url = normalized.url;
       this.subject_prefix = normalized.subject_prefix;
     }
+    if (config.role === "client" || config.role === "browser") this.role = config.role;
+    if (typeof config.wait_timeout_ms === "number") this.wait_timeout_ms = config.wait_timeout_ms;
     return this;
   }
 

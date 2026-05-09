@@ -21,6 +21,7 @@ export type UpstreamTransportConfig = {
   wait_timeout_ms?: number | null;
   nats_url?: string | null;
   nats_subject_prefix?: string | null;
+  role?: string | null;
   reversews_bind?: string | null;
   reversews_wait_timeout_ms?: number | null;
 };
