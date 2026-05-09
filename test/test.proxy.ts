@@ -10,6 +10,7 @@ import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../bridge/LocalBrowserLauncher.js";
 import { startProxy } from "../bridge/proxy.js";
+import { ModCDPClient } from "../client/js/ModCDPClient.js";
 import { CdpSocket } from "./helpers.BrowserLauncher.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -180,5 +181,75 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
   } finally {
     await proxy.close();
     await nats.close();
+  }
+}, 90_000);
+
+test.skipIf(process.platform === "win32")(
+  "proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nativemessaging upstream",
+  async () => {
+    const proxy_port = await LocalBrowserLauncher.freePort();
+    const proxy = await startProxy({
+      port: proxy_port,
+      launch: {
+        mode: "local",
+      },
+      upstream: { mode: "nativemessaging" },
+      extension: {
+        mode: "auto",
+        path: EXTENSION_PATH,
+      },
+      server: {
+        routes: { "*.*": "loopback_cdp" },
+      },
+    });
+
+    try {
+      await expect_proxy_cdp_works(proxy.url, "nativemessaging");
+    } finally {
+      await proxy.close();
+    }
+  },
+  90_000,
+);
+
+test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over reversews upstream", async () => {
+  const proxy_port = await LocalBrowserLauncher.freePort();
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const reverse_bind = `127.0.0.1:${reverse_port}`;
+  const reverse_url = `ws://${reverse_bind}`;
+  const proxy = await startProxy({
+    port: proxy_port,
+    upstream: { mode: "reversews", reversews_bind: reverse_bind },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
+  });
+  const bootstrap = new ModCDPClient({
+    launch: {
+      mode: "local",
+      options: { headless: true, sandbox: process.platform !== "linux" },
+    },
+    upstream: { mode: "ws" },
+    extension: {
+      mode: "auto",
+      path: EXTENSION_PATH,
+      service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+      trust_service_worker_target: true,
+    },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
+  });
+
+  try {
+    await bootstrap.connect();
+    await bootstrap.send("Mod.evaluate", {
+      params: { reverse_url },
+      expression: "async ({ reverse_url }) => ModCDP.startReverseBridge(reverse_url)",
+    });
+    await expect_proxy_cdp_works(proxy.url, "reversews");
+  } finally {
+    await bootstrap.close();
+    await proxy.close();
   }
 }, 90_000);
