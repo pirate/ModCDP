@@ -363,7 +363,7 @@ export type TranslatedStep = z.infer<typeof TranslatedStepSchema>;
 export const TranslatedCommandSchema = z
   .object({
     route: z.string(),
-    target: z.enum(["direct_cdp", "service_worker", "self"]),
+    target: z.enum(["direct_cdp", "service_worker"]),
     steps: z.array(TranslatedStepSchema),
   })
   .passthrough();

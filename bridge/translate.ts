@@ -240,13 +240,6 @@ export function wrapCommandIfNeeded(
       steps: [{ method, params }],
     };
   }
-  if (route === "self") {
-    return {
-      route,
-      target: "self",
-      steps: [{ method, params }],
-    };
-  }
   if (route === "service_worker") {
     return {
       route,

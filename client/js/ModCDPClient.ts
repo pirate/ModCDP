@@ -149,13 +149,6 @@ type ClientOptions = {
   custom_commands?: ModCDPClientCustomCommandParams[];
   custom_events?: ModCDPAddCustomEventObjectParams[];
   custom_middlewares?: ModCDPAddMiddlewareParams[];
-  self?: {
-    addEventListener?: (
-      listener: (event: string, data: ProtocolPayload, cdpSessionId: string | null) => void,
-    ) => unknown;
-    configure?: (params: ModCDPConfigureParams) => Promise<ProtocolResult>;
-    handleCommand: (method: string, params?: ProtocolParams, cdpSessionId?: string | null) => Promise<ProtocolResult>;
-  } | null;
 };
 type ClientConfig = {
   routes: ModCDPRoutes;
@@ -382,7 +375,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
   custom_events: ModCDPAddCustomEventObjectParams[];
   custom_middlewares: ModCDPAddMiddlewareParams[];
   transport: UpstreamTransport | null;
-  self: ClientOptions["self"];
   next_id: number;
   pending: Map<number, PendingCommand>;
   ext_session_id: string | null;
@@ -397,7 +389,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
   command_params_schemas: Map<string, z.ZodType>;
   command_result_schemas: Map<string, z.ZodType>;
   command_result_unwrap_keys: Map<string, string>;
-  self_event_listener_registered: boolean;
   cdp_aliases_hydrated: boolean;
   event_wait_cleanups: Set<() => void>;
   auto_sessions: AutoSessionRouter;
@@ -418,7 +409,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
     custom_commands = [],
     custom_events = [],
     custom_middlewares = [],
-    self = null,
   }: ClientOptions = {}) {
     super();
     const normalized = normalizeClientOptions({ launch, upstream, extension, client, server });
@@ -432,7 +422,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.custom_commands = custom_commands;
     this.custom_events = custom_events;
     this.custom_middlewares = custom_middlewares;
-    this.self = self;
 
     this.transport = null;
     this.next_id = 1;
@@ -449,7 +438,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
     this.command_params_schemas = new Map();
     this.command_result_schemas = new Map();
     this.command_result_unwrap_keys = new Map();
-    this.self_event_listener_registered = false;
     this.cdp_aliases_hydrated = false;
     this.event_wait_cleanups = new Set();
     this.auto_sessions = new AutoSessionRouter(
@@ -473,17 +461,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
   async connect() {
     const connect_started_at = Date.now();
     await this._hydrateCdpAliases();
-    if (this.self && this.upstream.mode === "nativemessaging") {
-      this._ensureSelfEventListener();
-      if (this.server !== null) await this.self.configure?.(this._serverConfigureParams());
-      const connected_at = Date.now();
-      this.connect_timing = {
-        started_at: connect_started_at,
-        connected_at,
-        duration_ms: connected_at - connect_started_at,
-      };
-      return this;
-    }
 
     const transport_started_at = Date.now();
     await this._connectUpstreamTransport();
@@ -1024,13 +1001,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
       const [step] = command.steps;
       return this._sendMessage(step.method, step.params ?? {}) as Promise<ProtocolResult>;
     }
-    if (command.target === "self") {
-      if (!this.self) throw new Error(`ModCDPClient self route requires a self server.`);
-      this._ensureSelfEventListener();
-      const [step] = command.steps;
-      const cdp_session_id = (step.params as ModCDPCustomPayload | undefined)?.cdpSessionId as string | undefined;
-      return await this.self.handleCommand(step.method, step.params ?? {}, cdp_session_id ?? null);
-    }
     if (command.target !== "service_worker") {
       throw new Error(`Unsupported command target "${command.target}"`);
     }
@@ -1053,15 +1023,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
       unwrap = step.unwrap ?? null;
     }
     return unwrapResponseIfNeeded(result, unwrap);
-  }
-
-  _ensureSelfEventListener() {
-    if (!this.self || this.self_event_listener_registered) return;
-    this.self.addEventListener?.((event, data, cdp_session_id) => {
-      this.auto_sessions.recordProtocolEvent(event, data, cdp_session_id);
-      this.emit(event, this.event_schemas.get(event)?.parse(data) ?? data, cdp_session_id);
-    });
-    this.self_event_listener_registered = true;
   }
 
   _sendMessage(
