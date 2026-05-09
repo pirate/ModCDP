@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+from typing_extensions import NotRequired
+
 from .BrowserLauncher import BrowserLaunchOptions
 from .types import ProtocolParams, ProtocolResult, TargetInfo
 
@@ -59,19 +61,19 @@ class ExtensionInjectorConfig(TypedDict, total=False):
     nats_subject_prefix: str | None
 
 
-class ExtensionInjectionResult(TypedDict, total=False):
+class ExtensionInjectionResult(TypedDict):
     source: str
     extension_id: str | None
     target_id: str
     url: str
     session_id: str
-    has_tabs: bool
-    has_debugger: bool
+    has_tabs: NotRequired[bool]
+    has_debugger: NotRequired[bool]
 
 
 class ExtensionInjector:
     def __init__(self, options: ExtensionInjectorConfig | None = None) -> None:
-        self.options: ExtensionInjectorConfig = {
+        self.options = cast(ExtensionInjectorConfig, {
             "send": None,
             "sessionIdForTarget": None,
             "attachToTarget": None,
@@ -99,7 +101,7 @@ class ExtensionInjector:
             "nats_url": None,
             "nats_subject_prefix": None,
             **dict(options or {}),
-        }
+        })
         self.unusable_target_ids: set[str] = set()
         self.last_error: Exception | None = None
 

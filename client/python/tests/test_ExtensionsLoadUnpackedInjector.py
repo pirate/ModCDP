@@ -38,10 +38,10 @@ class ExtensionsLoadUnpackedInjectorTests(unittest.TestCase):
                 return cast(dict[str, Any], response.get("result") or {})
 
         injector = ExtensionsLoadUnpackedInjector(
-            {
+            cast(Any, {
                 "send": send,
                 "extension_path": str(EXTENSION_PATH),
-            }
+            })
         )
         try:
             injector.prepare()

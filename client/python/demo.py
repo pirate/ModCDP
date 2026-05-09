@@ -106,10 +106,10 @@ def main():
     try:
         if live:
             cdp_url = wait_for_live_cdp_url()
-            launch_options = {}
+            launch_options: dict[str, object] = {}
         else:
             cdp_url = None
-            launch_options = {
+            launch_options: dict[str, object] = {
                 "headless": sys.platform.startswith("linux"),
                 "sandbox": not sys.platform.startswith("linux"),
                 "extra_args": [f"--load-extension={EXTENSION_PATH}"],

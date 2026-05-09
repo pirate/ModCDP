@@ -32,7 +32,7 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
 
         try:
             cdp.connect()
-            self.assertEqual(cdp.connect_timing["extension_source"] if cdp.connect_timing else None, "discovered")
+            self.assertEqual(cdp.connect_timing.get("extension_source") if cdp.connect_timing else None, "discovered")
             self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
             self.assertEqual(
                 cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),

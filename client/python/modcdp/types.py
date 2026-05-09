@@ -4,6 +4,8 @@ from collections.abc import Callable, Mapping
 from queue import Queue
 from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 
+from typing_extensions import NotRequired
+
 JsonPrimitive: TypeAlias = None | bool | int | float | str
 JsonValue: TypeAlias = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -56,10 +58,15 @@ class ModCDPPingLatency(TypedDict):
 
 class ModCDPConnectTiming(TypedDict):
     started_at: int
-    extension_source: str | None
-    extension_started_at: int
-    extension_completed_at: int
-    extension_duration_ms: int
+    upstream_mode: str | None
+    upstream_endpoint_kind: Literal["raw_cdp", "modcdp_server"]
+    transport_started_at: int
+    transport_connected_at: int
+    transport_duration_ms: int
+    extension_source: NotRequired[str | None]
+    extension_started_at: NotRequired[int]
+    extension_completed_at: NotRequired[int]
+    extension_duration_ms: NotRequired[int]
     connected_at: int
     duration_ms: int
 

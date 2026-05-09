@@ -27,7 +27,7 @@ class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
 
         try:
             cdp.connect()
-            self.assertEqual(cdp.connect_timing["extension_source"] if cdp.connect_timing else None, "local_launch")
+            self.assertEqual(cdp.connect_timing.get("extension_source") if cdp.connect_timing else None, "local_launch")
             self.assertEqual(cdp.extension_id, DEFAULT_MODCDP_EXTENSION_ID)
             self.assertRegex(cdp.ext_session_id or "", r"^.+$")
             self.assertEqual(
@@ -41,10 +41,10 @@ class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
         injector = LocalBrowserLaunchExtensionInjector({"extension_path": str(EXTENSION_PATH)})
         try:
             injector.prepare()
-            extra_args = injector.getLauncherConfig()["extra_args"]
+            extra_args = injector.getLauncherConfig().get("extra_args") or []
             self.assertEqual(len(extra_args), 1)
             self.assertTrue(extra_args[0].startswith("--load-extension="))
-            self.assertEqual(injector.options["extension_id"], DEFAULT_MODCDP_EXTENSION_ID)
+            self.assertEqual(injector.options.get("extension_id"), DEFAULT_MODCDP_EXTENSION_ID)
         finally:
             injector.close()
 

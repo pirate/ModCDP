@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, TypedDict, cast
+
+from typing_extensions import NotRequired
 
 
 class BrowserLaunchOptions(TypedDict, total=False):
@@ -35,16 +38,16 @@ class BrowserLaunchOptions(TypedDict, total=False):
     browserbase_session_create_params: dict[str, Any] | None
 
 
-class LaunchedBrowser(TypedDict, total=False):
+class LaunchedBrowser(TypedDict):
     cdp_url: str | None
     ws_url: str | None
-    close: Any
-    profile_dir: str | None
-    pipe_read: Any
-    pipe_write: Any
-    browserbase_session_id: str | None
-    browserbase_session_url: str | None
-    browserbase_debug_url: str | None
+    close: Callable[[], Any]
+    profile_dir: NotRequired[str | None]
+    pipe_read: NotRequired[Any]
+    pipe_write: NotRequired[Any]
+    browserbase_session_id: NotRequired[str | None]
+    browserbase_session_url: NotRequired[str | None]
+    browserbase_debug_url: NotRequired[str | None]
 
 
 DEFAULT_CHROME_READY_TIMEOUT_MS = 45_000

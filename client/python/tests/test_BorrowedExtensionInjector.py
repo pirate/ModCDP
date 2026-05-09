@@ -32,7 +32,7 @@ class BorrowedExtensionInjectorTests(unittest.TestCase):
 
         try:
             cdp.connect()
-            self.assertEqual(cdp.connect_timing["extension_source"] if cdp.connect_timing else None, "borrowed")
+            self.assertEqual(cdp.connect_timing.get("extension_source") if cdp.connect_timing else None, "borrowed")
             self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
             target_infos = cdp.send("Target.getTargets")["targetInfos"]
             self.assertGreater(len(target_infos), 0)

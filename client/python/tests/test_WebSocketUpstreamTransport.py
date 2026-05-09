@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import unittest
 from queue import Queue
+from typing import Any, cast
 
 from modcdp import ModCDPClient
 from modcdp.LocalBrowserLauncher import LocalBrowserLauncher
@@ -37,18 +38,23 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             cdp.connect()
             self.assertEqual(cdp.transport.mode if cdp.transport else None, "ws")
             self.assertEqual(cdp.upstream_endpoint_kind, "raw_cdp")
-            self.assertEqual(cdp.connect_timing["upstream_mode"], "ws")
-            self.assertEqual(cdp.connect_timing["upstream_endpoint_kind"], "raw_cdp")
-            self.assertGreaterEqual(cdp.connect_timing["transport_connected_at"], cdp.connect_timing["transport_started_at"])
+            timing = cdp.connect_timing
+            self.assertIsNotNone(timing)
+            if timing is None:
+                raise AssertionError("expected connect timing")
+            self.assertEqual(timing["upstream_mode"], "ws")
+            self.assertEqual(timing["upstream_endpoint_kind"], "raw_cdp")
+            self.assertGreaterEqual(timing["transport_connected_at"], timing["transport_started_at"])
             self.assertEqual(
-                cdp.connect_timing["transport_duration_ms"],
-                cdp.connect_timing["transport_connected_at"] - cdp.connect_timing["transport_started_at"],
+                timing["transport_duration_ms"],
+                timing["transport_connected_at"] - timing["transport_started_at"],
             )
             self.assertRegex(cdp.cdp_url or "", r"^ws://")
             version = cdp.sendRaw("Browser.getVersion")
             self.assertIsInstance(version["product"], str)
             time.sleep(1.5)
-            target_infos = cdp.sendRaw("Target.getTargets").get("targetInfos", [])
+            raw_target_infos = cdp.sendRaw("Target.getTargets").get("targetInfos", [])
+            target_infos = cast(list[dict[str, Any]], raw_target_infos if isinstance(raw_target_infos, list) else [])
             self.assertTrue(
                 any(
                     target.get("type") == "service_worker"

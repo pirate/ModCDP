@@ -69,8 +69,8 @@ class ModCDPClientTests(unittest.TestCase):
         )
 
         self.assertEqual(cdp.launch["options"], {"headless": True})
-        self.assertEqual(cdp._launch_options()["executable_path"], "/tmp/chrome")
-        self.assertEqual(cdp._launch_options()["user_data_dir"], "/tmp/profile")
+        self.assertEqual(cdp._launch_options().get("executable_path"), "/tmp/chrome")
+        self.assertEqual(cdp._launch_options().get("user_data_dir"), "/tmp/profile")
         self.assertEqual(cdp.upstream["reversews_wait_timeout_ms"], 456)
         self.assertEqual(cdp.upstream["ws_connect_error_settle_timeout_ms"], 321)
         self.assertEqual(cdp.extension["execution_context_timeout_ms"], 4321)
@@ -101,7 +101,7 @@ class ModCDPClientTests(unittest.TestCase):
         cdp = ModCDPClient(extension={"mode": "borrow", "service_worker_url_suffixes": []})
 
         self.assertEqual(cdp.extension["service_worker_url_suffixes"], [])
-        self.assertEqual(cdp._base_extension_injector_config(None)["service_worker_url_suffixes"], [])
+        self.assertEqual(cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"), [])
 
     def test_connects_with_local_launch_and_injector_chain(self) -> None:
         cdp = ModCDPClient(
@@ -116,7 +116,7 @@ class ModCDPClientTests(unittest.TestCase):
 
         try:
             cdp.connect()
-            self.assertEqual(cdp.connect_timing["extension_source"] if cdp.connect_timing else None, "local_launch")
+            self.assertEqual(cdp.connect_timing.get("extension_source") if cdp.connect_timing else None, "local_launch")
             self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
             self.assertEqual(
                 cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),

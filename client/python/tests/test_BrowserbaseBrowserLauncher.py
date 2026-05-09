@@ -5,6 +5,7 @@ import os
 import time
 import unittest
 import urllib.request
+from typing import Any, cast
 
 from websocket import create_connection
 
@@ -18,7 +19,7 @@ LIVE_BROWSERBASE_TIMEOUT_S = 120
 class BrowserbaseBrowserLauncherTests(unittest.TestCase):
     def test_creates_verifies_resumes_and_releases_real_browserbase_session(self) -> None:
         launcher = BrowserbaseBrowserLauncher(
-            {
+            cast(Any, {
                 "project_id": os.environ.get("BROWSERBASE_PROJECT_ID"),
                 "timeout": 120,
                 **({"region": os.environ["BROWSERBASE_REGION"]} if os.environ.get("BROWSERBASE_REGION") else {}),
@@ -29,7 +30,7 @@ class BrowserbaseBrowserLauncherTests(unittest.TestCase):
                 "user_metadata": {
                     "modcdp_launcher_test": "BrowserbaseBrowserLauncher",
                 },
-            }
+            })
         )
         browser = launcher.launch()
         resumed = None

@@ -394,7 +394,7 @@ class ModCDPClient(CDPSurfaceMixin):
             ))
         threading.Thread(target=self._measure_ping_latency, daemon=True).start()
         connected_at = int(time.time() * 1000)
-        self.connect_timing = {
+        self.connect_timing = cast(ModCDPConnectTiming, {
             "started_at": connect_started_at,
             "upstream_mode": self.upstream.get("mode"),
             "upstream_endpoint_kind": self.upstream_endpoint_kind,
@@ -407,7 +407,7 @@ class ModCDPClient(CDPSurfaceMixin):
             "extension_duration_ms": extension_completed_at - extension_started_at,
             "connected_at": connected_at,
             "duration_ms": connected_at - connect_started_at,
-        }
+        })
         return self
 
     def _send_command(
@@ -658,7 +658,7 @@ class ModCDPClient(CDPSurfaceMixin):
         for injector in injectors:
             injector.update(self._base_extension_injector_config(None))
         for injector in injectors:
-            injector.update(launcher.getInjectorConfig())
+            injector.update(cast(ExtensionInjectorConfig, launcher.getInjectorConfig()))
         for injector in injectors:
             injector.update(cast(ExtensionInjectorConfig, transport.getInjectorConfig()))
         for injector in injectors:
@@ -667,7 +667,7 @@ class ModCDPClient(CDPSurfaceMixin):
             launcher.update(injector.getLauncherConfig())
         for injector in injectors:
             transport.update(injector.getTransportConfig())
-        launcher.update(transport.getLauncherConfig())
+        launcher.update(cast(BrowserLaunchOptions, transport.getLauncherConfig()))
         transport.update(launcher.getTransportConfig())
 
         if transport.endpoint_kind == "modcdp_server":
@@ -677,7 +677,7 @@ class ModCDPClient(CDPSurfaceMixin):
             self._launched_browser = launched
             transport.update(launcher.getTransportConfig())
             for injector in injectors:
-                injector.update(launcher.getInjectorConfig())
+                injector.update(cast(ExtensionInjectorConfig, launcher.getInjectorConfig()))
             for injector in injectors:
                 transport.update(injector.getTransportConfig())
         launched_cdp_url = (
@@ -707,7 +707,7 @@ class ModCDPClient(CDPSurfaceMixin):
                 initial_transport_config.get("ws_url"),
                 launched_cdp_url,
             ):
-                self.server = {**self.server, **server_config}
+                self.server = cast(ModCDPServerConfig, {**self.server, **server_config})
 
     def _upstream_transport_config(self) -> dict[str, Any]:
         return {

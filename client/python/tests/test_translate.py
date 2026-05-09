@@ -28,8 +28,8 @@ class TranslateTests(unittest.TestCase):
         )
         self.assertEqual(wrapped["target"], "service_worker")
         self.assertEqual(wrapped["steps"][0]["method"], "Runtime.evaluate")
-        self.assertIn('attachToSession("session-1")', str(wrapped["steps"][0]["params"]["expression"]))
-        self.assertEqual(wrapped["steps"][0]["unwrap"], "evaluate")
+        self.assertIn('attachToSession("session-1")', str(wrapped["steps"][0].get("params", {}).get("expression")))
+        self.assertEqual(wrapped["steps"][0].get("unwrap"), "evaluate")
 
         self.assertEqual(unwrap_response_if_needed({"result": {"type": "object", "value": {"ok": True}}}, "evaluate"), {"ok": True})
         self.assertEqual(unwrap_response_if_needed({"product": "Chrome/1"}, None), {"product": "Chrome/1"})

@@ -31,7 +31,7 @@ class LocalBrowserLauncherTests(unittest.TestCase):
             ws = create_connection(ws_url, timeout=10)
 
             try:
-                self.assertEqual(chrome["profile_dir"], user_data_dir)
+                self.assertEqual(chrome.get("profile_dir"), user_data_dir)
                 ws.send(json.dumps({"id": 1, "method": "Browser.getVersion", "params": {}}))
                 version = json.loads(ws.recv())
                 self.assertEqual(version["id"], 1)
@@ -54,7 +54,7 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         ).launch({"user_data_dir": user_data_dir, "cleanup_user_data_dir": True})
 
         try:
-            self.assertEqual(chrome["profile_dir"], user_data_dir)
+            self.assertEqual(chrome.get("profile_dir"), user_data_dir)
         finally:
             chrome["close"]()
         self.assertFalse(Path(user_data_dir).exists())

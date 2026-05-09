@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 from queue import Queue
+from typing import cast
 
 from modcdp import ModCDPClient
 from modcdp.ReverseWebSocketUpstreamTransport import ReverseWebSocketUpstreamTransport
@@ -66,8 +67,9 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
             self.assertEqual(cdp.transport.mode if cdp.transport else None, "reversews")
             self.assertEqual(cdp.upstream_endpoint_kind, "modcdp_server")
             self.assertIsInstance(cdp.transport, ReverseWebSocketUpstreamTransport)
+            transport = cast(ReverseWebSocketUpstreamTransport, cdp.transport)
             self.assertEqual(
-                cdp.transport.peer_info.get("extension_id") if cdp.transport.peer_info else None,
+                transport.peer_info.get("extension_id") if transport.peer_info else None,
                 "mdedooklbnfejodmnhmkdpkaedafkehf",
             )
             version = cdp.send("Browser.getVersion")
