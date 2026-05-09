@@ -98,8 +98,8 @@ func (i *BBBrowserExtensionInjector) Close() error {
 }
 
 func (i *BBBrowserExtensionInjector) UploadExtension(zipPath string) (string, error) {
-	apiKey := firstNonEmptyString(i.Options.BrowserbaseAPIKey, os.Getenv("BROWSERBASE_API_KEY"))
-	if apiKey == "" {
+	browserbaseAPIKey := firstNonEmptyString(i.Options.BrowserbaseAPIKey, os.Getenv("BROWSERBASE_API_KEY"))
+	if browserbaseAPIKey == "" {
 		return "", fmt.Errorf("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key")
 	}
 	baseURL := firstNonEmptyString(i.Options.BaseURL, i.Options.BrowserbaseBaseURL, os.Getenv("BROWSERBASE_BASE_URL"), DefaultBrowserbaseBaseURL)
@@ -127,7 +127,7 @@ func (i *BBBrowserExtensionInjector) UploadExtension(zipPath string) (string, er
 	if err != nil {
 		return "", err
 	}
-	request.Header.Set("X-BB-API-Key", apiKey)
+	request.Header.Set("X-BB-API-Key", browserbaseAPIKey)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
