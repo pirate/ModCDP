@@ -3,6 +3,8 @@ package modcdp
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -14,17 +16,39 @@ import (
 func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 	headless := true
 	sandbox := false
-	launcher := NewLocalBrowserLauncher(LaunchOptions{
-		Headless: &headless,
-		Sandbox:  &sandbox,
-	})
-	chrome, err := launcher.Launch(LaunchOptions{})
+	profileDir := t.TempDir()
+	port, err := freePort()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer chrome.Close()
+	launcher := NewLocalBrowserLauncher(LaunchOptions{
+		Headless:                  &headless,
+		Sandbox:                   &sandbox,
+		ChromeReadyTimeoutMS:      45_000,
+		ChromeReadyPollIntervalMS: 50,
+	})
+	chrome, err := launcher.Launch(LaunchOptions{
+		Port:        port,
+		UserDataDir: profileDir,
+		ExtraArgs:   []string{"--window-size=900,700"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		chrome.Close()
+		if _, err := os.Stat(profileDir); err != nil {
+			t.Fatalf("expected explicit user data dir to remain after close: %v", err)
+		}
+	}()
 	if launcher.Launched != chrome {
 		t.Fatal("expected launcher to retain launched browser")
+	}
+	if chrome.CDPURL != "http://127.0.0.1:"+strconv.Itoa(port) {
+		t.Fatalf("CDPURL = %q", chrome.CDPURL)
+	}
+	if chrome.ProfileDir != profileDir {
+		t.Fatalf("ProfileDir = %q, want %q", chrome.ProfileDir, profileDir)
 	}
 	transportConfig := launcher.GetTransportConfig()
 	if transportConfig["cdp_url"] != chrome.CDPURL {
@@ -77,8 +101,9 @@ func TestLocalBrowserLauncherLaunchesRealBrowserOverRemoteDebuggingPipe(t *testi
 	headless := true
 	sandbox := false
 	launcher := NewLocalBrowserLauncher(LaunchOptions{
-		Headless: &headless,
-		Sandbox:  &sandbox,
+		Headless:             &headless,
+		Sandbox:              &sandbox,
+		ChromeReadyTimeoutMS: 45_000,
 	})
 	chrome, err := launcher.Launch(LaunchOptions{RemoteDebugging: "pipe"})
 	if err != nil {
@@ -124,5 +149,34 @@ func TestLocalBrowserLauncherLaunchesRealBrowserOverRemoteDebuggingPipe(t *testi
 	product, _ := result["product"].(string)
 	if !strings.Contains(product, "Chrome") && !strings.Contains(product, "Chromium") {
 		t.Fatalf("product = %q", product)
+	}
+}
+
+func TestLocalBrowserLauncherCleansExplicitUserDataDirWhenRequested(t *testing.T) {
+	headless := true
+	sandbox := false
+	cleanupUserDataDir := true
+	profileDir, err := os.MkdirTemp("", "modcdp-go-local-profile-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
+		Headless:             &headless,
+		Sandbox:              &sandbox,
+		ChromeReadyTimeoutMS: 45_000,
+	}).Launch(LaunchOptions{
+		UserDataDir:        profileDir,
+		CleanupUserDataDir: &cleanupUserDataDir,
+	})
+	if err != nil {
+		_ = os.RemoveAll(profileDir)
+		t.Fatal(err)
+	}
+
+	chrome.Close()
+
+	if _, err := os.Stat(profileDir); !os.IsNotExist(err) {
+		_ = os.RemoveAll(profileDir)
+		t.Fatalf("expected explicit user data dir to be removed, got %v", err)
 	}
 }

@@ -26,34 +26,19 @@ func NewLocalBrowserLauncher(options LaunchOptions) *LocalBrowserLauncher {
 }
 
 func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, error) {
-	if options.ExecutablePath == "" {
-		options.ExecutablePath = l.Options.ExecutablePath
-	}
-	if options.Port == 0 {
-		options.Port = l.Options.Port
-	}
-	if options.RemoteDebugging == "" {
-		options.RemoteDebugging = l.Options.RemoteDebugging
-	}
-	if options.UserDataDir == "" {
-		options.UserDataDir = l.Options.UserDataDir
-	}
-	if len(options.Args) == 0 {
-		options.Args = l.Options.Args
-	}
-	if len(options.ExtraArgs) == 0 {
-		options.ExtraArgs = l.Options.ExtraArgs
-	}
-	if options.Headless == nil {
-		options.Headless = l.Options.Headless
-	}
-	if options.Sandbox == nil {
-		options.Sandbox = l.Options.Sandbox
-	}
+	options = mergeLaunchOptions(l.Options, options)
 
 	executablePath, err := findChromeBinary(options.ExecutablePath)
 	if err != nil {
 		return nil, err
+	}
+	chromeReadyTimeoutMS := options.ChromeReadyTimeoutMS
+	if chromeReadyTimeoutMS == 0 {
+		chromeReadyTimeoutMS = DefaultChromeReadyTimeoutMS
+	}
+	chromeReadyPollIntervalMS := options.ChromeReadyPollIntervalMS
+	if chromeReadyPollIntervalMS == 0 {
+		chromeReadyPollIntervalMS = DefaultChromeReadyPollIntervalMS
 	}
 	usePipe := options.RemoteDebugging == "pipe"
 	port := options.Port
@@ -71,6 +56,10 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 			return nil, err
 		}
 		ownsProfileDir = true
+	}
+	cleanupProfileDir := ownsProfileDir
+	if options.CleanupUserDataDir != nil {
+		cleanupProfileDir = *options.CleanupUserDataDir
 	}
 	args := []string{
 		"--enable-unsafe-extension-debugging",
@@ -116,7 +105,7 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		var childWrite *os.File
 		pipeRead, childWrite, err = os.Pipe()
 		if err != nil {
-			if ownsProfileDir {
+			if cleanupProfileDir {
 				_ = os.RemoveAll(profileDir)
 			}
 			return nil, err
@@ -125,7 +114,7 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		if err != nil {
 			_ = pipeRead.Close()
 			_ = childWrite.Close()
-			if ownsProfileDir {
+			if cleanupProfileDir {
 				_ = os.RemoveAll(profileDir)
 			}
 			return nil, err
@@ -141,7 +130,7 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		if pipeWrite != nil {
 			_ = pipeWrite.Close()
 		}
-		if ownsProfileDir {
+		if cleanupProfileDir {
 			_ = os.RemoveAll(profileDir)
 		}
 		return nil, err
@@ -157,12 +146,12 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 			_ = cmd.Process.Kill()
 			_, _ = cmd.Process.Wait()
 		}
-		if ownsProfileDir {
+		if cleanupProfileDir {
 			_ = os.RemoveAll(profileDir)
 		}
 	}
 	if usePipe {
-		if err := waitForPipeReady(pipeRead, pipeWrite, time.Duration(DefaultChromeReadyTimeoutMS)*time.Millisecond); err != nil {
+		if err := waitForPipeReady(pipeRead, pipeWrite, time.Duration(chromeReadyTimeoutMS)*time.Millisecond); err != nil {
 			close()
 			return nil, err
 		}
@@ -178,7 +167,7 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		return launched, nil
 	}
 	cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
-	deadline := time.Now().Add(time.Duration(DefaultChromeReadyTimeoutMS) * time.Millisecond)
+	deadline := time.Now().Add(time.Duration(chromeReadyTimeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {
 		resp, err := http.Get(cdpURL + "/json/version")
 		if err == nil {
@@ -192,10 +181,10 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 				return launched, nil
 			}
 		}
-		time.Sleep(time.Duration(DefaultServiceWorkerPollIntervalMS) * time.Millisecond)
+		time.Sleep(time.Duration(chromeReadyPollIntervalMS) * time.Millisecond)
 	}
 	close()
-	return nil, fmt.Errorf("Chrome at %s did not become ready within %dms", cdpURL, DefaultChromeReadyTimeoutMS)
+	return nil, fmt.Errorf("Chrome at %s did not become ready within %dms", cdpURL, chromeReadyTimeoutMS)
 }
 
 func waitForPipeReady(pipeRead *os.File, pipeWrite *os.File, timeout time.Duration) error {

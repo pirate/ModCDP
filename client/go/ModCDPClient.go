@@ -47,6 +47,7 @@ const DefaultCDPSendTimeoutMS = 10_000
 const DefaultEventWaitTimeoutMS = 10_000
 const DefaultExecutionContextTimeoutMS = 10_000
 const DefaultChromeReadyTimeoutMS = 45_000
+const DefaultChromeReadyPollIntervalMS = 100
 const DefaultServiceWorkerProbeTimeoutMS = 10_000
 const DefaultServiceWorkerReadyTimeoutMS = 60_000
 const DefaultServiceWorkerPollIntervalMS = 100
@@ -144,6 +145,9 @@ type LaunchOptions struct {
 	RemoteDebugging                string
 	Sandbox                        *bool
 	UserDataDir                    string
+	CleanupUserDataDir             *bool
+	ChromeReadyTimeoutMS           int
+	ChromeReadyPollIntervalMS      int
 	CDPURL                         string
 	WSURL                          string
 	BrowserbaseAPIKey              string

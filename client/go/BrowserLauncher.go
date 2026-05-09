@@ -69,6 +69,15 @@ func mergeLaunchOptions(existing LaunchOptions, incoming LaunchOptions) LaunchOp
 	if incoming.UserDataDir != "" {
 		merged.UserDataDir = incoming.UserDataDir
 	}
+	if incoming.CleanupUserDataDir != nil {
+		merged.CleanupUserDataDir = incoming.CleanupUserDataDir
+	}
+	if incoming.ChromeReadyTimeoutMS != 0 {
+		merged.ChromeReadyTimeoutMS = incoming.ChromeReadyTimeoutMS
+	}
+	if incoming.ChromeReadyPollIntervalMS != 0 {
+		merged.ChromeReadyPollIntervalMS = incoming.ChromeReadyPollIntervalMS
+	}
 	if incoming.Headless != nil {
 		merged.Headless = incoming.Headless
 	}
