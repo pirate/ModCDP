@@ -90,6 +90,41 @@ func TestNatsUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
 	}
 }
 
+func TestNatsUpstreamTransportReconnectsAfterCloseAgainstRealNATSServer(t *testing.T) {
+	nats := startNATSServer(t)
+	defer nats.close()
+	transport := NewNatsUpstreamTransport(NatsUpstreamTransportOptions{
+		URL:           nats.url,
+		SubjectPrefix: fmt.Sprintf("modcdp.reconnect.%d", time.Now().UnixMilli()),
+	})
+	defer transport.Close()
+
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if !transport.connected {
+		t.Fatal("expected transport to be connected")
+	}
+	if err := transport.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if transport.connected {
+		t.Fatal("expected transport to be disconnected after Close")
+	}
+	if !transport.closed {
+		t.Fatal("expected transport to be closed after Close")
+	}
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if !transport.connected {
+		t.Fatal("expected transport to reconnect")
+	}
+	if transport.closed {
+		t.Fatal("expected transport.closed to reset after reconnect")
+	}
+}
+
 func TestNatsUpstreamTransportRelaysCDPThroughRealExtensionOverRealNATSServer(t *testing.T) {
 	nats := startNATSServer(t)
 	subjectPrefix := fmt.Sprintf("modcdp.test.%d", time.Now().UnixMilli())

@@ -50,6 +50,26 @@ test("nats upstream close rejects pending peer waits", async () => {
   await assert.rejects(() => pending, /NATS transport for modcdp\.close closed before a peer connected/);
 });
 
+test("nats upstream reconnects after close against a real NATS server", async () => {
+  const nats = await start_nats_server();
+  const transport = new NatsUpstreamTransport({
+    url: nats.url,
+    subject_prefix: `modcdp.reconnect.${Date.now()}`,
+  });
+
+  try {
+    await transport.connect();
+    assert.equal((transport as unknown as { connected: boolean }).connected, true);
+    await transport.close();
+    assert.equal((transport as unknown as { connected: boolean }).connected, false);
+    await transport.connect();
+    assert.equal((transport as unknown as { connected: boolean }).connected, true);
+  } finally {
+    await transport.close();
+    await nats.close();
+  }
+}, 60_000);
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
