@@ -681,7 +681,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     else this.command_result_unwrap_keys.delete(name);
   }
 
-  async _serviceWorkerUrlSuffixes() {
+  _serviceWorkerUrlSuffixes() {
     return this.extension.service_worker_url_suffixes;
   }
 
@@ -729,12 +729,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
     if (this.transport) return;
     const launcher = this._browserLauncher();
     const transport = this._upstreamTransport();
-    const injectors = await this._extensionInjectors();
+    const injectors = this._extensionInjectors();
     this._extension_injectors = injectors;
     const initial_transport_config = this._upstreamTransportConfig();
     transport.update(initial_transport_config);
-    launcher.update(await this._launchOptions());
-    for (const injector of injectors) injector.update(await this._baseExtensionInjectorConfig());
+    launcher.update(this._launchOptions());
+    for (const injector of injectors) injector.update(this._baseExtensionInjectorConfig());
     for (const injector of injectors) injector.update(launcher.getInjectorConfig());
     for (const injector of injectors) injector.update(transport.getInjectorConfig());
     for (const injector of injectors) await injector.prepare();
@@ -816,7 +816,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     };
   }
 
-  async _extensionInjectors() {
+  _extensionInjectors() {
     if (this.extension.mode === "none") return [];
     const injectors: ExtensionInjector[] = [];
     if (this.extension.mode === "auto" || this.extension.mode === "discover") {
@@ -833,8 +833,8 @@ export class ModCDPClient extends ModCDPEventEmitter {
     return injectors;
   }
 
-  async _baseExtensionInjectorConfig(send: SendCDP | null = null): Promise<ExtensionInjectorConfig> {
-    const service_worker_url_suffixes = await this._serviceWorkerUrlSuffixes();
+  _baseExtensionInjectorConfig(send: SendCDP | null = null): ExtensionInjectorConfig {
+    const service_worker_url_suffixes = this._serviceWorkerUrlSuffixes();
     const trust_matched_service_worker =
       this.extension.trust_service_worker_target ||
       this.extension.service_worker_url_includes.length > 0 ||
@@ -864,10 +864,10 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   async _injectExtension(send: SendCDP, injectors: ExtensionInjector[] | null = null) {
-    injectors ??= await this._extensionInjectors();
+    injectors ??= this._extensionInjectors();
     const errors: string[] = [];
     for (const injector of injectors) {
-      injector.update(await this._baseExtensionInjectorConfig(send));
+      injector.update(this._baseExtensionInjectorConfig(send));
       try {
         await injector.prepare();
         const result = await injector.inject();
