@@ -3,6 +3,8 @@ package modcdp
 import (
 	"strings"
 	"testing"
+
+	"github.com/gobwas/ws/wsutil"
 )
 
 func TestWebSocketUpstreamTransportConstructorUpdateAndServerConfigMatchTSShape(t *testing.T) {
@@ -61,5 +63,35 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 	}
 	if _, ok := version["product"].(string); !ok {
 		t.Fatalf("Browser.getVersion product = %#v", version["product"])
+	}
+}
+
+func TestWebSocketUpstreamTransportResolvesRealHTTPCDPEndpointToBrowserWebSocket(t *testing.T) {
+	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
+		Headless: boolPtr(true),
+		Sandbox:  boolPtr(false),
+	}).Launch(LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chrome.Close()
+
+	transport := NewWebSocketUpstreamTransport(chrome.CDPURL)
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	defer transport.Close()
+	if !strings.HasPrefix(transport.URL, "ws://") {
+		t.Fatalf("transport.URL = %q", transport.URL)
+	}
+	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion", "params": map[string]any{}}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := wsutil.ReadServerText(transport.Conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"id":1`) || !strings.Contains(string(data), `"product"`) {
+		t.Fatalf("Browser.getVersion response = %s", string(data))
 	}
 }

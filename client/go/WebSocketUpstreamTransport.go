@@ -51,6 +51,11 @@ func (t *WebSocketUpstreamTransport) Connect() error {
 	if t.URL == "" {
 		return fmt.Errorf("upstream.mode=ws requires upstream.ws_url or launcher-provided ws_url")
 	}
+	resolvedURL, err := websocketURLFor(t.URL)
+	if err != nil {
+		return err
+	}
+	t.URL = resolvedURL
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	conn, _, _, err := ws.Dial(t.ctx, t.URL)
 	if err != nil {

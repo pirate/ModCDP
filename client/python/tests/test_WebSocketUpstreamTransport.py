@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from modcdp import ModCDPClient
+from modcdp.LocalBrowserLauncher import LocalBrowserLauncher
 from modcdp.WebSocketUpstreamTransport import WebSocketUpstreamTransport
 
 
@@ -34,6 +36,24 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(version["product"], str)
         finally:
             cdp.close()
+
+    def test_resolves_real_http_cdp_endpoint_to_browser_websocket(self) -> None:
+        chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
+        transport = WebSocketUpstreamTransport(chrome["cdp_url"])
+        try:
+            transport.connect()
+            self.assertRegex(transport.url or "", r"^ws://")
+            transport.send({"id": 1, "method": "Browser.getVersion", "params": {}})
+            message = transport.recv()
+            if isinstance(message, bytes):
+                message = message.decode()
+            self.assertIsInstance(message, str)
+            response = json.loads(message)
+            self.assertEqual(response["id"], 1)
+            self.assertIsInstance(response["result"]["product"], str)
+        finally:
+            transport.close()
+            chrome["close"]()
 
 
 if __name__ == "__main__":

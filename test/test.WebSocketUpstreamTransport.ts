@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
+import { LocalBrowserLauncher } from "../bridge/LocalBrowserLauncher.js";
+import { WebSocketUpstreamTransport } from "../bridge/WebSocketUpstreamTransport.js";
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -32,5 +34,29 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
     assert.equal(typeof version.product, "string");
   } finally {
     await cdp.close();
+  }
+}, 60_000);
+
+test("ws upstream resolves a real HTTP CDP endpoint to the browser websocket", async () => {
+  const chrome = await new LocalBrowserLauncher({
+    headless: true,
+    sandbox: process.platform !== "linux",
+  }).launch();
+  const transport = new WebSocketUpstreamTransport(chrome.cdp_url);
+
+  try {
+    const response = new Promise<Record<string, unknown>>((resolve) => {
+      transport.onRecv((message) => {
+        if ("id" in message && message.id === 1) resolve(message as Record<string, unknown>);
+      });
+    });
+    await transport.connect();
+    assert.match(transport.url ?? "", /^ws:\/\//);
+    transport.send({ id: 1, method: "Browser.getVersion", params: {} });
+    const message = await response;
+    assert.equal(typeof (message.result as Record<string, unknown>).product, "string");
+  } finally {
+    await transport.close();
+    await chrome.close();
   }
 }, 60_000);

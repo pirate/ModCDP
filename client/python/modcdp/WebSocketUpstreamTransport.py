@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.request import urlopen
 from typing import Any
 
 from websocket import create_connection
@@ -31,6 +32,7 @@ class WebSocketUpstreamTransport(UpstreamTransport):
     def connect(self) -> None:
         if not self.url:
             raise RuntimeError("upstream.mode='ws' requires upstream.ws_url or launcher-provided ws_url.")
+        self.url = _websocket_url_for(self.url)
         self.ws = create_connection(self.url, timeout=self.timeout_s)
 
     def send(self, message: dict[str, Any]) -> None:
@@ -47,3 +49,15 @@ class WebSocketUpstreamTransport(UpstreamTransport):
         if self.ws is not None:
             self.ws.close()
         self.ws = None
+
+
+def _websocket_url_for(endpoint: str) -> str:
+    if endpoint.startswith(("ws://", "wss://")):
+        return endpoint
+    http_endpoint = endpoint if "://" in endpoint else f"http://{endpoint}"
+    with urlopen(http_endpoint.rstrip("/") + "/json/version", timeout=10) as response:
+        version = json.loads(response.read().decode())
+    ws_url = version.get("webSocketDebuggerUrl")
+    if not isinstance(ws_url, str) or not ws_url:
+        raise RuntimeError("upstream.ws_url HTTP discovery returned no webSocketDebuggerUrl")
+    return ws_url
