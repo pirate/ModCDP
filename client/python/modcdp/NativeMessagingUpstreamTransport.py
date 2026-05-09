@@ -81,7 +81,7 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
             raise RuntimeError(f"No native messaging peer is connected for {self.host_name}.")
         _write_length_prefixed_json(self.socket, message)
 
-    def wait_for_peer(self) -> None:
+    def waitForPeer(self) -> None:
         if not self.peer_seen.wait(self.wait_timeout_ms / 1000):
             raise RuntimeError(f"Timed out waiting {self.wait_timeout_ms}ms for native messaging host {self.host_name}.")
 

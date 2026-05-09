@@ -12,15 +12,25 @@ class WebSocketUpstreamTransport(UpstreamTransport):
     mode = "ws"
     endpoint_kind = "raw_cdp"
 
-    def __init__(self, url: str, timeout_s: float = 10) -> None:
+    def __init__(self, url: str | None = None, timeout_s: float = 10) -> None:
         super().__init__()
-        self.url = url
+        self.url = url or ""
         self.timeout_s = timeout_s
         self.ws: Any | None = None
 
+    def update(self, config: dict[str, Any] | None = None) -> "WebSocketUpstreamTransport":
+        config = config or {}
+        url = config.get("ws_url") or config.get("cdp_url") or config.get("url")
+        if url:
+            self.url = str(url)
+        return self
+
+    def getServerConfig(self) -> dict[str, Any]:
+        return {"loopback_cdp_url": self.url} if self.url else {}
+
     def connect(self) -> None:
-        if self.url is None:
-            raise RuntimeError("upstream.mode='ws' requires a websocket URL.")
+        if not self.url:
+            raise RuntimeError("upstream.mode='ws' requires upstream.ws_url or launcher-provided ws_url.")
         self.ws = create_connection(self.url, timeout=self.timeout_s)
 
     def send(self, message: dict[str, Any]) -> None:

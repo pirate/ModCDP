@@ -72,7 +72,7 @@ class ReverseWebSocketUpstreamTransport(UpstreamTransport):
         with self.write_lock:
             self.socket.sendall(_encode_server_text_frame(payload))
 
-    def wait_for_peer(self) -> None:
+    def waitForPeer(self) -> None:
         if self.socket is not None:
             return
         if not self.peer_event.wait(self.wait_timeout_ms / 1000):

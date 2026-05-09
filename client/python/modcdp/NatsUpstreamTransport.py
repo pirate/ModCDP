@@ -85,7 +85,7 @@ class NatsUpstreamTransport(UpstreamTransport):
             raise RuntimeError("NATS transport is not connected.")
         self._publish(self._outgoing_subject(), {"type": "modcdp.nats.message", "message": message})
 
-    def wait_for_peer(self) -> None:
+    def waitForPeer(self) -> None:
         if not self.peer_seen.wait(self.wait_timeout_ms / 1000):
             raise RuntimeError(f"Timed out waiting {self.wait_timeout_ms}ms for NATS ModCDP peer.")
 

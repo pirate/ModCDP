@@ -17,7 +17,7 @@ class UpstreamTransportTests(unittest.TestCase):
     def test_shared_transport_config_endpoint_classification_and_recv_callbacks(self) -> None:
         transport = UpstreamTransport()
         received = []
-        stop = transport.on_recv(lambda message: received.append(message))
+        stop = transport.onRecv(lambda message: received.append(message))
 
         self.assertEqual(endpoint_kind_for_upstream("ws"), "raw_cdp")
         self.assertEqual(endpoint_kind_for_upstream("pipe"), "raw_cdp")
@@ -31,7 +31,7 @@ class UpstreamTransportTests(unittest.TestCase):
 
         parsed = []
         test_transport = TestTransport()
-        test_transport.on_recv(lambda message: parsed.append(message))
+        test_transport.onRecv(lambda message: parsed.append(message))
         test_transport.emit('{"id":1,"result":{"ok":true}}')
         test_transport.emit('{"method":"Runtime.executionContextCreated","params":{}}')
         self.assertEqual(

@@ -39,15 +39,15 @@ class UpstreamTransport:
     def send(self, message: dict[str, Any]) -> None:
         raise NotImplementedError(f"{type(self).__name__}.send is not implemented.")
 
-    def on_recv(self, listener: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
+    def onRecv(self, listener: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
         self._recv_listeners.append(listener)
         return lambda: self._recv_listeners.remove(listener)
 
-    def on_close(self, listener: Callable[[Exception], None]) -> Callable[[], None]:
+    def onClose(self, listener: Callable[[Exception], None]) -> Callable[[], None]:
         self._close_listeners.append(listener)
         return lambda: self._close_listeners.remove(listener)
 
-    def wait_for_peer(self) -> None:
+    def waitForPeer(self) -> None:
         return None
 
     def _emit_recv(self, message: dict[str, Any]) -> None:

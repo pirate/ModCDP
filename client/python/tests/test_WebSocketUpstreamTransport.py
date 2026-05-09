@@ -3,9 +3,18 @@ from __future__ import annotations
 import unittest
 
 from modcdp import ModCDPClient
+from modcdp.WebSocketUpstreamTransport import WebSocketUpstreamTransport
 
 
 class WebSocketUpstreamTransportTests(unittest.TestCase):
+    def test_constructor_update_and_server_config_match_ts_shape(self) -> None:
+        transport = WebSocketUpstreamTransport()
+        self.assertEqual(transport.url, "")
+        self.assertEqual(transport.getServerConfig(), {})
+        self.assertIs(transport.update({"ws_url": "ws://127.0.0.1:1/devtools/browser/test"}), transport)
+        self.assertEqual(transport.url, "ws://127.0.0.1:1/devtools/browser/test")
+        self.assertEqual(transport.getServerConfig(), {"loopback_cdp_url": "ws://127.0.0.1:1/devtools/browser/test"})
+
     def test_launches_real_browser_and_speaks_raw_cdp(self) -> None:
         cdp = ModCDPClient(
             launch={"mode": "local", "options": {"headless": True, "sandbox": False}},

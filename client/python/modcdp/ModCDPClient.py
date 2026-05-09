@@ -390,8 +390,8 @@ class ModCDPClient(CDPSurfaceMixin):
             transport.update(launcher.getTransportConfig())
             transport.connect()
             self.transport = transport
-            transport.on_recv(lambda message: self._on_recv(cast(CdpMessage, message)))
-            transport.on_close(lambda error: self._reject_all(error))
+            transport.onRecv(lambda message: self._on_recv(cast(CdpMessage, message)))
+            transport.onClose(lambda error: self._reject_all(error))
             if self.launch.get("mode") != "none":
                 launched = launcher.launch()
                 self._launched_browser = launched
@@ -404,7 +404,7 @@ class ModCDPClient(CDPSurfaceMixin):
                 if self.server is not None and server_config.get("loopback_cdp_url") and "loopback_cdp_url" not in self.server:
                     self.server = {**self.server, **server_config}
             transport_connected_at = int(time.time() * 1000)
-            transport.wait_for_peer()
+            transport.waitForPeer()
             if self.server is not None:
                 self._send_message("Mod.configure", cast(ProtocolParams, self._server_configure_params()))
             threading.Thread(target=self._measure_ping_latency, daemon=True).start()
@@ -468,8 +468,8 @@ class ModCDPClient(CDPSurfaceMixin):
             self._reader_thread = threading.Thread(target=self._reader, daemon=True)
             self._reader_thread.start()
         else:
-            self.transport.on_recv(lambda message: self._on_recv(cast(CdpMessage, message)))
-            self.transport.on_close(lambda error: self._reject_all(error))
+            self.transport.onRecv(lambda message: self._on_recv(cast(CdpMessage, message)))
+            self.transport.onClose(lambda error: self._reject_all(error))
 
         self._send_message("Target.setAutoAttach", {
             "autoAttach": True,
@@ -768,8 +768,6 @@ class ModCDPClient(CDPSurfaceMixin):
     def _upstream_transport(self):
         mode = self.upstream.get("mode")
         if mode == "ws":
-            if not self.cdp_url:
-                raise RuntimeError("upstream.mode='ws' requires upstream.ws_url or launch.mode='local'.")
             return WebSocketUpstreamTransport(self.cdp_url, timeout_s=self.client["cdp_send_timeout_ms"] / 1000)
         if mode == "pipe":
             return PipeUpstreamTransport()
