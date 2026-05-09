@@ -215,6 +215,25 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertIsNone(cdp._launched_browser)
         self.assertEqual(cdp._extension_injectors, [])
 
+    def test_close_clears_top_level_connection_state(self) -> None:
+        cdp = ModCDPClient(
+            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
+            upstream={"mode": "ws"},
+            extension={
+                "mode": "auto",
+                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "trust_service_worker_target": True,
+            },
+        )
+
+        cdp.connect()
+        self.assertIsNotNone(cdp.transport)
+        cdp.close()
+
+        self.assertIsNone(cdp.transport)
+        with self.assertRaisesRegex(RuntimeError, "ModCDP upstream is not connected"):
+            cdp.sendRaw("Browser.getVersion")
+
     def test_generated_cdp_surface_exposes_direct_domain_commands(self) -> None:
         sent: list[tuple[str, dict[str, object], str | None, bool]] = []
 

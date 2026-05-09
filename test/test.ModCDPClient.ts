@@ -250,3 +250,26 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
   assert.equal(cdp._launched, null);
   assert.deepEqual(cdp._extension_injectors, []);
 });
+
+test("ModCDPClient.close clears top-level connection state", async () => {
+  const cdp = new ModCDPClient({
+    launch: {
+      mode: "local",
+      options: { headless: true, sandbox: process.platform !== "linux" },
+    },
+    upstream: { mode: "ws" },
+    extension: {
+      mode: "auto",
+      path: EXTENSION_PATH,
+      service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+      trust_service_worker_target: true,
+    },
+  });
+
+  await cdp.connect();
+  assert.ok(cdp.transport);
+  await cdp.close();
+
+  assert.equal(cdp.transport, null);
+  await assert.rejects(() => cdp.sendRaw("Browser.getVersion"), /ModCDP upstream is not connected/);
+});
