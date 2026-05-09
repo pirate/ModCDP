@@ -48,6 +48,24 @@ func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixWaitTimeoutAndInjectorCo
 	}
 }
 
+func TestNatsUpstreamTransportCloseResetsPeerWaitState(t *testing.T) {
+	transport := NewNatsUpstreamTransport(NatsUpstreamTransportOptions{WaitTimeoutMS: 5})
+
+	transport.handlePayload(`{"type":"modcdp.nats.hello","role":"browser","version":1}`)
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before close = %v", err)
+	}
+	if err := transport.Close(); err != nil {
+		t.Fatalf("Close = %v", err)
+	}
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms for NATS ModCDP peer") {
+		t.Fatalf("WaitForPeer after close = %v", err)
+	}
+	if transport.closed != true {
+		t.Fatalf("closed after Close = %v", transport.closed)
+	}
+}
+
 func TestNatsUpstreamTransportRelaysCDPThroughRealExtensionOverRealNATSServer(t *testing.T) {
 	nats := startNATSServer(t)
 	subjectPrefix := fmt.Sprintf("modcdp.test.%d", time.Now().UnixMilli())

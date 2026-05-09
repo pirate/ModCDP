@@ -84,6 +84,7 @@ func (t *NatsUpstreamTransport) Connect() error {
 	if t.connected {
 		return nil
 	}
+	t.closed = false
 	if !validNATSSubjectPrefix(t.SubjectPrefix) {
 		return fmt.Errorf("invalid NATS subject prefix %q", t.SubjectPrefix)
 	}
@@ -161,6 +162,9 @@ func (t *NatsUpstreamTransport) Close() error {
 		_ = t.Conn.Close()
 		t.Conn = nil
 	}
+	t.buffer = ""
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 	return nil
 }
 
