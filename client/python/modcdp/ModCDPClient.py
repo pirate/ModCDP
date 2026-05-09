@@ -474,8 +474,10 @@ class ModCDPClient(CDPSurfaceMixin):
             loopback_url = self.server["loopback_cdp_url"]
             if loopback_url == input_cdp_url or loopback_url == self.cdp_url:
                 self.server = {**self.server, "loopback_cdp_url": self.cdp_url}
+        transport_started_at = int(time.time() * 1000)
         self.transport = transport
         self.transport.connect()
+        transport_connected_at = int(time.time() * 1000)
         self.transport.onRecv(lambda message: self._on_recv(cast(CdpMessage, message)))
         self.transport.onClose(lambda error: self._reject_all(error))
 
@@ -510,6 +512,11 @@ class ModCDPClient(CDPSurfaceMixin):
         connected_at = int(time.time() * 1000)
         self.connect_timing = {
             "started_at": connect_started_at,
+            "upstream_mode": self.upstream.get("mode"),
+            "upstream_endpoint_kind": self.upstream_endpoint_kind,
+            "transport_started_at": transport_started_at,
+            "transport_connected_at": transport_connected_at,
+            "transport_duration_ms": transport_connected_at - transport_started_at,
             "extension_source": ext.get("source"),
             "extension_started_at": extension_started_at,
             "extension_completed_at": extension_completed_at,

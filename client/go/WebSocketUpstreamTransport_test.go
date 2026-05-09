@@ -3,6 +3,7 @@ package modcdp
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWebSocketUpstreamTransportConstructorUpdateAndServerConfigMatchTSShape(t *testing.T) {
@@ -49,8 +50,25 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	if cdp.ConnectTiming["upstream_endpoint_kind"] != nil && cdp.ConnectTiming["upstream_endpoint_kind"] != UpstreamEndpointKindRawCDP {
+	if cdp.ConnectTiming["upstream_mode"] != "ws" {
+		t.Fatalf("upstream_mode = %v", cdp.ConnectTiming["upstream_mode"])
+	}
+	if cdp.ConnectTiming["upstream_endpoint_kind"] != UpstreamEndpointKindRawCDP {
 		t.Fatalf("upstream_endpoint_kind = %v", cdp.ConnectTiming["upstream_endpoint_kind"])
+	}
+	transportStartedAt, ok := cdp.ConnectTiming["transport_started_at"].(int64)
+	if !ok {
+		t.Fatalf("transport_started_at = %#v", cdp.ConnectTiming["transport_started_at"])
+	}
+	transportConnectedAt, ok := cdp.ConnectTiming["transport_connected_at"].(int64)
+	if !ok {
+		t.Fatalf("transport_connected_at = %#v", cdp.ConnectTiming["transport_connected_at"])
+	}
+	if transportConnectedAt < transportStartedAt {
+		t.Fatalf("transport timing went backwards: %d < %d", transportConnectedAt, transportStartedAt)
+	}
+	if cdp.ConnectTiming["transport_duration_ms"] != transportConnectedAt-transportStartedAt {
+		t.Fatalf("transport_duration_ms = %v", cdp.ConnectTiming["transport_duration_ms"])
 	}
 	if _, ok := cdp.transport.(*WebSocketUpstreamTransport); !ok {
 		t.Fatalf("transport = %T", cdp.transport)
@@ -64,6 +82,31 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 	}
 	if _, ok := version["product"].(string); !ok {
 		t.Fatalf("Browser.getVersion product = %#v", version["product"])
+	}
+	time.Sleep(1500 * time.Millisecond)
+	targets, err := cdp.SendRaw("Target.getTargets", map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundServiceWorker := false
+	for _, target := range targets["targetInfos"].([]any) {
+		targetMap := target.(map[string]any)
+		if targetMap["type"] == "service_worker" && strings.HasSuffix(targetMap["url"].(string), "/modcdp/service_worker.js") {
+			foundServiceWorker = true
+			break
+		}
+	}
+	if !foundServiceWorker {
+		t.Fatalf("ModCDP service worker target not found after connect: %#v", targets["targetInfos"])
+	}
+	evaluated, err := cdp.Send("Mod.evaluate", map[string]any{
+		"expression": "Boolean(globalThis.ModCDP?.handleCommand && chrome.runtime.getURL('modcdp/service_worker.js'))",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evaluated != true {
+		t.Fatalf("Mod.evaluate liveness = %#v", evaluated)
 	}
 }
 

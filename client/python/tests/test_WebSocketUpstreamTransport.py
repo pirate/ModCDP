@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import unittest
 from queue import Queue
 
@@ -36,9 +37,30 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             cdp.connect()
             self.assertEqual(cdp.transport.mode if cdp.transport else None, "ws")
             self.assertEqual(cdp.upstream_endpoint_kind, "raw_cdp")
+            self.assertEqual(cdp.connect_timing["upstream_mode"], "ws")
+            self.assertEqual(cdp.connect_timing["upstream_endpoint_kind"], "raw_cdp")
+            self.assertGreaterEqual(cdp.connect_timing["transport_connected_at"], cdp.connect_timing["transport_started_at"])
+            self.assertEqual(
+                cdp.connect_timing["transport_duration_ms"],
+                cdp.connect_timing["transport_connected_at"] - cdp.connect_timing["transport_started_at"],
+            )
             self.assertRegex(cdp.cdp_url or "", r"^ws://")
             version = cdp.sendRaw("Browser.getVersion")
             self.assertIsInstance(version["product"], str)
+            time.sleep(1.5)
+            target_infos = cdp.sendRaw("Target.getTargets").get("targetInfos", [])
+            self.assertTrue(
+                any(
+                    target.get("type") == "service_worker"
+                    and str(target.get("url", "")).endswith("/modcdp/service_worker.js")
+                    for target in target_infos
+                )
+            )
+            self.assertTrue(
+                cdp.Mod.evaluate(
+                    expression="Boolean(globalThis.ModCDP?.handleCommand && chrome.runtime.getURL('modcdp/service_worker.js'))"
+                )
+            )
         finally:
             cdp.close()
 

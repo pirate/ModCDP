@@ -41,9 +41,30 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
     await cdp.connect();
     assert.equal(cdp.transport?.mode, "ws");
     assert.equal(cdp.upstream_endpoint_kind, "raw_cdp");
+    assert.equal(cdp.connect_timing?.upstream_mode, "ws");
+    assert.equal(cdp.connect_timing?.upstream_endpoint_kind, "raw_cdp");
+    assert.equal(
+      cdp.connect_timing?.transport_duration_ms,
+      (cdp.connect_timing?.transport_connected_at ?? 0) - (cdp.connect_timing?.transport_started_at ?? 0),
+    );
     assert.match(cdp.cdp_url ?? "", /^ws:\/\//);
     const version = (await cdp.sendRaw("Browser.getVersion")) as Record<string, unknown>;
     assert.equal(typeof version.product, "string");
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    const target_infos = ((await cdp.sendRaw("Target.getTargets")) as { targetInfos?: { type?: string; url?: string }[] })
+      .targetInfos;
+    assert.equal(
+      target_infos?.some(
+        (target) => target.type === "service_worker" && target.url?.endsWith("/modcdp/service_worker.js"),
+      ),
+      true,
+    );
+    assert.equal(
+      await cdp.Mod.evaluate({
+        expression: "Boolean(globalThis.ModCDP?.handleCommand && chrome.runtime.getURL('modcdp/service_worker.js'))",
+      }),
+      true,
+    );
   } finally {
     await cdp.close();
   }

@@ -482,11 +482,13 @@ func (c *ModCDPClient) Connect() error {
 		c.opts.Server.LoopbackCDPURL = wsURL
 	}
 
+	transportStartedAt := time.Now().UnixMilli()
 	wsTransport := c.upstreamTransport().(*WebSocketUpstreamTransport)
 	c.transport = wsTransport
 	if err := wsTransport.Connect(); err != nil {
 		return fmt.Errorf("websocket dial: %w", err)
 	}
+	transportConnectedAt := time.Now().UnixMilli()
 	wsTransport.OnRecv(func(message map[string]any) { c.handleMessage(message) })
 	wsTransport.OnClose(func(err error) { c.rejectAll(err) })
 	if _, err := c.sendMessage("Target.setAutoAttach", map[string]any{
@@ -579,6 +581,11 @@ func (c *ModCDPClient) Connect() error {
 	connectedAt := time.Now().UnixMilli()
 	c.ConnectTiming = map[string]any{
 		"started_at":             connectStartedAt,
+		"upstream_mode":          c.opts.Upstream.Mode,
+		"upstream_endpoint_kind": endpointKindForUpstream(c.opts.Upstream.Mode),
+		"transport_started_at":   transportStartedAt,
+		"transport_connected_at": transportConnectedAt,
+		"transport_duration_ms":  transportConnectedAt - transportStartedAt,
 		"extension_source":       ext.Source,
 		"extension_started_at":   extensionStartedAt,
 		"extension_completed_at": extensionCompletedAt,
