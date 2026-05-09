@@ -1121,12 +1121,16 @@ func (c *ModCDPClient) Close() {
 	if c.transport != nil {
 		_ = c.transport.Close()
 		c.transport = nil
+		c.conn = nil
+		c.cancel = nil
 	} else {
 		if c.cancel != nil {
 			c.cancel()
+			c.cancel = nil
 		}
 		if c.conn != nil {
 			_ = c.conn.Close()
+			c.conn = nil
 		}
 	}
 	if c.launchedBrowser != nil {

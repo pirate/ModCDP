@@ -298,6 +298,43 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 	}
 }
 
+func TestModCDPClientCloseClearsTopLevelConnectionState(t *testing.T) {
+	cdp := New(Options{
+		Launch: LaunchConfig{
+			Mode: "local",
+			Options: LaunchOptions{
+				Headless: boolPtr(true),
+				Sandbox:  boolPtr(false),
+			},
+		},
+		Upstream: UpstreamConfig{Mode: "ws"},
+		Extension: ExtensionConfig{
+			Mode:                     "auto",
+			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			TrustServiceWorkerTarget: true,
+		},
+	})
+	if err := cdp.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if cdp.conn == nil {
+		t.Fatal("expected low-level websocket conn")
+	}
+	cdp.Close()
+	if cdp.conn != nil {
+		t.Fatal("Close left conn set")
+	}
+	if cdp.cancel != nil {
+		t.Fatal("Close left cancel set")
+	}
+	if cdp.transport != nil {
+		t.Fatal("Close left transport set")
+	}
+	if _, err := cdp.SendRaw("Browser.getVersion", map[string]any{}); err == nil || !strings.Contains(err.Error(), "ModCDP upstream is not connected") {
+		t.Fatalf("SendRaw after close error = %v", err)
+	}
+}
+
 func TestCustomCommandSchemasValidateParamsAndResults(t *testing.T) {
 	cdp := New(Options{
 		CustomCommands: []CustomCommand{
