@@ -171,3 +171,29 @@ func TestExtensionInjectorSendWithTimeoutEnforcesCDPSendTimeout(t *testing.T) {
 		t.Fatalf("SendWithTimeout error = %v", err)
 	}
 }
+
+func TestExtensionInjectorWakesConfiguredExtensionWithHiddenBackgroundTarget(t *testing.T) {
+	var sentMethod string
+	var sentParams map[string]any
+	injector := NewExtensionInjector(ExtensionInjectorConfig{
+		ExtensionID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Send: func(method string, params map[string]any, sessionID string) (map[string]any, error) {
+			sentMethod = method
+			sentParams = params
+			return map[string]any{"targetId": "wake-target"}, nil
+		},
+	})
+
+	if !injector.WakeConfiguredExtension() {
+		t.Fatalf("expected wake to succeed")
+	}
+	if sentMethod != "Target.createTarget" {
+		t.Fatalf("method = %q", sentMethod)
+	}
+	if sentParams["url"] != "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/modcdp/wake.html" {
+		t.Fatalf("url = %v", sentParams["url"])
+	}
+	if sentParams["background"] != true || sentParams["hidden"] != true || sentParams["focus"] != false {
+		t.Fatalf("wake target visibility params = %#v", sentParams)
+	}
+}

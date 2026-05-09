@@ -263,7 +263,15 @@ class ExtensionInjector:
         if not wake_url or self.options.get("send") is None:
             return False
         try:
-            self.sendWithTimeout("Target.createTarget", {"url": wake_url})
+            self.sendWithTimeout(
+                "Target.createTarget",
+                {
+                    "url": wake_url,
+                    "background": True,
+                    "hidden": True,
+                    "focus": False,
+                },
+            )
             return True
         except Exception:
             return False

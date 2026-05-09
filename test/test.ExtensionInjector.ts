@@ -31,6 +31,10 @@ class ProbeExtensionInjector extends ExtensionInjector {
   async sendTimed(method: string, timeout_ms: number) {
     return await this.sendWithTimeout(method, {}, null, timeout_ms);
   }
+
+  async wake() {
+    return await this.wakeConfiguredExtension();
+  }
 }
 
 test("ExtensionInjector probes a real extension service worker with shared base config", async () => {
@@ -118,6 +122,30 @@ test("ExtensionInjector sendWithTimeout enforces cdp send timeout", async () => 
   });
 
   await assert.rejects(() => injector.sendTimed("Runtime.evaluate", 5), /Runtime\.evaluate timed out after 5ms/);
+});
+
+test("ExtensionInjector wakes configured extension with a hidden background target", async () => {
+  const sent: { method: string; params: Record<string, unknown> }[] = [];
+  const injector = new ProbeExtensionInjector({
+    extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    send: async (method, params = {}) => {
+      sent.push({ method, params: params as Record<string, unknown> });
+      return { targetId: "wake-target" };
+    },
+  });
+
+  assert.equal(await injector.wake(), true);
+  assert.deepEqual(sent, [
+    {
+      method: "Target.createTarget",
+      params: {
+        url: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/modcdp/wake.html",
+        background: true,
+        hidden: true,
+        focus: false,
+      },
+    },
+  ]);
 });
 
 test("ExtensionInjector base inject reports the subclass name", async () => {

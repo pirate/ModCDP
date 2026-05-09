@@ -131,6 +131,36 @@ class ExtensionInjectorTests(unittest.TestCase):
         with self.assertRaisesRegex(TimeoutError, r"Runtime\.evaluate timed out after 5ms"):
             injector.sendTimed("Runtime.evaluate", 5)
 
+    def test_wakes_configured_extension_with_hidden_background_target(self) -> None:
+        sent: list[dict[str, Any]] = []
+
+        def send(method: str, params: ProtocolParams | None = None, _session_id: str | None = None) -> ProtocolResult:
+            sent.append({"method": method, "params": params or {}})
+            return {"targetId": "wake-target"}
+
+        injector = ProbeExtensionInjector(
+            cast(ExtensionInjectorConfig, {
+                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "send": send,
+            })
+        )
+
+        self.assertTrue(injector.wakeConfiguredExtension())
+        self.assertEqual(
+            sent,
+            [
+                {
+                    "method": "Target.createTarget",
+                    "params": {
+                        "url": "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/modcdp/wake.html",
+                        "background": True,
+                        "hidden": True,
+                        "focus": False,
+                    },
+                }
+            ],
+        )
+
     def test_package_exports_all_injector_classes(self) -> None:
         self.assertIs(modcdp.ExtensionInjector, ExtensionInjector)
         self.assertEqual(modcdp.DiscoveredExtensionInjector.__name__, "DiscoveredExtensionInjector")

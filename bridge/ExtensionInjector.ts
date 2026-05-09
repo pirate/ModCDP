@@ -220,7 +220,12 @@ export class ExtensionInjector {
     const wake_url = this.configuredWakeUrl();
     if (!wake_url || typeof this.options.send !== "function") return false;
     try {
-      await this.sendWithTimeout("Target.createTarget", { url: wake_url });
+      await this.sendWithTimeout("Target.createTarget", {
+        url: wake_url,
+        background: true,
+        hidden: true,
+        focus: false,
+      });
       return true;
     } catch {
       return false;

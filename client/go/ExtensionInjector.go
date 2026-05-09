@@ -338,7 +338,12 @@ func (i ExtensionInjector) WakeConfiguredExtension() bool {
 	if wakeURL == "" || i.Options.Send == nil {
 		return false
 	}
-	_, err := i.SendWithTimeout("Target.createTarget", map[string]any{"url": wakeURL}, "", i.Options.CDPSendTimeoutMS)
+	_, err := i.SendWithTimeout("Target.createTarget", map[string]any{
+		"url":        wakeURL,
+		"background": true,
+		"hidden":     true,
+		"focus":      false,
+	}, "", i.Options.CDPSendTimeoutMS)
 	return err == nil
 }
 
