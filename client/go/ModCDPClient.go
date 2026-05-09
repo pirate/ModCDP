@@ -1608,7 +1608,7 @@ func (c *ModCDPClient) handleEventMessage(msg map[string]any) {
 	sessionID, _ := msg["sessionId"].(string)
 	params, _ := msg["params"].(map[string]any)
 	c.autoSessions.RecordProtocolEvent(method, params, sessionID)
-	if sessionID == c.ExtSessionID {
+	if c.ExtSessionID != "" && sessionID == c.ExtSessionID {
 		bindingName, _ := params["name"].(string)
 		if event, data, ok := unwrapEventIfNeeded(method, params, sessionID, c.ExtSessionID); ok {
 			validatedData, valid := c.validateEventData(event, data)

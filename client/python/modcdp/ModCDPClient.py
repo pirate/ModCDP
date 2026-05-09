@@ -1111,7 +1111,7 @@ class ModCDPClient(CDPSurfaceMixin):
         if isinstance(method, str):
             session_id = msg.get("sessionId")
             self.auto_sessions.recordProtocolEvent(method, params, session_id if isinstance(session_id, str) else None)
-        if method and msg.get("sessionId") == self.ext_session_id:
+        if method and self.ext_session_id is not None and msg.get("sessionId") == self.ext_session_id:
             session_id = msg.get("sessionId")
             u = unwrap_event_if_needed(
                 method,
@@ -1123,7 +1123,7 @@ class ModCDPClient(CDPSurfaceMixin):
                 validated_payload = self._validate_event_payload(u["event"], u["data"])
                 if validated_payload is None:
                     return
-                for handler in self._handlers.get(u["event"], []):
+                for handler in list(self._handlers.get(u["event"], [])):
                     def run_wrapped_event(handler=handler, payload=validated_payload, event_name=u["event"]):
                         self._run_handler(handler, payload, event_name)
                     threading.Thread(target=run_wrapped_event, daemon=True).start()
@@ -1132,7 +1132,7 @@ class ModCDPClient(CDPSurfaceMixin):
             validated_payload = self._validate_event_payload(method, dict(params))
             if validated_payload is None:
                 return
-            for handler in self._handlers.get(method, []):
+            for handler in list(self._handlers.get(method, [])):
                 def run_method_event(handler=handler, payload=validated_payload, event_name=method):
                     self._run_handler(handler, payload, event_name)
                 threading.Thread(target=run_method_event, daemon=True).start()

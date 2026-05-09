@@ -138,6 +138,86 @@ func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
 	}
 }
 
+func TestModCDPClientDispatchesRootEventsBeforeExtensionSessionAttached(t *testing.T) {
+	cdp := New(Options{})
+	seen := make(chan string, 1)
+	cdp.On("Target.targetCreated", func(payload any) {
+		event, _ := payload.(map[string]any)
+		targetInfo, _ := event["targetInfo"].(map[string]any)
+		targetID, _ := targetInfo["targetId"].(string)
+		seen <- targetID
+	})
+
+	cdp.handleEventMessage(map[string]any{
+		"method": "Target.targetCreated",
+		"params": map[string]any{
+			"targetInfo": map[string]any{"targetId": "target-1", "type": "page", "url": "about:blank"},
+		},
+	})
+
+	select {
+	case got := <-seen:
+		if got != "target-1" {
+			t.Fatalf("Target.targetCreated targetId = %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for root event")
+	}
+}
+
+func TestModCDPClientEventDispatchSnapshotsHandlersWhenOnceRemovesItself(t *testing.T) {
+	cdp := New(Options{})
+	cdp.ExtSessionID = "ext-session"
+	seen := make(chan string, 3)
+	cdp.Once("Target.targetCreated", func(payload any) {
+		seen <- "once"
+	})
+	cdp.On("Target.targetCreated", func(payload any) {
+		seen <- "persistent"
+	})
+
+	cdp.handleEventMessage(map[string]any{
+		"method": "Target.targetCreated",
+		"params": map[string]any{
+			"targetInfo": map[string]any{"targetId": "target-1", "type": "page", "url": "about:blank"},
+		},
+	})
+
+	first := map[string]bool{}
+	for len(first) < 2 {
+		select {
+		case got := <-seen:
+			first[got] = true
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for first dispatch, saw %#v", first)
+		}
+	}
+	if !first["once"] || !first["persistent"] {
+		t.Fatalf("first dispatch handlers = %#v", first)
+	}
+
+	cdp.handleEventMessage(map[string]any{
+		"method": "Target.targetCreated",
+		"params": map[string]any{
+			"targetInfo": map[string]any{"targetId": "target-2", "type": "page", "url": "about:blank"},
+		},
+	})
+
+	select {
+	case got := <-seen:
+		if got != "persistent" {
+			t.Fatalf("second dispatch handler = %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second dispatch")
+	}
+	select {
+	case got := <-seen:
+		t.Fatalf("unexpected extra handler on second dispatch: %q", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 	encoded, err := json.Marshal(Options{
 		Launch: LaunchConfig{

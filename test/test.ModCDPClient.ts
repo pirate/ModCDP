@@ -88,6 +88,45 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(params.server.ws_connect_error_settle_timeout_ms, 7654);
 });
 
+test("ModCDPClient dispatches root events before extension session is attached", () => {
+  const cdp = new ModCDPClient();
+  const seen: string[] = [];
+  cdp.on("Target.targetCreated", (payload: { targetInfo?: { targetId?: string } }) => {
+    seen.push(String(payload.targetInfo?.targetId));
+  });
+
+  cdp._onRecv({
+    method: "Target.targetCreated",
+    params: { targetInfo: { targetId: "target-1", type: "page", url: "about:blank" } },
+  });
+
+  assert.deepEqual(seen, ["target-1"]);
+});
+
+test("ModCDPClient event dispatch snapshots handlers when once removes itself", () => {
+  const cdp = new ModCDPClient();
+  const seen: string[] = [];
+  cdp.once("Target.targetCreated", () => {
+    seen.push("once");
+  });
+  cdp.on("Target.targetCreated", () => {
+    seen.push("persistent");
+  });
+
+  cdp._onRecv({
+    method: "Target.targetCreated",
+    params: { targetInfo: { targetId: "target-1", type: "page", url: "about:blank" } },
+  });
+  assert.deepEqual(seen, ["once", "persistent"]);
+
+  seen.length = 0;
+  cdp._onRecv({
+    method: "Target.targetCreated",
+    params: { targetInfo: { targetId: "target-2", type: "page", url: "about:blank" } },
+  });
+  assert.deepEqual(seen, ["persistent"]);
+});
+
 test("ModCDPClient connects with nested launch/upstream/extension/client/server config", async () => {
   const cdp = new ModCDPClient({
     launch: {
