@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any, cast
@@ -23,6 +24,9 @@ class ProbeExtensionInjector(ExtensionInjector):
             self.options.get("service_worker_ready_timeout_ms") or 60_000,
             matched_only=True,
         )
+
+    def sendTimed(self, method: str, timeout_ms: int) -> ProtocolResult:
+        return self.sendWithTimeout(method, {}, None, timeout_ms)
 
 
 class ExtensionInjectorTests(unittest.TestCase):
@@ -116,6 +120,16 @@ class ExtensionInjectorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(NotImplementedError, "ExtensionInjector.inject is not implemented"):
             injector.inject()
+
+    def test_send_with_timeout_enforces_cdp_send_timeout(self) -> None:
+        def send(_method: str, _params: ProtocolParams | None = None, _session_id: str | None = None) -> ProtocolResult:
+            time.sleep(0.05)
+            return {}
+
+        injector = ProbeExtensionInjector(cast(ExtensionInjectorConfig, {"send": send}))
+
+        with self.assertRaisesRegex(TimeoutError, r"Runtime\.evaluate timed out after 5ms"):
+            injector.sendTimed("Runtime.evaluate", 5)
 
     def test_package_exports_all_injector_classes(self) -> None:
         self.assertIs(modcdp.ExtensionInjector, ExtensionInjector)

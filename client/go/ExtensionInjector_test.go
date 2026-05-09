@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -155,5 +156,18 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 	}
 	if _, err := injector.Inject(); err == nil {
 		t.Fatalf("expected base Inject to fail")
+	}
+}
+
+func TestExtensionInjectorSendWithTimeoutEnforcesCDPSendTimeout(t *testing.T) {
+	injector := NewExtensionInjector(ExtensionInjectorConfig{
+		Send: func(method string, params map[string]any, sessionID string) (map[string]any, error) {
+			time.Sleep(50 * time.Millisecond)
+			return map[string]any{}, nil
+		},
+	})
+
+	if _, err := injector.SendWithTimeout("Runtime.evaluate", map[string]any{}, "", 5); err == nil || !strings.Contains(err.Error(), "Runtime.evaluate timed out after 5ms") {
+		t.Fatalf("SendWithTimeout error = %v", err)
 	}
 }

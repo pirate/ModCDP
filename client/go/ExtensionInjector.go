@@ -248,7 +248,27 @@ func (i ExtensionInjector) SendWithTimeout(method string, params map[string]any,
 	if params == nil {
 		params = map[string]any{}
 	}
-	return i.Options.Send(method, params, sessionID)
+	if timeoutMS == 0 {
+		timeoutMS = i.Options.CDPSendTimeoutMS
+	}
+	if timeoutMS <= 0 {
+		return i.Options.Send(method, params, sessionID)
+	}
+	type sendResult struct {
+		result map[string]any
+		err    error
+	}
+	done := make(chan sendResult, 1)
+	go func() {
+		result, err := i.Options.Send(method, params, sessionID)
+		done <- sendResult{result: result, err: err}
+	}()
+	select {
+	case result := <-done:
+		return result.result, result.err
+	case <-time.After(time.Duration(timeoutMS) * time.Millisecond):
+		return nil, fmt.Errorf("%s timed out after %dms", method, timeoutMS)
+	}
 }
 
 func (i ExtensionInjector) SessionIDForTarget(targetID string, timeoutMS int) string {

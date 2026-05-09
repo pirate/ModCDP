@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from queue import Empty, Queue
 from typing import Any, TypedDict, cast
 
 from typing_extensions import NotRequired
@@ -183,7 +185,26 @@ class ExtensionInjector:
         send = self.options.get("send")
         if send is None:
             raise RuntimeError(f"{type(self).__name__} requires a CDP send function.")
-        return send(method, params or {}, session_id)
+        effective_timeout_ms = timeout_ms or self.options.get("cdp_send_timeout_ms") or DEFAULT_CDP_SEND_TIMEOUT_MS
+        if effective_timeout_ms <= 0:
+            return send(method, params or {}, session_id)
+
+        result_queue: Queue[tuple[ProtocolResult | None, BaseException | None]] = Queue(maxsize=1)
+
+        def runSend() -> None:
+            try:
+                result_queue.put((send(method, params or {}, session_id), None))
+            except BaseException as error:
+                result_queue.put((None, error))
+
+        threading.Thread(target=runSend, daemon=True).start()
+        try:
+            result, error = result_queue.get(timeout=effective_timeout_ms / 1000)
+        except Empty as error:
+            raise TimeoutError(f"{method} timed out after {effective_timeout_ms}ms") from error
+        if error is not None:
+            raise error
+        return result or {}
 
     def sessionIdForTarget(self, target_id: str, timeout_ms: int = 0) -> str | None:
         deadline = time.monotonic() + timeout_ms / 1000

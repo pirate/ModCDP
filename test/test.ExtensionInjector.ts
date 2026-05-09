@@ -27,6 +27,10 @@ class ProbeExtensionInjector extends ExtensionInjector {
   writeRuntimeConfig(extension_path: string) {
     this.writeExtensionRuntimeConfig(extension_path);
   }
+
+  async sendTimed(method: string, timeout_ms: number) {
+    return await this.sendWithTimeout(method, {}, null, timeout_ms);
+  }
 }
 
 test("ExtensionInjector probes a real extension service worker with shared base config", async () => {
@@ -103,6 +107,17 @@ test("ExtensionInjector owns shared injector config and runtime transport config
     await injector.close();
     await rm(runtime_config_dir, { recursive: true, force: true });
   }
+});
+
+test("ExtensionInjector sendWithTimeout enforces cdp send timeout", async () => {
+  const injector = new ProbeExtensionInjector({
+    send: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return {};
+    },
+  });
+
+  await assert.rejects(() => injector.sendTimed("Runtime.evaluate", 5), /Runtime\.evaluate timed out after 5ms/);
 });
 
 test("ExtensionInjector base inject reports the subclass name", async () => {
