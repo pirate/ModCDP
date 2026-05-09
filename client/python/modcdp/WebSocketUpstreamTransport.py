@@ -45,7 +45,7 @@ class WebSocketUpstreamTransport(UpstreamTransport):
             raise RuntimeError("CDP websocket is not connected.")
         self.ws.send(json.dumps(message))
 
-    def recv(self) -> Any:
+    def _recv(self) -> Any:
         if self.ws is None:
             raise RuntimeError("CDP websocket is not connected.")
         return self.ws.recv()

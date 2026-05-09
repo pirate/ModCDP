@@ -5,19 +5,19 @@ from .ExtensionInjector import DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, DEFAULT_
 
 class DiscoveredExtensionInjector(ExtensionInjector):
     def inject(self) -> ExtensionInjectionResult | None:
-        discovered = self.discoverReadyServiceWorker()
+        discovered = self._discoverReadyServiceWorker()
         if discovered:
             return {**discovered, "source": "discovered"}
         if self.options.get("trust_matched_service_worker"):
-            waited = self.waitForReadyServiceWorker(
+            waited = self._waitForReadyServiceWorker(
                 self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
                 matched_only=True,
             )
             if waited:
                 return {**waited, "source": "discovered"}
-        woke = self.wakeConfiguredExtension()
+        woke = self._wakeConfiguredExtension()
         if woke:
-            waited = self.waitForReadyServiceWorker(
+            waited = self._waitForReadyServiceWorker(
                 self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
                 matched_only=bool(self.options.get("trust_matched_service_worker")),
             )
@@ -25,7 +25,7 @@ class DiscoveredExtensionInjector(ExtensionInjector):
                 return {**waited, "source": "discovered"}
         if not self.options.get("require_service_worker_target"):
             return None
-        waited = self.waitForReadyServiceWorker(
+        waited = self._waitForReadyServiceWorker(
             self.options.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
             matched_only=bool(self.options.get("trust_matched_service_worker")),
         )

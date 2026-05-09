@@ -19,7 +19,7 @@ type probeExtensionInjector struct {
 }
 
 func (i probeExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
-	return i.WaitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, true)
+	return i.waitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, true)
 }
 
 func TestExtensionInjectorProbesRealExtensionServiceWorkerWithSharedBaseConfig(t *testing.T) {
@@ -134,7 +134,7 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 	if len(injector.GetLauncherConfig().ExtraArgs) != 0 {
 		t.Fatalf("expected empty launcher config")
 	}
-	if !injector.ServiceWorkerTargetMatches(map[string]any{
+	if !injector.serviceWorkerTargetMatches(map[string]any{
 		"targetId": "target-1",
 		"type":     "service_worker",
 		"url":      "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/modcdp/service_worker.js",
@@ -143,7 +143,7 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 	}
 
 	extensionPath := t.TempDir()
-	if err := injector.WriteExtensionRuntimeConfig(extensionPath); err != nil {
+	if err := injector.writeExtensionRuntimeConfig(extensionPath); err != nil {
 		t.Fatal(err)
 	}
 	config, err := os.ReadFile(filepath.Join(extensionPath, "modcdp", "config.json"))
@@ -232,7 +232,7 @@ func TestExtensionInjectorSendWithTimeoutEnforcesCDPSendTimeout(t *testing.T) {
 		Send: send,
 	})
 
-	if _, err := injector.SendWithTimeout("Runtime.evaluate", map[string]any{
+	if _, err := injector.sendWithTimeout("Runtime.evaluate", map[string]any{
 		"expression":   "new Promise(() => {})",
 		"awaitPromise": true,
 	}, sessionID, 5); err == nil || !strings.Contains(err.Error(), "Runtime.evaluate timed out after 5ms") {
@@ -306,7 +306,7 @@ func TestExtensionInjectorWakesConfiguredExtensionWithHiddenBackgroundTarget(t *
 		Send:        send,
 	})
 
-	if !injector.WakeConfiguredExtension() {
+	if !injector.wakeConfiguredExtension() {
 		t.Fatalf("expected wake to succeed")
 	}
 	targetsResult, err := send("Target.getTargets", map[string]any{}, "")

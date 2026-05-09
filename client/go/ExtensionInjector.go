@@ -198,7 +198,7 @@ func (i *ExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
 	return nil, fmt.Errorf("%T.Inject is not implemented", i)
 }
 
-func (i ExtensionInjector) ExtensionRuntimeConfig() map[string]string {
+func (i ExtensionInjector) extensionRuntimeConfig() map[string]string {
 	config := map[string]string{}
 	if i.Options.ReverseProxyURL != "" {
 		config["reverse_proxy_url"] = i.Options.ReverseProxyURL
@@ -215,8 +215,8 @@ func (i ExtensionInjector) ExtensionRuntimeConfig() map[string]string {
 	return config
 }
 
-func (i ExtensionInjector) WriteExtensionRuntimeConfig(unpackedExtensionPath string) error {
-	config := i.ExtensionRuntimeConfig()
+func (i ExtensionInjector) writeExtensionRuntimeConfig(unpackedExtensionPath string) error {
+	config := i.extensionRuntimeConfig()
 	if len(config) == 0 {
 		return nil
 	}
@@ -234,14 +234,14 @@ func (i ExtensionInjector) WriteExtensionRuntimeConfig(unpackedExtensionPath str
 	return os.WriteFile(filepath.Join(unpackedExtensionPath, "config.js"), []byte(configJS), 0o644)
 }
 
-func (i ExtensionInjector) ReadyExpression() string {
+func (i ExtensionInjector) readyExpression() string {
 	if i.Options.ServiceWorkerReadyExpression == "" {
 		return modcdpReadyExpression
 	}
 	return fmt.Sprintf("(%s) && Boolean(%s)", modcdpReadyExpression, i.Options.ServiceWorkerReadyExpression)
 }
 
-func (i ExtensionInjector) SendWithTimeout(method string, params map[string]any, sessionID string, timeoutMS int) (map[string]any, error) {
+func (i ExtensionInjector) sendWithTimeout(method string, params map[string]any, sessionID string, timeoutMS int) (map[string]any, error) {
 	if i.Options.Send == nil {
 		return nil, fmt.Errorf("%T requires a CDP send function", i)
 	}
@@ -271,7 +271,7 @@ func (i ExtensionInjector) SendWithTimeout(method string, params map[string]any,
 	}
 }
 
-func (i ExtensionInjector) SessionIDForTarget(targetID string, timeoutMS int) string {
+func (i ExtensionInjector) sessionIDForTarget(targetID string, timeoutMS int) string {
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
 	for {
 		if i.Options.SessionIDForTarget != nil {
@@ -286,7 +286,7 @@ func (i ExtensionInjector) SessionIDForTarget(targetID string, timeoutMS int) st
 	}
 }
 
-func (i ExtensionInjector) EnsureSessionIDForTarget(targetID string, timeoutMS int, allowAttach bool) string {
+func (i ExtensionInjector) ensureSessionIDForTarget(targetID string, timeoutMS int, allowAttach bool) string {
 	if i.Options.SessionIDForTarget != nil {
 		if sessionID := i.Options.SessionIDForTarget(targetID); sessionID != "" {
 			return sessionID
@@ -297,11 +297,11 @@ func (i ExtensionInjector) EnsureSessionIDForTarget(targetID string, timeoutMS i
 			return sessionID
 		}
 	}
-	return i.SessionIDForTarget(targetID, timeoutMS)
+	return i.sessionIDForTarget(targetID, timeoutMS)
 }
 
-func (i ExtensionInjector) TargetInfos() ([]map[string]any, error) {
-	result, err := i.SendWithTimeout("Target.getTargets", map[string]any{}, "", i.Options.CDPSendTimeoutMS)
+func (i ExtensionInjector) targetInfos() ([]map[string]any, error) {
+	result, err := i.sendWithTimeout("Target.getTargets", map[string]any{}, "", i.Options.CDPSendTimeoutMS)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (i ExtensionInjector) TargetInfos() ([]map[string]any, error) {
 	return targets, nil
 }
 
-func (i ExtensionInjector) ConfiguredWakeURL() string {
+func (i ExtensionInjector) configuredWakeURL() string {
 	if i.Options.WakeURL != "" {
 		return i.Options.WakeURL
 	}
@@ -333,12 +333,12 @@ func (i ExtensionInjector) ConfiguredWakeURL() string {
 	return "chrome-extension://" + i.Options.ExtensionID + wakePath
 }
 
-func (i ExtensionInjector) WakeConfiguredExtension() bool {
-	wakeURL := i.ConfiguredWakeURL()
+func (i ExtensionInjector) wakeConfiguredExtension() bool {
+	wakeURL := i.configuredWakeURL()
 	if wakeURL == "" || i.Options.Send == nil {
 		return false
 	}
-	_, err := i.SendWithTimeout("Target.createTarget", map[string]any{
+	_, err := i.sendWithTimeout("Target.createTarget", map[string]any{
 		"url":        wakeURL,
 		"background": true,
 		"hidden":     true,
@@ -347,21 +347,21 @@ func (i ExtensionInjector) WakeConfiguredExtension() bool {
 	return err == nil
 }
 
-func (i ExtensionInjector) ProbeTarget(target map[string]any, sessionTimeoutMS int, allowAttach bool) (*ExtensionInjectionResult, error) {
+func (i ExtensionInjector) probeTarget(target map[string]any, sessionTimeoutMS int, allowAttach bool) (*ExtensionInjectionResult, error) {
 	targetID, _ := target["targetId"].(string)
 	targetURL, _ := target["url"].(string)
 	if targetID == "" || i.UnusableTargetIDs[targetID] {
 		return nil, nil
 	}
-	sessionID := i.EnsureSessionIDForTarget(targetID, sessionTimeoutMS, allowAttach)
+	sessionID := i.ensureSessionIDForTarget(targetID, sessionTimeoutMS, allowAttach)
 	if sessionID == "" {
 		return nil, nil
 	}
-	if _, err := i.SendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS); err != nil {
+	if _, err := i.sendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS); err != nil {
 		return nil, err
 	}
-	probe, err := i.SendWithTimeout("Runtime.evaluate", map[string]any{
-		"expression":    i.ReadyExpression(),
+	probe, err := i.sendWithTimeout("Runtime.evaluate", map[string]any{
+		"expression":    i.readyExpression(),
 		"returnByValue": true,
 	}, sessionID, i.Options.CDPSendTimeoutMS)
 	if err != nil {
@@ -384,17 +384,17 @@ func (i ExtensionInjector) ProbeTarget(target map[string]any, sessionTimeoutMS i
 	}, nil
 }
 
-func (i ExtensionInjector) DiscoverReadyServiceWorker(matchedOnly bool) (*ExtensionInjectionResult, error) {
-	targets, err := i.TargetInfos()
+func (i ExtensionInjector) discoverReadyServiceWorker(matchedOnly bool) (*ExtensionInjectionResult, error) {
+	targets, err := i.targetInfos()
 	if err != nil {
 		return nil, err
 	}
 	if i.Options.TrustMatchedServiceWorker {
 		for _, target := range targets {
-			if !i.ServiceWorkerTargetMatches(target) {
+			if !i.serviceWorkerTargetMatches(target) {
 				continue
 			}
-			probed, err := i.ProbeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
+			probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
 			if err != nil {
 				return nil, err
 			}
@@ -413,7 +413,7 @@ func (i ExtensionInjector) DiscoverReadyServiceWorker(matchedOnly bool) (*Extens
 		if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 			continue
 		}
-		probed, err := i.ProbeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, false)
+		probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, false)
 		if err == nil && probed != nil {
 			return probed, nil
 		}
@@ -421,10 +421,10 @@ func (i ExtensionInjector) DiscoverReadyServiceWorker(matchedOnly bool) (*Extens
 	return nil, nil
 }
 
-func (i ExtensionInjector) WaitForReadyServiceWorker(timeoutMS int, matchedOnly bool) (*ExtensionInjectionResult, error) {
+func (i ExtensionInjector) waitForReadyServiceWorker(timeoutMS int, matchedOnly bool) (*ExtensionInjectionResult, error) {
 	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {
-		discovered, err := i.DiscoverReadyServiceWorker(matchedOnly)
+		discovered, err := i.discoverReadyServiceWorker(matchedOnly)
 		if err != nil || discovered != nil {
 			return discovered, err
 		}
@@ -433,7 +433,7 @@ func (i ExtensionInjector) WaitForReadyServiceWorker(timeoutMS int, matchedOnly 
 	return nil, nil
 }
 
-func (i ExtensionInjector) ServiceWorkerTargetMatches(target map[string]any) bool {
+func (i ExtensionInjector) serviceWorkerTargetMatches(target map[string]any) bool {
 	targetURL, _ := target["url"].(string)
 	targetType, _ := target["type"].(string)
 	if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {

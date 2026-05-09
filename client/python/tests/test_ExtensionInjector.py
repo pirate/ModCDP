@@ -20,7 +20,7 @@ EXTENSION_PATH = ROOT / "dist" / "extension"
 
 class ProbeExtensionInjector(ExtensionInjector):
     def inject(self):
-        return self.waitForReadyServiceWorker(
+        return self._waitForReadyServiceWorker(
             self.options.get("service_worker_ready_timeout_ms") or 60_000,
             matched_only=True,
         )
@@ -32,7 +32,7 @@ class ProbeExtensionInjector(ExtensionInjector):
         session_id: str | None,
         timeout_ms: int,
     ) -> ProtocolResult:
-        return self.sendWithTimeout(method, params or {}, session_id, timeout_ms)
+        return self._sendWithTimeout(method, params or {}, session_id, timeout_ms)
 
 
 class ExtensionInjectorTests(unittest.TestCase):
@@ -104,7 +104,7 @@ class ExtensionInjectorTests(unittest.TestCase):
         self.assertEqual(injector.getTransportConfig(), {"extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
         self.assertEqual(injector.getLauncherConfig(), {})
         self.assertTrue(
-            injector.serviceWorkerTargetMatches(
+            injector._serviceWorkerTargetMatches(
                 {
                     "targetId": "target-1",
                     "type": "service_worker",
@@ -113,7 +113,7 @@ class ExtensionInjectorTests(unittest.TestCase):
             )
         )
         with tempfile.TemporaryDirectory() as extension_path:
-            injector.writeExtensionRuntimeConfig(extension_path)
+            injector._writeExtensionRuntimeConfig(extension_path)
             self.assertEqual(
                 json.loads((Path(extension_path) / "modcdp" / "config.json").read_text()),
                 {
@@ -207,7 +207,7 @@ class ExtensionInjectorTests(unittest.TestCase):
         )
 
         try:
-            self.assertTrue(injector.wakeConfiguredExtension())
+            self.assertTrue(injector._wakeConfiguredExtension())
             targets = cast(dict[str, Any], send("Target.getTargets"))
             target_infos = targets.get("targetInfos")
             self.assertIsInstance(target_infos, list)

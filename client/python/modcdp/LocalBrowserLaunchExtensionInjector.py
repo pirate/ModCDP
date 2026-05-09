@@ -25,22 +25,22 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
             super().prepare()
             return
         if not extension_path.endswith(".zip"):
-            if self.extensionRuntimeConfig():
+            if self._extensionRuntimeConfig():
                 self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
                 shutil.copytree(extension_path, self.cleanup_dir.name, dirs_exist_ok=True)
                 self.unpacked_extension_path = self.cleanup_dir.name
             else:
                 self.unpacked_extension_path = extension_path
-            self.writeExtensionRuntimeConfig(self.unpacked_extension_path)
-            self.resolveExtensionId()
+            self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
+            self._resolveExtensionId()
             super().prepare()
             return
         self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
         with zipfile.ZipFile(extension_path) as archive:
             archive.extractall(self.cleanup_dir.name)
         self.unpacked_extension_path = _extension_root(self.cleanup_dir.name)
-        self.writeExtensionRuntimeConfig(self.unpacked_extension_path)
-        self.resolveExtensionId()
+        self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
+        self._resolveExtensionId()
         super().prepare()
 
     def getLauncherConfig(self) -> BrowserLaunchOptions:
@@ -49,9 +49,9 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
         return {"extra_args": [f"--load-extension={self.unpacked_extension_path}"]}
 
     def inject(self) -> ExtensionInjectionResult | None:
-        self.wakeConfiguredExtension()
+        self._wakeConfiguredExtension()
         timeout_ms = min(self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, 3_000)
-        discovered = self.waitForReadyServiceWorker(
+        discovered = self._waitForReadyServiceWorker(
             timeout_ms,
             matched_only=bool(self.options.get("trust_matched_service_worker")),
         )
@@ -63,7 +63,7 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
             self.cleanup_dir.cleanup()
             self.cleanup_dir = None
 
-    def resolveExtensionId(self) -> str | None:
+    def _resolveExtensionId(self) -> str | None:
         if self.extension_id:
             return self.extension_id
         configured_extension_id = self.options.get("extension_id")

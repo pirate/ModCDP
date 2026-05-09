@@ -52,7 +52,7 @@ func (i *BBBrowserExtensionInjector) Prepare() error {
 		i.ZipPath = zipPath
 		i.CleanupPath = cleanupPath
 	}
-	extensionID, err := i.UploadExtension(i.ZipPath)
+	extensionID, err := i.uploadExtension(i.ZipPath)
 	if err != nil {
 		_ = i.Close()
 		return err
@@ -82,7 +82,7 @@ func (i *BBBrowserExtensionInjector) GetLauncherConfig() LaunchOptions {
 }
 
 func (i *BBBrowserExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
-	discovered, err := i.WaitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, i.Options.TrustMatchedServiceWorker)
+	discovered, err := i.waitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, i.Options.TrustMatchedServiceWorker)
 	if err != nil || discovered == nil {
 		return discovered, err
 	}
@@ -98,7 +98,7 @@ func (i *BBBrowserExtensionInjector) Close() error {
 	return nil
 }
 
-func (i *BBBrowserExtensionInjector) UploadExtension(zipPath string) (string, error) {
+func (i *BBBrowserExtensionInjector) uploadExtension(zipPath string) (string, error) {
 	browserbaseAPIKey := firstNonEmptyString(i.Options.BrowserbaseAPIKey, os.Getenv("BROWSERBASE_API_KEY"))
 	if browserbaseAPIKey == "" {
 		return "", fmt.Errorf("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key")

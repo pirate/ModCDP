@@ -35,13 +35,13 @@ class ReverseWebSocketUpstreamTransport(UpstreamTransport):
         self._close_generation = 0
         self.closed = False
         self.write_lock = threading.Lock()
-        self.setBind(bind)
+        self._setBind(bind)
 
     def update(self, config: dict[str, Any] | None = None) -> "ReverseWebSocketUpstreamTransport":
         config = config or {}
         bind = config.get("reversews_bind") or config.get("url")
         if isinstance(bind, str) and bind:
-            self.setBind(bind)
+            self._setBind(bind)
         wait_timeout_ms = config.get("reversews_wait_timeout_ms")
         if isinstance(wait_timeout_ms, int | float):
             self.wait_timeout_ms = int(wait_timeout_ms)
@@ -50,7 +50,7 @@ class ReverseWebSocketUpstreamTransport(UpstreamTransport):
     def getInjectorConfig(self) -> dict[str, Any]:
         return {"reverse_proxy_url": self.url}
 
-    def setBind(self, bind: str) -> None:
+    def _setBind(self, bind: str) -> None:
         parsed = urlparse(bind if "://" in bind else f"ws://{bind}")
         host = parsed.hostname or "127.0.0.1"
         port = parsed.port or 29292

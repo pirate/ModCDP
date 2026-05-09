@@ -38,11 +38,11 @@ func NewReverseWebSocketUpstreamTransport(bind string, wait_timeout_ms int) *Rev
 		wait_timeout_ms = DefaultReverseWSWaitTimeoutMS
 	}
 	t := &ReverseWebSocketUpstreamTransport{WaitTimeoutMS: wait_timeout_ms, peerCh: make(chan struct{}), closeCh: make(chan struct{})}
-	t.SetBind(bind)
+	t.setBind(bind)
 	return t
 }
 
-func (t *ReverseWebSocketUpstreamTransport) SetBind(bind string) {
+func (t *ReverseWebSocketUpstreamTransport) setBind(bind string) {
 	parsed, err := url.Parse(bind)
 	if err != nil || parsed.Scheme == "" {
 		parsed, _ = url.Parse("ws://" + bind)
@@ -64,9 +64,9 @@ func (t *ReverseWebSocketUpstreamTransport) Update(config map[string]any) {
 		return
 	}
 	if bind, _ := config["reversews_bind"].(string); bind != "" {
-		t.SetBind(bind)
+		t.setBind(bind)
 	} else if rawURL, _ := config["url"].(string); rawURL != "" {
-		t.SetBind(rawURL)
+		t.setBind(rawURL)
 	}
 	if waitTimeoutMS, ok := intFromConfig(config["reversews_wait_timeout_ms"]); ok {
 		t.WaitTimeoutMS = waitTimeoutMS

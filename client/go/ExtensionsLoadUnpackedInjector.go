@@ -22,20 +22,20 @@ func (i *ExtensionsLoadUnpackedInjector) Prepare() error {
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
-	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.ExtensionRuntimeConfig()) > 0)
+	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.extensionRuntimeConfig()) > 0)
 	if err != nil {
 		return err
 	}
 	i.UnpackedExtensionPath = unpackedPath
 	i.CleanupPath = cleanupPath
-	return i.WriteExtensionRuntimeConfig(i.UnpackedExtensionPath)
+	return i.writeExtensionRuntimeConfig(i.UnpackedExtensionPath)
 }
 
 func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, error) {
 	if i.UnpackedExtensionPath == "" {
 		return nil, nil
 	}
-	loadResult, err := i.SendWithTimeout("Extensions.loadUnpacked", map[string]any{"path": i.UnpackedExtensionPath}, "", i.Options.CDPSendTimeoutMS)
+	loadResult, err := i.sendWithTimeout("Extensions.loadUnpacked", map[string]any{"path": i.UnpackedExtensionPath}, "", i.Options.CDPSendTimeoutMS)
 	if err != nil {
 		if strings.Contains(err.Error(), "Method not available") || strings.Contains(err.Error(), "Method not found") || strings.Contains(err.Error(), "wasn't found") {
 			i.LastError = err
@@ -51,11 +51,11 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 		return nil, fmt.Errorf("Extensions.loadUnpacked returned no extension id")
 	}
 	i.Options.ExtensionID = extensionID
-	i.WakeConfiguredExtension()
+	i.wakeConfiguredExtension()
 	swURLPrefix := "chrome-extension://" + extensionID + "/"
 	deadline := time.Now().Add(time.Duration(i.Options.ServiceWorkerReadyTimeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {
-		targets, err := i.TargetInfos()
+		targets, err := i.targetInfos()
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 			if targetType != "service_worker" || !strings.HasPrefix(targetURL, swURLPrefix) {
 				continue
 			}
-			probed, err := i.ProbeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
+			probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
 			if err != nil {
 				return nil, err
 			}

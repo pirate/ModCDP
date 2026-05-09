@@ -21,20 +21,20 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
             super().prepare()
             return
         if not extension_path.endswith(".zip"):
-            if self.extensionRuntimeConfig():
+            if self._extensionRuntimeConfig():
                 self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
                 shutil.copytree(extension_path, self.cleanup_dir.name, dirs_exist_ok=True)
                 self.unpacked_extension_path = self.cleanup_dir.name
             else:
                 self.unpacked_extension_path = extension_path
-            self.writeExtensionRuntimeConfig(self.unpacked_extension_path)
+            self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
             super().prepare()
             return
         self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
         with zipfile.ZipFile(extension_path) as archive:
             archive.extractall(self.cleanup_dir.name)
         self.unpacked_extension_path = _extension_root(self.cleanup_dir.name)
-        self.writeExtensionRuntimeConfig(self.unpacked_extension_path)
+        self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
         super().prepare()
 
     def inject(self) -> ExtensionInjectionResult | None:
@@ -42,7 +42,7 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
         if not extension_path:
             return None
         try:
-            load_result = self.sendWithTimeout("Extensions.loadUnpacked", {"path": extension_path})
+            load_result = self._sendWithTimeout("Extensions.loadUnpacked", {"path": extension_path})
         except RuntimeError as error:
             if "Method not available" in str(error) or "wasn't found" in str(error) or "Method not found" in str(error):
                 self.last_error = error
@@ -55,15 +55,15 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
         if not isinstance(extension_id, str) or not extension_id:
             raise RuntimeError(f"Extensions.loadUnpacked returned no extension id (got {load_result})")
         self.options["extension_id"] = extension_id
-        self.wakeConfiguredExtension()
+        self._wakeConfiguredExtension()
 
         sw_url_prefix = f"chrome-extension://{extension_id}/"
         deadline = time.monotonic() + (self.options.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS) / 1000
         while time.monotonic() < deadline:
-            for target in self.targetInfos():
+            for target in self._targetInfos():
                 if target["type"] != "service_worker" or not target["url"].startswith(sw_url_prefix):
                     continue
-                probed = self.probeTarget(
+                probed = self._probeTarget(
                     target,
                     self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
                     allow_attach=True,

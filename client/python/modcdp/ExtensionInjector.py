@@ -145,7 +145,7 @@ class ExtensionInjector:
     def inject(self) -> ExtensionInjectionResult | None:
         raise NotImplementedError(f"{type(self).__name__}.inject is not implemented.")
 
-    def extensionRuntimeConfig(self) -> dict[str, str] | None:
+    def _extensionRuntimeConfig(self) -> dict[str, str] | None:
         config = {
             key: value
             for key, value in {
@@ -158,8 +158,8 @@ class ExtensionInjector:
         }
         return config or None
 
-    def writeExtensionRuntimeConfig(self, unpacked_extension_path: str) -> None:
-        config = self.extensionRuntimeConfig()
+    def _writeExtensionRuntimeConfig(self, unpacked_extension_path: str) -> None:
+        config = self._extensionRuntimeConfig()
         if not config:
             return
         extension_path = Path(unpacked_extension_path)
@@ -169,13 +169,13 @@ class ExtensionInjector:
             f"globalThis.__MODCDP_RUNTIME_CONFIG__ = {json.dumps(config, indent=2)};\nexport {{}};\n"
         )
 
-    def readyExpression(self) -> str:
+    def _readyExpression(self) -> str:
         expression = self.options.get("service_worker_ready_expression")
         if not expression:
             return MODCDP_READY_EXPRESSION
         return f"({MODCDP_READY_EXPRESSION}) && Boolean({expression})"
 
-    def sendWithTimeout(
+    def _sendWithTimeout(
         self,
         method: str,
         params: ProtocolParams | None = None,
@@ -206,7 +206,7 @@ class ExtensionInjector:
             raise error
         return result or {}
 
-    def sessionIdForTarget(self, target_id: str, timeout_ms: int = 0) -> str | None:
+    def _sessionIdForTarget(self, target_id: str, timeout_ms: int = 0) -> str | None:
         deadline = time.monotonic() + timeout_ms / 1000
         while True:
             session_id = self.options.get("sessionIdForTarget")
@@ -218,7 +218,7 @@ class ExtensionInjector:
                 return None
             time.sleep((self.options.get("target_session_poll_interval_ms") or DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS) / 1000)
 
-    def ensureSessionIdForTarget(self, target_id: str, timeout_ms: int = 0, allow_attach: bool = False) -> str | None:
+    def _ensureSessionIdForTarget(self, target_id: str, timeout_ms: int = 0, allow_attach: bool = False) -> str | None:
         session_id = self.options.get("sessionIdForTarget")
         if session_id is not None:
             value = session_id(target_id)
@@ -230,10 +230,10 @@ class ExtensionInjector:
                 attached_session_id = attach_to_target(target_id)
                 if attached_session_id:
                     return attached_session_id
-        return self.sessionIdForTarget(target_id, timeout_ms)
+        return self._sessionIdForTarget(target_id, timeout_ms)
 
-    def targetInfos(self) -> list[TargetInfo]:
-        result = self.sendWithTimeout("Target.getTargets")
+    def _targetInfos(self) -> list[TargetInfo]:
+        result = self._sendWithTimeout("Target.getTargets")
         raw_targets = result.get("targetInfos")
         if not isinstance(raw_targets, list):
             return []
@@ -248,7 +248,7 @@ class ExtensionInjector:
                 targets.append({"targetId": target_id, "type": target_type, "url": target_url})
         return targets
 
-    def configuredWakeUrl(self) -> str | None:
+    def _configuredWakeUrl(self) -> str | None:
         wake_url = self.options.get("wake_url")
         if wake_url:
             return wake_url
@@ -258,12 +258,12 @@ class ExtensionInjector:
         wake_path = self.options.get("wake_path") or DEFAULT_MODCDP_WAKE_PATH
         return f"chrome-extension://{extension_id}{wake_path if wake_path.startswith('/') else f'/{wake_path}'}"
 
-    def wakeConfiguredExtension(self) -> bool:
-        wake_url = self.configuredWakeUrl()
+    def _wakeConfiguredExtension(self) -> bool:
+        wake_url = self._configuredWakeUrl()
         if not wake_url or self.options.get("send") is None:
             return False
         try:
-            self.sendWithTimeout(
+            self._sendWithTimeout(
                 "Target.createTarget",
                 {
                     "url": wake_url,
@@ -276,7 +276,7 @@ class ExtensionInjector:
         except Exception:
             return False
 
-    def probeTarget(
+    def _probeTarget(
         self,
         target: TargetInfo,
         session_timeout_ms: int = 0,
@@ -286,14 +286,14 @@ class ExtensionInjector:
         target_id = target["targetId"]
         if target_id in self.unusable_target_ids:
             return None
-        session_id = self.ensureSessionIdForTarget(target_id, session_timeout_ms, allow_attach)
+        session_id = self._ensureSessionIdForTarget(target_id, session_timeout_ms, allow_attach)
         if session_id is None:
             return None
-        self.sendWithTimeout("Runtime.enable", {}, session_id)
-        probe = self.sendWithTimeout(
+        self._sendWithTimeout("Runtime.enable", {}, session_id)
+        probe = self._sendWithTimeout(
             "Runtime.evaluate",
             {
-                "expression": self.readyExpression(),
+                "expression": self._readyExpression(),
                 "returnByValue": True,
             },
             session_id,
@@ -311,13 +311,13 @@ class ExtensionInjector:
             "session_id": session_id,
         }
 
-    def discoverReadyServiceWorker(self, *, matched_only: bool = False) -> ExtensionInjectionResult | None:
-        target_infos = self.targetInfos()
+    def _discoverReadyServiceWorker(self, *, matched_only: bool = False) -> ExtensionInjectionResult | None:
+        target_infos = self._targetInfos()
         if self.options.get("trust_matched_service_worker"):
             for candidate in target_infos:
-                if not self.serviceWorkerTargetMatches(candidate):
+                if not self._serviceWorkerTargetMatches(candidate):
                     continue
-                probed = self.probeTarget(
+                probed = self._probeTarget(
                     candidate,
                     self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
                     allow_attach=True,
@@ -332,7 +332,7 @@ class ExtensionInjector:
             if not candidate["url"].startswith("chrome-extension://"):
                 continue
             try:
-                probed = self.probeTarget(
+                probed = self._probeTarget(
                     candidate,
                     self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
                 )
@@ -342,16 +342,16 @@ class ExtensionInjector:
                 return probed
         return None
 
-    def waitForReadyServiceWorker(self, timeout_ms: int, *, matched_only: bool = False) -> ExtensionInjectionResult | None:
+    def _waitForReadyServiceWorker(self, timeout_ms: int, *, matched_only: bool = False) -> ExtensionInjectionResult | None:
         deadline = time.monotonic() + timeout_ms / 1000
         while time.monotonic() < deadline:
-            discovered = self.discoverReadyServiceWorker(matched_only=matched_only)
+            discovered = self._discoverReadyServiceWorker(matched_only=matched_only)
             if discovered:
                 return discovered
             time.sleep((self.options.get("service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS) / 1000)
         return None
 
-    def serviceWorkerTargetMatches(self, candidate: Mapping[str, object]) -> bool:
+    def _serviceWorkerTargetMatches(self, candidate: Mapping[str, object]) -> bool:
         raw_target_url = candidate.get("url")
         target_url = raw_target_url if isinstance(raw_target_url, str) else ""
         if candidate.get("type") != "service_worker":

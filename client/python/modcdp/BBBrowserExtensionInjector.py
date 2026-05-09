@@ -32,9 +32,9 @@ class BBBrowserExtensionInjector(ExtensionInjector):
         extension_path = self.options.get("extension_path")
         if not extension_path:
             return
-        self.zip_path = extension_path if extension_path.endswith(".zip") else self.zipExtensionDir(extension_path)
+        self.zip_path = extension_path if extension_path.endswith(".zip") else self._zipExtensionDir(extension_path)
         try:
-            self.extension_id = self.uploadExtension(self.zip_path)
+            self.extension_id = self._uploadExtension(self.zip_path)
         except Exception:
             self.close()
             raise
@@ -45,7 +45,7 @@ class BBBrowserExtensionInjector(ExtensionInjector):
         return {"extension_id": self.extension_id}
 
     def inject(self) -> ExtensionInjectionResult | None:
-        discovered = self.waitForReadyServiceWorker(
+        discovered = self._waitForReadyServiceWorker(
             self.options.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
             matched_only=bool(self.options.get("trust_matched_service_worker")),
         )
@@ -56,7 +56,7 @@ class BBBrowserExtensionInjector(ExtensionInjector):
             self.cleanup_dir.cleanup()
             self.cleanup_dir = None
 
-    def zipExtensionDir(self, extension_path: str) -> str:
+    def _zipExtensionDir(self, extension_path: str) -> str:
         self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-bb-extension-")
         zip_path = str(Path(self.cleanup_dir.name) / "extension.zip")
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -65,7 +65,7 @@ class BBBrowserExtensionInjector(ExtensionInjector):
                     archive.write(path, path.relative_to(extension_path))
         return zip_path
 
-    def uploadExtension(self, zip_path: str) -> str:
+    def _uploadExtension(self, zip_path: str) -> str:
         browserbase_api_key = _first_string(self.options.get("browserbase_api_key"), os.environ.get("BROWSERBASE_API_KEY"))
         if not browserbase_api_key:
             raise RuntimeError("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.")

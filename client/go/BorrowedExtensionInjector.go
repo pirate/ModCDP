@@ -21,7 +21,7 @@ func NewBorrowedExtensionInjector(options ExtensionInjectorConfig) BorrowedExten
 func (i *BorrowedExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
 	deadline := time.Now().Add(time.Duration(i.Options.ServiceWorkerReadyTimeoutMS) * time.Millisecond)
 	for {
-		borrowed, err := i.BorrowVisibleServiceWorkers()
+		borrowed, err := i.borrowVisibleServiceWorkers()
 		if err != nil || borrowed != nil {
 			return borrowed, err
 		}
@@ -32,8 +32,8 @@ func (i *BorrowedExtensionInjector) Inject() (*ExtensionInjectionResult, error) 
 	}
 }
 
-func (i *BorrowedExtensionInjector) BorrowVisibleServiceWorkers() (*ExtensionInjectionResult, error) {
-	targets, err := i.TargetInfos()
+func (i *BorrowedExtensionInjector) borrowVisibleServiceWorkers() (*ExtensionInjectionResult, error) {
+	targets, err := i.targetInfos()
 	if err != nil {
 		return nil, err
 	}
@@ -45,14 +45,14 @@ func (i *BorrowedExtensionInjector) BorrowVisibleServiceWorkers() (*ExtensionInj
 		if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 			continue
 		}
-		if hasConfiguredMatcher && !i.ServiceWorkerTargetMatches(target) {
+		if hasConfiguredMatcher && !i.serviceWorkerTargetMatches(target) {
 			continue
 		}
 		candidates = append(candidates, target)
 	}
 	var borrowed []*ExtensionInjectionResult
 	for _, target := range candidates {
-		bootstrapped, err := i.BootstrapTarget(target)
+		bootstrapped, err := i.bootstrapTarget(target)
 		if err == nil && bootstrapped != nil {
 			bootstrapped.Source = "borrowed"
 			borrowed = append(borrowed, bootstrapped)
@@ -70,19 +70,19 @@ func (i *BorrowedExtensionInjector) BorrowVisibleServiceWorkers() (*ExtensionInj
 	return borrowed[0], nil
 }
 
-func (i *BorrowedExtensionInjector) BootstrapTarget(target map[string]any) (*ExtensionInjectionResult, error) {
+func (i *BorrowedExtensionInjector) bootstrapTarget(target map[string]any) (*ExtensionInjectionResult, error) {
 	targetID, _ := target["targetId"].(string)
 	targetURL, _ := target["url"].(string)
-	sessionID := i.EnsureSessionIDForTarget(targetID, i.Options.ServiceWorkerProbeTimeoutMS, true)
+	sessionID := i.ensureSessionIDForTarget(targetID, i.Options.ServiceWorkerProbeTimeoutMS, true)
 	if sessionID == "" {
 		return nil, nil
 	}
-	_, _ = i.SendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS)
+	_, _ = i.sendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS)
 	bootstrap, err := modcdpServerBootstrapExpressionFromPath(i.Options.ExtensionPath)
 	if err != nil {
 		return nil, err
 	}
-	probe, err := i.SendWithTimeout("Runtime.evaluate", map[string]any{
+	probe, err := i.sendWithTimeout("Runtime.evaluate", map[string]any{
 		"expression":    fmt.Sprintf("(%s)()", bootstrap),
 		"awaitPromise":  true,
 		"returnByValue": true,
@@ -99,9 +99,9 @@ func (i *BorrowedExtensionInjector) BootstrapTarget(target map[string]any) (*Ext
 		return nil, nil
 	}
 	ready, _ := value["ok"].(bool)
-	if ready && i.ReadyExpression() != modcdpReadyExpression {
-		readyProbe, err := i.SendWithTimeout("Runtime.evaluate", map[string]any{
-			"expression":    i.ReadyExpression(),
+	if ready && i.readyExpression() != modcdpReadyExpression {
+		readyProbe, err := i.sendWithTimeout("Runtime.evaluate", map[string]any{
+			"expression":    i.readyExpression(),
 			"returnByValue": true,
 		}, sessionID, i.Options.CDPSendTimeoutMS)
 		if err != nil {

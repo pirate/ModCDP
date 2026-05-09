@@ -29,16 +29,16 @@ func (i *LocalBrowserLaunchExtensionInjector) Prepare() error {
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
-	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.ExtensionRuntimeConfig()) > 0)
+	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.extensionRuntimeConfig()) > 0)
 	if err != nil {
 		return err
 	}
 	i.UnpackedExtensionPath = unpackedPath
 	i.CleanupPath = cleanupPath
-	if err := i.WriteExtensionRuntimeConfig(i.UnpackedExtensionPath); err != nil {
+	if err := i.writeExtensionRuntimeConfig(i.UnpackedExtensionPath); err != nil {
 		return err
 	}
-	_, err = i.ResolveExtensionID()
+	_, err = i.resolveExtensionID()
 	return err
 }
 
@@ -50,12 +50,12 @@ func (i *LocalBrowserLaunchExtensionInjector) GetLauncherConfig() LaunchOptions 
 }
 
 func (i *LocalBrowserLaunchExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
-	i.WakeConfiguredExtension()
+	i.wakeConfiguredExtension()
 	timeoutMS := i.Options.ServiceWorkerProbeTimeoutMS
 	if timeoutMS > 3000 {
 		timeoutMS = 3000
 	}
-	discovered, err := i.WaitForReadyServiceWorker(timeoutMS, i.Options.TrustMatchedServiceWorker)
+	discovered, err := i.waitForReadyServiceWorker(timeoutMS, i.Options.TrustMatchedServiceWorker)
 	if err != nil || discovered == nil {
 		return discovered, err
 	}
@@ -71,7 +71,7 @@ func (i *LocalBrowserLaunchExtensionInjector) Close() error {
 	return nil
 }
 
-func (i *LocalBrowserLaunchExtensionInjector) ResolveExtensionID() (string, error) {
+func (i *LocalBrowserLaunchExtensionInjector) resolveExtensionID() (string, error) {
 	if i.ExtensionID != "" {
 		return i.ExtensionID, nil
 	}
