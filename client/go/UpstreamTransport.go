@@ -80,7 +80,3 @@ func endpointKindForUpstream(mode string) UpstreamEndpointKind {
 	}
 	return UpstreamEndpointKindModCDPServer
 }
-
-func unimplementedUpstream(mode string) error {
-	return fmt.Errorf("upstream.mode=%s is not implemented by the Go client yet", mode)
-}

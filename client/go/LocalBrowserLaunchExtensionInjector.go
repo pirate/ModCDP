@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -236,12 +235,4 @@ func firstNonEmptyString(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func mustExtensionIDFromManifestKey(extensionPath string) string {
-	extensionID, err := extensionIDFromManifestKey(extensionPath)
-	if err != nil {
-		panic(fmt.Sprintf("extensionIDFromManifestKey(%s): %v", extensionPath, err))
-	}
-	return extensionID
 }

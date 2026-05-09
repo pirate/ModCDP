@@ -5,16 +5,19 @@
 // Behavior on each client connection:
 //   - Connect a ModCDPClient to the existing upstream so auto-attach,
 //     extension discovery, and injection stay in the main client implementation.
-//   - Reuse that client's upstream websocket + hidden extension session to
-//     rewrite Mod.* /
-//     Custom.* outbound and Runtime.bindingCalled inbound; forward everything
-//     else unchanged.
+//   - For websocket upstreams, reuse that client's upstream websocket + hidden
+//     extension session to rewrite Mod.* / Custom.* outbound and
+//     Runtime.bindingCalled inbound; forward everything else unchanged.
+//   - For pipe, native messaging, and NATS upstreams, let ModCDPClient own the
+//     selected transport and proxy downstream CDP-shaped messages through it.
 //   - Keep mirrored upstream events private by default so vanilla CDP clients
 //     only see native upstream CDP messages. Set forwardMirroredUpstreamEvents to
 //     true when debugging the service-worker mirror path itself.
 //
 // Run as a CLI:
-//   node proxy.js --port 9223 --upstream http://127.0.0.1:9222
+//   node proxy.js --port 9223 --upstream=ws --upstream-ws-url=http://127.0.0.1:9222
+//   node proxy.js --port 9223 --launch=local --upstream=pipe
+//   node proxy.js --port 9223 --launch=local --upstream=nats --upstream-nats-url=ws://127.0.0.1:4223
 //
 // Or import { startProxy } and embed.
 

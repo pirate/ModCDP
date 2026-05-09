@@ -128,11 +128,15 @@ Upgrade any vanilla CDP client like Stagehand, Playwright, or Puppeteer transpar
 
 ```sh
 pnpm run proxy -- --upstream=ws --upstream-ws-url=http://127.0.0.1:9222 --port 9223
+pnpm run proxy -- --launch=local --upstream=pipe --port 9223
+pnpm run proxy -- --launch=local --upstream=nats --upstream-nats-url=ws://127.0.0.1:4223 --port 9223
 # const browser = await playwright.chromium.connectOverCDP("http://127.0.0.1:9223")
 # const session = await browser.contexts()[0].newCDPSession(page)
 # await session.send("Mod.evaluate", { expression: "1 + 1" }) // -> 2
 # ✨ All ModCDP commands now work through playwright! you can modify/extend playwright behavior to your heart's content
 ```
+
+The proxy uses the same `--launch`, `--extension`, `--client-routes`, `--server-routes`, and `--upstream*` option groups as `ModCDPClient`. `ws` keeps a transparent websocket-to-websocket fast path; `pipe`, `nativemessaging`, and `nats` proxy downstream CDP-shaped messages through the selected `ModCDPClient` upstream transport.
 
 ### Reverse proxy mode
 

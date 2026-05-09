@@ -1,6 +1,7 @@
 package modcdp
 
 import (
+	"fmt"
 	"os"
 	"sync"
 )
@@ -30,7 +31,7 @@ func (t *PipeUpstreamTransport) GetLauncherConfig() LaunchOptions {
 
 func (t *PipeUpstreamTransport) Connect() error {
 	if t.PipeRead == nil || t.PipeWrite == nil {
-		return unimplementedUpstream("pipe")
+		return fmt.Errorf("upstream.mode=pipe requires launcher-provided pipe_read and pipe_write handles")
 	}
 	t.closed = false
 	go t.readLoop()

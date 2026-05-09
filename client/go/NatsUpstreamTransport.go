@@ -66,6 +66,9 @@ func (t *NatsUpstreamTransport) Connect() error {
 	if t.connected {
 		return nil
 	}
+	if !validNATSSubjectPrefix(t.SubjectPrefix) {
+		return fmt.Errorf("invalid NATS subject prefix %q", t.SubjectPrefix)
+	}
 	parsed, err := url.Parse(t.URL)
 	if err != nil {
 		return err
@@ -279,11 +282,12 @@ func normalizeNATSURL(rawURL string, subjectPrefix string) (string, string) {
 }
 
 func sanitizeNATSSubjectPrefix(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func validNATSSubjectPrefix(value string) bool {
 	subject := strings.TrimSpace(value)
-	if subject == "" || strings.ContainsAny(subject, " \t\r\n*>") {
-		panic(fmt.Sprintf("invalid NATS subject prefix %s", value))
-	}
-	return subject
+	return subject != "" && !strings.ContainsAny(subject, " \t\r\n*>")
 }
 
 func mustJSON(value any) string {
