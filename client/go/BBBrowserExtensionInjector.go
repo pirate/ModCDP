@@ -54,6 +54,7 @@ func (i *BBBrowserExtensionInjector) Prepare() error {
 	}
 	extensionID, err := i.UploadExtension(i.ZipPath)
 	if err != nil {
+		_ = i.Close()
 		return err
 	}
 	i.ExtensionID = extensionID

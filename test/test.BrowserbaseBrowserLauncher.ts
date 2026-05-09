@@ -77,3 +77,11 @@ describe.skipIf(!hasBrowserbaseEnv)("BrowserbaseBrowserLauncher", () => {
     },
   );
 });
+
+describe.skipIf(hasBrowserbaseEnv)("BrowserbaseBrowserLauncher without credentials", () => {
+  it("requires BROWSERBASE_API_KEY", async () => {
+    const launcher = new BrowserbaseBrowserLauncher();
+
+    await expect(launcher.launch()).rejects.toThrow("BROWSERBASE_API_KEY");
+  });
+});

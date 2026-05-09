@@ -22,6 +22,25 @@ func TestBBBrowserExtensionInjectorUsesConfiguredExtensionID(t *testing.T) {
 	}
 }
 
+func TestBBBrowserExtensionInjectorRequiresAPIKeyWhenExtensionUploadIsNeeded(t *testing.T) {
+	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) != "" {
+		t.Skip("BROWSERBASE_API_KEY is set")
+	}
+	extensionPath, err := filepath.Abs("../../dist/extension")
+	if err != nil {
+		t.Fatal(err)
+	}
+	injector := NewBBBrowserExtensionInjector(ExtensionInjectorConfig{
+		ExtensionPath: extensionPath,
+	})
+	if err := injector.Prepare(); err == nil || !strings.Contains(err.Error(), "BROWSERBASE_API_KEY") {
+		t.Fatalf("expected missing key error, got %v", err)
+	}
+	if injector.CleanupPath != "" {
+		t.Fatalf("CleanupPath = %q", injector.CleanupPath)
+	}
+}
+
 func TestBBBrowserExtensionInjectorUploadsRealExtensionAndLaunchesBrowserbaseBrowserWithItInstalled(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) == "" {
 		t.Skip("BROWSERBASE_API_KEY is required for live Browserbase tests")

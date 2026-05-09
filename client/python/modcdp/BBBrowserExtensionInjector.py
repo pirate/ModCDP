@@ -33,7 +33,11 @@ class BBBrowserExtensionInjector(ExtensionInjector):
         if not extension_path:
             return
         self.zip_path = extension_path if extension_path.endswith(".zip") else self.zipExtensionDir(extension_path)
-        self.extension_id = self.uploadExtension(self.zip_path)
+        try:
+            self.extension_id = self.uploadExtension(self.zip_path)
+        except Exception:
+            self.close()
+            raise
 
     def getLauncherConfig(self) -> BrowserLaunchOptions:
         if not self.extension_id:

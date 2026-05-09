@@ -17,6 +17,17 @@ class BBBrowserExtensionInjectorTests(unittest.TestCase):
         injector.prepare()
         self.assertEqual(injector.getLauncherConfig().get("extension_id"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
+    @unittest.skipIf(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is set")
+    def test_requires_browserbase_api_key_when_extension_upload_is_needed(self) -> None:
+        injector = BBBrowserExtensionInjector({"extension_path": str(EXTENSION_PATH)})
+
+        try:
+            with self.assertRaisesRegex(RuntimeError, "BROWSERBASE_API_KEY"):
+                injector.prepare()
+            self.assertIsNone(injector.cleanup_dir)
+        finally:
+            injector.close()
+
     @unittest.skipUnless(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is required for live Browserbase tests")
     def test_uploads_real_extension_and_launches_browserbase_browser_with_it_installed(self) -> None:
         cdp = ModCDPClient(

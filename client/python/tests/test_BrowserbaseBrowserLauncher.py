@@ -79,6 +79,13 @@ class BrowserbaseBrowserLauncherTests(unittest.TestCase):
         self.fail("Browserbase session did not leave RUNNING status after release")
 
 
+@unittest.skipIf(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is set")
+class BrowserbaseBrowserLauncherWithoutCredentialsTests(unittest.TestCase):
+    def test_requires_browserbase_api_key(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "BROWSERBASE_API_KEY"):
+            BrowserbaseBrowserLauncher().launch()
+
+
 def _retrieve_browserbase_session(session_id: str) -> dict:
     request = urllib.request.Request(
         _browserbase_api_url(f"/v1/sessions/{session_id}"),
