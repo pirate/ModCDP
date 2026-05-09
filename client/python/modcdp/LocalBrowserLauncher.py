@@ -5,6 +5,7 @@ import glob
 import os
 import re
 import select
+import signal
 import shutil
 import subprocess
 import sys
@@ -12,7 +13,7 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 from .BrowserLauncher import (
     DEFAULT_CHROME_READY_POLL_INTERVAL_MS,
@@ -82,21 +83,9 @@ class LocalBrowserLauncher(BrowserLauncher):
             child_read, parent_write = os.pipe()
             parent_read = _move_fd_if_needed(parent_read, {3, 4})
             parent_write = _move_fd_if_needed(parent_write, {3, 4})
-            if child_read != 3:
-                os.dup2(child_read, 3)
-                os.close(child_read)
-            if child_write != 4:
-                os.dup2(child_write, 4)
-                os.close(child_write)
-
-            process = subprocess.Popen(
-                [executable_path, *args],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                pass_fds=(3, 4),
-            )
-            os.close(3)
-            os.close(4)
+            process = _spawn_chrome_with_pipe_fds(executable_path, args, child_read, child_write)
+            os.close(child_read)
+            os.close(child_write)
             pipe_read = os.fdopen(parent_read, "rb", buffering=0)
             pipe_write = os.fdopen(parent_write, "wb", buffering=0)
             try:
@@ -210,6 +199,76 @@ def _move_fd_if_needed(fd: int, reserved: set[int]) -> int:
     return moved
 
 
+class _SpawnedProcess:
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+        self.returncode: int | None = None
+
+    def terminate(self) -> None:
+        self._signal(signal.SIGTERM)
+
+    def kill(self) -> None:
+        self._signal(signal.SIGKILL)
+
+    def wait(self, timeout: float | None = None) -> int:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            try:
+                waited_pid, status = os.waitpid(self.pid, os.WNOHANG)
+            except ChildProcessError:
+                if self.returncode is None:
+                    self.returncode = 0
+                return self.returncode
+            if waited_pid == self.pid:
+                self.returncode = os.waitstatus_to_exitcode(status)
+                return self.returncode
+            if deadline is not None and time.monotonic() >= deadline:
+                assert timeout is not None
+                raise subprocess.TimeoutExpired([str(self.pid)], timeout)
+            time.sleep(0.05)
+
+    def _signal(self, sig: int) -> None:
+        if self.returncode is not None:
+            return
+        try:
+            os.kill(self.pid, sig)
+        except ProcessLookupError:
+            self.returncode = 0
+
+
+def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_read: int, child_write: int) -> _SpawnedProcess:
+    if not hasattr(os, "posix_spawn"):
+        raise RuntimeError("remote_debugging='pipe' requires os.posix_spawn support in the Python client.")
+    os.set_inheritable(child_read, True)
+    os.set_inheritable(child_write, True)
+    devnull = os.open(os.devnull, os.O_RDWR)
+    os.set_inheritable(devnull, True)
+    file_actions: list[tuple[int, int] | tuple[int, int, int]] = [
+        (os.POSIX_SPAWN_DUP2, devnull, 0),
+        (os.POSIX_SPAWN_DUP2, devnull, 1),
+        (os.POSIX_SPAWN_DUP2, devnull, 2),
+        (os.POSIX_SPAWN_DUP2, child_read, 3),
+        (os.POSIX_SPAWN_DUP2, child_write, 4),
+    ]
+    for fd in {devnull, child_read, child_write} - {0, 1, 2, 3, 4}:
+        file_actions.append((os.POSIX_SPAWN_CLOSE, fd))
+    try:
+        pid = os.posix_spawn(executable_path, [executable_path, *args], os.environ, file_actions=file_actions)
+        return _SpawnedProcess(pid)
+    finally:
+        os.close(devnull)
+
+
+class _ChromeProcess(Protocol):
+    pid: int
+
+    def terminate(self) -> None: ...
+
+    def kill(self) -> None: ...
+
+    def wait(self, timeout: float | None = None) -> int | None: ...
+
+
 def _wait_for_pipe_ready(pipe_read, pipe_write, timeout_ms: int) -> None:
     ready_id = 1
     pipe_write.write(json.dumps({"id": ready_id, "method": "Browser.getVersion", "params": {}}).encode() + b"\0")
@@ -240,7 +299,7 @@ def _wait_for_pipe_ready(pipe_read, pipe_write, timeout_ms: int) -> None:
 
 
 def _close(
-    process: subprocess.Popen[bytes],
+    process: _ChromeProcess,
     temp_profile_dir: tempfile.TemporaryDirectory[str] | None,
     pipe_read=None,
     pipe_write=None,

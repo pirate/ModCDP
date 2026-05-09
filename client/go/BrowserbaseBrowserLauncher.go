@@ -2,12 +2,17 @@ package modcdp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 )
 
 const DefaultBrowserbaseLauncherBaseURL = "https://api.browserbase.com"
@@ -104,6 +109,7 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 		if !createdSession || !closeSessionOnClose {
 			return
 		}
+		closeBrowserCDP(session.ConnectURL)
 		body := map[string]any{"status": "REQUEST_RELEASE"}
 		if projectID != "" {
 			body["projectId"] = projectID
@@ -152,6 +158,22 @@ func browserbaseRequest(baseURL string, browserbaseAPIKey string, method string,
 		return nil
 	}
 	return json.Unmarshal(responseBody, out)
+}
+
+func closeBrowserCDP(wsURL string) {
+	if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, _, _, err := ws.Dial(ctx, wsURL)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	_ = wsutil.WriteClientMessage(conn, ws.OpText, []byte(`{"id":1,"method":"Browser.close","params":{}}`))
+	_ = conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	_, _, _ = wsutil.ReadServerData(conn)
 }
 
 func errorText(body []byte) string {

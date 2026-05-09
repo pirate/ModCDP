@@ -61,6 +61,34 @@ async function browserbaseRequest<T>({
   return (await response.json()) as T;
 }
 
+async function closeBrowserCDP(ws_url: string | undefined) {
+  if (!ws_url || !/^wss?:\/\//i.test(ws_url) || typeof WebSocket !== "function") return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const ws = new WebSocket(ws_url);
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      try {
+        ws.close();
+      } catch {}
+      resolve();
+    };
+    const timeout = setTimeout(finish, 2_000);
+    ws.addEventListener("open", () => {
+      try {
+        ws.send(JSON.stringify({ id: 1, method: "Browser.close", params: {} }));
+      } catch {
+        finish();
+      }
+    });
+    ws.addEventListener("message", finish, { once: true });
+    ws.addEventListener("close", finish, { once: true });
+    ws.addEventListener("error", finish, { once: true });
+  });
+}
+
 export class BrowserbaseBrowserLauncher extends BrowserLauncher {
   async launch(options: BrowserLaunchOptions = {}): Promise<LaunchedBrowser> {
     const merged = { ...this.options, ...options };
@@ -148,6 +176,7 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
       if (closed) return;
       closed = true;
       if (!created_session || !close_session_on_close) return;
+      await closeBrowserCDP(session.connectUrl).catch(() => {});
       await browserbaseRequest({
         base_url,
         browserbase_api_key,

@@ -5,6 +5,7 @@ import os
 import urllib.error
 import urllib.request
 from typing import Any
+from websocket import create_connection
 
 from .BrowserLauncher import BrowserLaunchOptions, BrowserLauncher, LaunchedBrowser
 
@@ -104,6 +105,7 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
             closed = True
             if not created_session or not close_session_on_close:
                 return
+            _close_browser_cdp(connect_url)
             try:
                 _browserbase_request(
                     base_url=base_url,
@@ -156,6 +158,24 @@ def _browserbase_request(
 
 def _browserbase_url(base_url: str, pathname: str) -> str:
     return f"{base_url.rstrip('/')}/{pathname.lstrip('/')}"
+
+
+def _close_browser_cdp(ws_url: str | None) -> None:
+    if not ws_url or not ws_url.startswith(("ws://", "wss://")):
+        return
+    try:
+        ws = create_connection(ws_url, timeout=2)
+        try:
+            ws.send(json.dumps({"id": 1, "method": "Browser.close", "params": {}}))
+            ws.settimeout(0.5)
+            try:
+                ws.recv()
+            except Exception:
+                pass
+        finally:
+            ws.close()
+    except Exception:
+        pass
 
 
 def _first_string(*values: Any) -> str | None:
