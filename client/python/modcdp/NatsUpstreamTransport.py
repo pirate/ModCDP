@@ -67,6 +67,7 @@ class NatsUpstreamTransport(UpstreamTransport):
     def connect(self) -> None:
         if self.connected:
             return
+        self.closed = False
         parsed = urlparse(self.url)
         if parsed.scheme in ("ws", "wss"):
             ws = WebSocket()
