@@ -29,6 +29,10 @@
       "import": "./dist/client/js/ModCDPClient.js",
       "default": "./dist/client/js/ModCDPClient.js"
     },
+    "./client/AutoSessionRouter.js": {
+      "types": "./client/js/AutoSessionRouter.ts",
+      "import": "./dist/client/js/AutoSessionRouter.js"
+    },
     "./extension/service_worker.js": "./dist/extension/service_worker.js",
     "./extension/ModCDPServer.js": {
       "types": "./extension/ModCDPServer.ts",
