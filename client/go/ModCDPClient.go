@@ -237,6 +237,10 @@ type CDPEvent struct {
 	SessionID    string         `json:"sessionId,omitempty"`
 }
 
+type ModDomain struct {
+	client *ModCDPClient
+}
+
 type ModCDPClient struct {
 	Accessibility        AccessibilityDomain
 	Animation            AnimationDomain
@@ -292,6 +296,7 @@ type ModCDPClient struct {
 	Tracing              TracingDomain
 	WebAudio             WebAudioDomain
 	WebAuthn             WebAuthnDomain
+	Mod                  ModDomain
 
 	opts                 Options
 	CDPURL               string
@@ -438,6 +443,7 @@ func New(opts Options) *ModCDPClient {
 		commandResultSchemas: map[string]map[string]any{},
 		event_schemas:        map[string]map[string]any{},
 	}
+	client.Mod = ModDomain{client: client}
 	client.autoSessions = NewAutoSessionRouter(
 		func(method string, params map[string]any, sessionID string) (map[string]any, error) {
 			return client.sendMessage(method, params, sessionID)
@@ -933,6 +939,51 @@ func (c *ModCDPClient) Send(method string, params map[string]any, sessionID ...s
 		targetSessionID = sessionID[0]
 	}
 	return c.sendCommand(method, params, targetSessionID, true)
+}
+
+func (d ModDomain) Evaluate(params map[string]any) (any, error) {
+	return d.client.Send("Mod.evaluate", params)
+}
+
+func (d ModDomain) AddCustomCommand(params CustomCommand) (any, error) {
+	commandParams := map[string]any{"name": params.Name}
+	if params.Expression != "" {
+		commandParams["expression"] = params.Expression
+	}
+	if params.ParamsSchema != nil {
+		commandParams["params_schema"] = params.ParamsSchema
+	}
+	if params.ResultSchema != nil {
+		commandParams["result_schema"] = params.ResultSchema
+	}
+	return d.client.Send("Mod.addCustomCommand", commandParams)
+}
+
+func (d ModDomain) AddCustomEvent(params CustomEvent) (any, error) {
+	eventParams := map[string]any{"name": params.Name}
+	if params.EventSchema != nil {
+		eventParams["event_schema"] = params.EventSchema
+	}
+	return d.client.Send("Mod.addCustomEvent", eventParams)
+}
+
+func (d ModDomain) AddMiddleware(params CustomMiddleware) (any, error) {
+	middlewareParams := map[string]any{
+		"phase":      params.Phase,
+		"expression": params.Expression,
+	}
+	if params.Name != "" {
+		middlewareParams["name"] = params.Name
+	}
+	return d.client.Send("Mod.addMiddleware", middlewareParams)
+}
+
+func (d ModDomain) Configure(params map[string]any) (any, error) {
+	return d.client.Send("Mod.configure", params)
+}
+
+func (d ModDomain) Ping(params map[string]any) (any, error) {
+	return d.client.Send("Mod.ping", params)
 }
 
 func (c *ModCDPClient) sendCommand(method string, params map[string]any, targetSessionID string, validateSchema bool) (any, error) {

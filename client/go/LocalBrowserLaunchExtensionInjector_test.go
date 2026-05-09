@@ -41,7 +41,7 @@ func TestLocalBrowserLaunchExtensionInjectorLoadsRealExtensionDuringLocalLaunch(
 	if cdp.ExtSessionID == "" {
 		t.Fatal("expected ExtSessionID")
 	}
-	result, err := cdp.Send("Mod.evaluate", map[string]any{
+	result, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
 	})
 	if err != nil {

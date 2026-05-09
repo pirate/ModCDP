@@ -8,9 +8,9 @@ import (
 
 func TestSchemaOnlyAddCustomCommandRegistersWithoutConnection(t *testing.T) {
 	cdp := New(Options{})
-	result, err := cdp.Send("Mod.addCustomCommand", map[string]any{
-		"name": "Custom.clientOnly",
-		"params_schema": map[string]any{
+	result, err := cdp.Mod.AddCustomCommand(CustomCommand{
+		Name: "Custom.clientOnly",
+		ParamsSchema: map[string]any{
 			"type":                 "object",
 			"required":             []any{"tabId"},
 			"properties":           map[string]any{"tabId": map[string]any{"type": "integer"}},
@@ -41,10 +41,10 @@ func TestTypedCustomCommandRegistrationBuildsSchemas(t *testing.T) {
 	}
 
 	cdp := New(Options{})
-	result, err := cdp.Send("Mod.addCustomCommand", map[string]any{
-		"name":          "Custom.doSomething",
-		"params_schema": abxjsonschema.SchemaFor[ParamsSchema](),
-		"result_schema": abxjsonschema.SchemaFor[ResultSchema](),
+	result, err := cdp.Mod.AddCustomCommand(CustomCommand{
+		Name:         "Custom.doSomething",
+		ParamsSchema: abxjsonschema.SchemaFor[ParamsSchema](),
+		ResultSchema: abxjsonschema.SchemaFor[ResultSchema](),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,9 +77,9 @@ func TestTypedCustomEventRegistrationAndHandler(t *testing.T) {
 	}
 
 	cdp := New(Options{})
-	result, err := cdp.Send("Mod.addCustomEvent", map[string]any{
-		"name":         "Custom.someEvent",
-		"event_schema": abxjsonschema.SchemaFor[EventSchema](),
+	result, err := cdp.Mod.AddCustomEvent(CustomEvent{
+		Name:        "Custom.someEvent",
+		EventSchema: abxjsonschema.SchemaFor[EventSchema](),
 	})
 	if err != nil {
 		t.Fatal(err)

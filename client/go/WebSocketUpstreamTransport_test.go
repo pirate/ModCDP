@@ -99,7 +99,7 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 	if !foundServiceWorker {
 		t.Fatalf("ModCDP service worker target not found after connect: %#v", targets["targetInfos"])
 	}
-	evaluated, err := cdp.Send("Mod.evaluate", map[string]any{
+	evaluated, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "Boolean(globalThis.ModCDP?.handleCommand && chrome.runtime.getURL('modcdp/service_worker.js'))",
 	})
 	if err != nil {

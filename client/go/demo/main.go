@@ -189,7 +189,11 @@ func main() {
 		serverConfig["loopback_cdp_url"] = cdp.CDPURL
 	}
 	configureParams := map[string]any{"server": serverConfig}
-	configure := mustMap(mustSend(cdp, "Mod.configure", configureParams), "Mod.configure")
+	configureRaw, err := cdp.Mod.Configure(configureParams)
+	if err != nil {
+		log.Fatalf("Mod.configure: %v", err)
+	}
+	configure := mustMap(configureRaw, "Mod.configure")
 	configureRoutes := mustMap(configure["routes"], "Mod.configure.routes")
 	if configureRoutes["*.*"] != serverRoutesFor(mode)["*.*"] {
 		log.Fatalf("unexpected Mod.configure result: %v", configure)
@@ -203,7 +207,11 @@ func main() {
 		}
 	})
 	ping_sent_at := time.Now().UnixMilli()
-	ping := mustMap(mustSend(cdp, "Mod.ping", map[string]any{"sent_at": ping_sent_at}), "Mod.ping")
+	pingRaw, err := cdp.Mod.Ping(map[string]any{"sent_at": ping_sent_at})
+	if err != nil {
+		log.Fatalf("Mod.ping: %v", err)
+	}
+	ping := mustMap(pingRaw, "Mod.ping")
 	pong := waitForEvent(pongCh, "Mod.pong", func(event map[string]any) bool {
 		return event["sent_at"] == float64(ping_sent_at) || event["sent_at"] == ping_sent_at
 	})
@@ -238,7 +246,7 @@ func main() {
 		fmt.Println("Browser.getVersion ->", string(b))
 	}
 
-	if r, err := cdp.Send("Mod.evaluate", map[string]any{
+	if r, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "({ extension_id: chrome.runtime.id })",
 	}); err != nil {
 		log.Fatalf("Mod.evaluate: %v", err)
@@ -251,10 +259,14 @@ func main() {
 		fmt.Println("Mod.evaluate     ->", string(b))
 	}
 
-	echoRegistration := mustMap(mustSend(cdp, "Mod.addCustomCommand", map[string]any{
-		"name":       "Custom.echo",
-		"expression": `async (params, method) => ({ echoed: params.value, method })`,
-	}), "Mod.addCustomCommand Custom.echo")
+	echoRegistrationRaw, err := cdp.Mod.AddCustomCommand(modcdp.CustomCommand{
+		Name:       "Custom.echo",
+		Expression: `async (params, method) => ({ echoed: params.value, method })`,
+	})
+	if err != nil {
+		log.Fatalf("Mod.addCustomCommand Custom.echo: %v", err)
+	}
+	echoRegistration := mustMap(echoRegistrationRaw, "Mod.addCustomCommand Custom.echo")
 	if echoRegistration["registered"] != true || echoRegistration["name"] != "Custom.echo" {
 		log.Fatalf("unexpected Custom.echo registration: %v", echoRegistration)
 	}
@@ -265,33 +277,41 @@ func main() {
 	b, _ := json.Marshal(echoResult)
 	fmt.Println("Custom.echo      ->", string(b))
 
-	tabCommandRegistration := mustMap(mustSend(cdp, "Mod.addCustomCommand", map[string]any{
-		"name": "Custom.TabIdFromTargetId",
-		"expression": `async ({ targetId }) => {
+	tabCommandRegistrationRaw, err := cdp.Mod.AddCustomCommand(modcdp.CustomCommand{
+		Name: "Custom.TabIdFromTargetId",
+		Expression: `async ({ targetId }) => {
           const targets = await chrome.debugger.getTargets();
           const target = targets.find(target => target.id === targetId);
           return { tabId: target?.tabId ?? null };
         }`,
-	}), "Mod.addCustomCommand Custom.TabIdFromTargetId")
+	})
+	if err != nil {
+		log.Fatalf("Mod.addCustomCommand Custom.TabIdFromTargetId: %v", err)
+	}
+	tabCommandRegistration := mustMap(tabCommandRegistrationRaw, "Mod.addCustomCommand Custom.TabIdFromTargetId")
 	if tabCommandRegistration["registered"] != true {
 		log.Fatalf("unexpected TabIdFromTargetId registration: %v", tabCommandRegistration)
 	}
-	targetCommandRegistration := mustMap(mustSend(cdp, "Mod.addCustomCommand", map[string]any{
-		"name": "Custom.targetIdFromTabId",
-		"expression": `async ({ tabId }) => {
+	targetCommandRegistrationRaw, err := cdp.Mod.AddCustomCommand(modcdp.CustomCommand{
+		Name: "Custom.targetIdFromTabId",
+		Expression: `async ({ tabId }) => {
           const targets = await chrome.debugger.getTargets();
           const target = targets.find(target => target.type === "page" && target.tabId === tabId);
           return { targetId: target?.id ?? null };
         }`,
-	}), "Mod.addCustomCommand Custom.targetIdFromTabId")
+	})
+	if err != nil {
+		log.Fatalf("Mod.addCustomCommand Custom.targetIdFromTabId: %v", err)
+	}
+	targetCommandRegistration := mustMap(targetCommandRegistrationRaw, "Mod.addCustomCommand Custom.targetIdFromTabId")
 	if targetCommandRegistration["registered"] != true {
 		log.Fatalf("unexpected targetIdFromTabId registration: %v", targetCommandRegistration)
 	}
 	for _, phase := range []string{"response", "event"} {
-		middlewareRegistration := mustMap(mustSend(cdp, "Mod.addMiddleware", map[string]any{
-			"name":  "*",
-			"phase": phase,
-			"expression": `async (payload, next) => {
+		middlewareRegistrationRaw, err := cdp.Mod.AddMiddleware(modcdp.CustomMiddleware{
+			Name:  "*",
+			Phase: phase,
+			Expression: `async (payload, next) => {
               const seen = new WeakSet();
               const visit = async value => {
                 if (!value || typeof value !== "object" || seen.has(value)) return;
@@ -305,7 +325,11 @@ func main() {
               await visit(payload);
               return next(payload);
             }`,
-		}), "Mod.addMiddleware "+phase)
+		})
+		if err != nil {
+			log.Fatalf("Mod.addMiddleware %s: %v", phase, err)
+		}
+		middlewareRegistration := mustMap(middlewareRegistrationRaw, "Mod.addMiddleware "+phase)
 		if middlewareRegistration["registered"] != true || middlewareRegistration["phase"] != phase {
 			log.Fatalf("unexpected %s middleware registration: %v", phase, middlewareRegistration)
 		}
@@ -317,13 +341,21 @@ func main() {
 			demoEventCh <- event
 		}
 	})
-	demoEventRegistration := mustMap(mustSend(cdp, "Mod.addCustomEvent", map[string]any{"name": "Custom.demoEvent"}), "Mod.addCustomEvent Custom.demoEvent")
+	demoEventRegistrationRaw, err := cdp.Mod.AddCustomEvent(modcdp.CustomEvent{Name: "Custom.demoEvent"})
+	if err != nil {
+		log.Fatalf("Mod.addCustomEvent Custom.demoEvent: %v", err)
+	}
+	demoEventRegistration := mustMap(demoEventRegistrationRaw, "Mod.addCustomEvent Custom.demoEvent")
 	if demoEventRegistration["registered"] != true || demoEventRegistration["name"] != "Custom.demoEvent" {
 		log.Fatalf("unexpected Custom.demoEvent registration: %v", demoEventRegistration)
 	}
-	emitResult := mustMap(mustSend(cdp, "Mod.evaluate", map[string]any{
+	emitRaw, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": `async () => await ModCDP.emit("Custom.demoEvent", { value: "custom-event-ok" })`,
-	}), "Custom.demoEvent emit")
+	})
+	if err != nil {
+		log.Fatalf("Custom.demoEvent emit: %v", err)
+	}
+	emitResult := mustMap(emitRaw, "Custom.demoEvent emit")
 	if emitResult["emitted"] != true {
 		log.Fatalf("unexpected Custom.demoEvent emit result: %v", emitResult)
 	}
@@ -332,7 +364,11 @@ func main() {
 	})
 	fmt.Println("Custom.demoEvent ->", demoEvent)
 
-	foregroundEventRegistration := mustMap(mustSend(cdp, "Mod.addCustomEvent", map[string]any{"name": "Custom.foregroundTargetChanged"}), "Mod.addCustomEvent Custom.foregroundTargetChanged")
+	foregroundEventRegistrationRaw, err := cdp.Mod.AddCustomEvent(modcdp.CustomEvent{Name: "Custom.foregroundTargetChanged"})
+	if err != nil {
+		log.Fatalf("Mod.addCustomEvent Custom.foregroundTargetChanged: %v", err)
+	}
+	foregroundEventRegistration := mustMap(foregroundEventRegistrationRaw, "Mod.addCustomEvent Custom.foregroundTargetChanged")
 	if foregroundEventRegistration["registered"] != true {
 		log.Fatalf("unexpected foreground event registration: %v", foregroundEventRegistration)
 	}
@@ -343,7 +379,7 @@ func main() {
 		foregroundEvents = append(foregroundEvents, event)
 		eventsMu.Unlock()
 	})
-	if _, err := cdp.Send("Mod.evaluate", map[string]any{
+	if _, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": `chrome.tabs.onActivated.addListener(async ({ tabId }) => {
             const targets = await chrome.debugger.getTargets();
             const target = targets.find(target => target.type === "page" && target.tabId === tabId);

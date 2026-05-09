@@ -121,16 +121,16 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 		}
 	}
 
-	if _, err := cdp.Send("Mod.addCustomCommand", map[string]any{
-		"name":       "Custom.tabIdFromTargetId",
-		"expression": tabIDFromTargetIDCommand,
+	if _, err := cdp.Mod.AddCustomCommand(CustomCommand{
+		Name:       "Custom.tabIdFromTargetId",
+		Expression: tabIDFromTargetIDCommand,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cdp.Send("Mod.addMiddleware", map[string]any{
-		"name":       "*",
-		"phase":      "response",
-		"expression": addTabIDMiddleware,
+	if _, err := cdp.Mod.AddMiddleware(CustomMiddleware{
+		Name:       "*",
+		Phase:      "response",
+		Expression: addTabIDMiddleware,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -142,16 +142,16 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 		t.Fatal("wildcard response middleware should add tabId next to targetId inside TargetInfo")
 	}
 
-	if _, err := cdp.Send("Mod.addMiddleware", map[string]any{
-		"name":       "*",
-		"phase":      "event",
-		"expression": addTabIDMiddleware,
+	if _, err := cdp.Mod.AddMiddleware(CustomMiddleware{
+		Name:       "*",
+		Phase:      "event",
+		Expression: addTabIDMiddleware,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cdp.Send("Mod.addCustomCommand", map[string]any{
-		"name":       "Target.getTargets",
-		"expression": getTargetsOverride,
+	if _, err := cdp.Mod.AddCustomCommand(CustomCommand{
+		Name:       "Target.getTargets",
+		Expression: getTargetsOverride,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 		t.Fatal("expected at least one page target to be matched to a chrome.tabs tab id")
 	}
 
-	if _, err := cdp.Send("Mod.addCustomEvent", map[string]any{"name": "Target.targetCreated"}); err != nil {
+	if _, err := cdp.Mod.AddCustomEvent(CustomEvent{Name: "Target.targetCreated"}); err != nil {
 		t.Fatal(err)
 	}
 	transformedEvents := make(chan map[string]any, 8)

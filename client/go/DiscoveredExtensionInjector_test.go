@@ -45,7 +45,7 @@ func TestDiscoveredExtensionInjectorAttachesToAlreadyLoadedRealModCDPExtension(t
 	if cdp.ExtensionID != DefaultModCDPExtensionID {
 		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
 	}
-	result, err := cdp.Send("Mod.evaluate", map[string]any{
+	result, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
 	})
 	if err != nil {
@@ -116,7 +116,7 @@ func TestDiscoveredExtensionInjectorSelectsConfiguredExtensionWhenMultipleModCDP
 	if cdp.ExtensionID != customDiscoveredExtensionID {
 		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
 	}
-	result, err := cdp.Send("Mod.evaluate", map[string]any{"expression": "chrome.runtime.id"})
+	result, err := cdp.Mod.Evaluate(map[string]any{"expression": "chrome.runtime.id"})
 	if err != nil {
 		t.Fatal(err)
 	}

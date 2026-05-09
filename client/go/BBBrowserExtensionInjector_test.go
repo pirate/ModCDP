@@ -80,7 +80,7 @@ func TestBBBrowserExtensionInjectorUploadsRealExtensionAndLaunchesBrowserbaseBro
 	if cdp.ExtensionID == "" {
 		t.Fatal("expected ExtensionID")
 	}
-	result, err := cdp.Send("Mod.evaluate", map[string]any{
+	result, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
 	})
 	if err != nil {

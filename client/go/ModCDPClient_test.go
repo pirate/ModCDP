@@ -348,7 +348,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	if cdp.ExtensionID != DefaultModCDPExtensionID {
 		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
 	}
-	result, err := cdp.Send("Mod.evaluate", map[string]any{
+	result, err := cdp.Mod.Evaluate(map[string]any{
 		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
 	})
 	if err != nil {
@@ -402,7 +402,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 			pong <- event
 		}
 	})
-	ping_raw, err := cdp.Send("Mod.ping", map[string]any{"sent_at": sent_at})
+	ping_raw, err := cdp.Mod.Ping(map[string]any{"sent_at": sent_at})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 			t.Fatalf("off handler received payload %#v", payload)
 		case <-time.After(200 * time.Millisecond):
 		}
-		if _, err := cdp.Send("Mod.ping", map[string]any{"sent_at": sent_at + 1}); err != nil {
+		if _, err := cdp.Mod.Ping(map[string]any{"sent_at": sent_at + 1}); err != nil {
 			t.Fatal(err)
 		}
 		select {
