@@ -71,7 +71,6 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
 
     const project_id = firstString(
       merged.project_id,
-      merged.project_id,
       merged.browserbase_project_id,
       process.env.BROWSERBASE_PROJECT_ID,
       process.env.BB_PROJECT_ID,
