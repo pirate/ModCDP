@@ -396,7 +396,7 @@ type ReverseHello = {
   type: "modcdp.reverse.hello";
   role?: string;
   version?: number;
-  extensionId?: string | null;
+  extension_id?: string | null;
 };
 type ReversePeerState = {
   socket: WebSocket | null;
@@ -494,7 +494,7 @@ function acceptReversePeer(state: ReversePeerState, socket: WebSocket) {
     }
     state.socket = socket;
     state.info = hello;
-    log("reverse extension connected", hello.extensionId || "(unknown extension)");
+    log("reverse extension connected", hello.extension_id || "(unknown extension)");
     socket.addEventListener("close", () => {
       if (state.socket !== socket) return;
       state.socket = null;

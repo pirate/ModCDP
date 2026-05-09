@@ -476,7 +476,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
           type: "modcdp.reverse.hello",
           role: "extension-service-worker",
           version: 1,
-          extensionId: globalScope.chrome?.runtime?.id ?? null,
+          extension_id: globalScope.chrome?.runtime?.id ?? null,
         }),
       );
     });

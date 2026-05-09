@@ -8,7 +8,7 @@ type ReverseHello = {
   type: "modcdp.reverse.hello";
   role?: string;
   version?: number;
-  extensionId?: string | null;
+  extension_id?: string | null;
 };
 
 export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {

@@ -59,6 +59,10 @@ test("reversews upstream accepts a real extension reverse connection and routes 
     assert.equal(reverse.transport?.mode, "reversews");
     assert.equal(reverse.upstream_endpoint_kind, "modcdp_server");
     assert.equal(reverse.transport?.url, reverse_url);
+    assert.equal(
+      (reverse.transport as ReverseWebSocketUpstreamTransport).peer_info?.extension_id,
+      "mdedooklbnfejodmnhmkdpkaedafkehf",
+    );
     const version = (await reverse.send("Browser.getVersion")) as Record<string, unknown>;
     assert.equal(typeof version.product, "string");
   } finally {
