@@ -140,9 +140,9 @@ class _ModDomain:
     ):
         payload: dict[str, Any] = {"name": name}
         if params_schema is not None:
-            payload["paramsSchema"] = params_schema
+            payload["params_schema"] = params_schema
         if result_schema is not None:
-            payload["resultSchema"] = result_schema
+            payload["result_schema"] = result_schema
         if expression is not None:
             payload["expression"] = expression
         return self._client._send_command("Mod.addCustomCommand", payload)
@@ -150,7 +150,7 @@ class _ModDomain:
     def addCustomEvent(self, name: str, *, event_schema: Any | None = None):
         payload: dict[str, Any] = {"name": name}
         if event_schema is not None:
-            payload["eventSchema"] = event_schema
+            payload["event_schema"] = event_schema
         return self._client._send_command("Mod.addCustomEvent", payload)
 
     def addMiddleware(self, *, phase: str, expression: str, name: str | None = None):
@@ -882,8 +882,8 @@ class ModCDPClient(CDPSurfaceMixin):
         name = params.get("name")
         if not isinstance(name, str) or not name:
             raise TypeError("name must be a non-empty string")
-        params_schema, _, _ = self._adapter_from_optional_schema(params.get("paramsSchema"), "paramsSchema")
-        result_schema, _, result_is_model = self._adapter_from_optional_schema(params.get("resultSchema"), "resultSchema")
+        params_schema, _, _ = self._adapter_from_optional_schema(params.get("params_schema"), "params_schema")
+        result_schema, _, result_is_model = self._adapter_from_optional_schema(params.get("result_schema"), "result_schema")
         with self._schema_lock:
             if params_schema is not None:
                 self._command_params_schemas[name] = params_schema
@@ -896,26 +896,26 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def _custom_command_wire_params(self, params: ProtocolParams) -> ProtocolParams:
         wire = dict(params)
-        _, params_schema, _ = self._adapter_from_optional_schema(wire.get("paramsSchema"), "paramsSchema")
-        _, result_schema, _ = self._adapter_from_optional_schema(wire.get("resultSchema"), "resultSchema")
-        if "paramsSchema" in wire:
-            wire["paramsSchema"] = cast(JsonValue, params_schema)
-        if "resultSchema" in wire:
-            wire["resultSchema"] = cast(JsonValue, result_schema)
+        _, params_schema, _ = self._adapter_from_optional_schema(wire.get("params_schema"), "params_schema")
+        _, result_schema, _ = self._adapter_from_optional_schema(wire.get("result_schema"), "result_schema")
+        if "params_schema" in wire:
+            wire["params_schema"] = cast(JsonValue, params_schema)
+        if "result_schema" in wire:
+            wire["result_schema"] = cast(JsonValue, result_schema)
         return cast(ProtocolParams, wire)
 
     def _custom_event_wire_params(self, params: ProtocolParams) -> ProtocolParams:
         wire = dict(params)
-        _, event_schema, _ = self._adapter_from_optional_schema(wire.get("eventSchema"), "eventSchema")
-        if "eventSchema" in wire:
-            wire["eventSchema"] = cast(JsonValue, event_schema)
+        _, event_schema, _ = self._adapter_from_optional_schema(wire.get("event_schema"), "event_schema")
+        if "event_schema" in wire:
+            wire["event_schema"] = cast(JsonValue, event_schema)
         return cast(ProtocolParams, wire)
 
     def _register_custom_event(self, params: ProtocolParams) -> None:
         name = params.get("name")
         if not isinstance(name, str) or not name:
             raise TypeError("name must be a non-empty string")
-        event_schema, _, event_is_model = self._adapter_from_optional_schema(params.get("eventSchema"), "eventSchema")
+        event_schema, _, event_is_model = self._adapter_from_optional_schema(params.get("event_schema"), "event_schema")
         if event_schema is not None:
             with self._schema_lock:
                 self._event_schemas[name] = event_schema
@@ -942,10 +942,10 @@ class ModCDPClient(CDPSurfaceMixin):
         try:
             validated = adapter.validate_python(dict(params))
         except ValidationError as e:
-            raise ValueError(f"{method} params did not match paramsSchema: {e}") from e
+            raise ValueError(f"{method} params did not match params_schema: {e}") from e
         jsonable = to_jsonable_python(validated)
         if not isinstance(jsonable, Mapping):
-            raise ValueError(f"{method} paramsSchema must validate to a JSON object")
+            raise ValueError(f"{method} params_schema must validate to a JSON object")
         return cast(ProtocolParams, dict(jsonable))
 
     def _validate_command_result(self, method: str, result: Any) -> Any:
@@ -956,7 +956,7 @@ class ModCDPClient(CDPSurfaceMixin):
         try:
             validated = adapter.validate_python(result)
         except ValidationError as e:
-            raise ValueError(f"{method} result did not match resultSchema: {e}") from e
+            raise ValueError(f"{method} result did not match result_schema: {e}") from e
         if method in self._command_result_model_schemas and isinstance(validated, BaseModel):
             fields = list(type(validated).model_fields)
             if len(fields) == 1:
@@ -973,12 +973,12 @@ class ModCDPClient(CDPSurfaceMixin):
             validated = adapter.validate_python(dict(payload))
         except ValidationError as direct_error:
             if set(payload.keys()) != {"value"}:
-                print(f"[ModCDPClient] event {event} did not match eventSchema: {direct_error}", file=sys.stderr)
+                print(f"[ModCDPClient] event {event} did not match event_schema: {direct_error}", file=sys.stderr)
                 return None
             try:
                 validated = adapter.validate_python(payload["value"])
             except ValidationError as value_error:
-                print(f"[ModCDPClient] event {event} did not match eventSchema: {value_error}", file=sys.stderr)
+                print(f"[ModCDPClient] event {event} did not match event_schema: {value_error}", file=sys.stderr)
                 return None
             if event in self._event_model_schemas:
                 return cast(ProtocolPayload, validated)

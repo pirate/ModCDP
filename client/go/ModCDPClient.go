@@ -119,14 +119,14 @@ type ServerConfig struct {
 
 type CustomEvent struct {
 	Name        string         `json:"name"`
-	EventSchema map[string]any `json:"eventSchema,omitempty"`
+	EventSchema map[string]any `json:"event_schema,omitempty"`
 }
 
 type CustomCommand struct {
 	Name         string         `json:"name"`
 	Expression   string         `json:"expression,omitempty"`
-	ParamsSchema map[string]any `json:"paramsSchema,omitempty"`
-	ResultSchema map[string]any `json:"resultSchema,omitempty"`
+	ParamsSchema map[string]any `json:"params_schema,omitempty"`
+	ResultSchema map[string]any `json:"result_schema,omitempty"`
 }
 
 type CustomMiddleware struct {
@@ -295,7 +295,7 @@ type ModCDPClient struct {
 	cdpHandlers          map[string][]func(CDPEvent)
 	commandParamsSchemas map[string]map[string]any
 	commandResultSchemas map[string]map[string]any
-	eventSchemas         map[string]map[string]any
+	event_schemas        map[string]map[string]any
 	schemaMu             sync.RWMutex
 	handlersMu           sync.Mutex
 	autoSessions         *AutoSessionRouter
@@ -411,7 +411,7 @@ func New(opts Options) *ModCDPClient {
 		cdpHandlers:          map[string][]func(CDPEvent){},
 		commandParamsSchemas: map[string]map[string]any{},
 		commandResultSchemas: map[string]map[string]any{},
-		eventSchemas:         map[string]map[string]any{},
+		event_schemas:        map[string]map[string]any{},
 	}
 	client.autoSessions = NewAutoSessionRouter(
 		func(method string, params map[string]any, sessionID string) (map[string]any, error) {
@@ -529,17 +529,17 @@ func (c *ModCDPClient) Connect() error {
 				continue
 			}
 			customCommands = append(customCommands, map[string]any{
-				"name":         command.Name,
-				"expression":   command.Expression,
-				"paramsSchema": command.ParamsSchema,
-				"resultSchema": command.ResultSchema,
+				"name":          command.Name,
+				"expression":    command.Expression,
+				"params_schema": command.ParamsSchema,
+				"result_schema": command.ResultSchema,
 			})
 		}
 		customEvents := make([]map[string]any, 0, len(c.opts.CustomEvents))
 		for _, event := range c.opts.CustomEvents {
 			customEvents = append(customEvents, map[string]any{
-				"name":        event.Name,
-				"eventSchema": event.EventSchema,
+				"name":         event.Name,
+				"event_schema": event.EventSchema,
 			})
 		}
 		customMiddlewares := make([]map[string]any, 0, len(c.opts.CustomMiddlewares))
@@ -882,7 +882,7 @@ func (c *ModCDPClient) hydrateCustomSurface() {
 			continue
 		}
 		if schema := cloneSchema(event.EventSchema); schema != nil {
-			c.eventSchemas[name] = schema
+			c.event_schemas[name] = schema
 		}
 	}
 }
@@ -895,19 +895,19 @@ func (c *ModCDPClient) registerCustomCommandParams(params map[string]any) (strin
 	}
 	c.schemaMu.Lock()
 	defer c.schemaMu.Unlock()
-	if rawSchema, exists := params["paramsSchema"]; exists {
+	if rawSchema, exists := params["params_schema"]; exists {
 		schemaObject, ok := rawSchema.(map[string]any)
 		if !ok {
-			return "", false, fmt.Errorf("paramsSchema must be a JSON Schema object")
+			return "", false, fmt.Errorf("params_schema must be a JSON Schema object")
 		}
 		if schema := cloneSchema(schemaObject); schema != nil {
 			c.commandParamsSchemas[name] = schema
 		}
 	}
-	if rawSchema, exists := params["resultSchema"]; exists {
+	if rawSchema, exists := params["result_schema"]; exists {
 		schemaObject, ok := rawSchema.(map[string]any)
 		if !ok {
-			return "", false, fmt.Errorf("resultSchema must be a JSON Schema object")
+			return "", false, fmt.Errorf("result_schema must be a JSON Schema object")
 		}
 		if schema := cloneSchema(schemaObject); schema != nil {
 			c.commandResultSchemas[name] = schema
@@ -925,13 +925,13 @@ func (c *ModCDPClient) registerCustomEventParams(params map[string]any) (string,
 	}
 	c.schemaMu.Lock()
 	defer c.schemaMu.Unlock()
-	if rawSchema, exists := params["eventSchema"]; exists {
+	if rawSchema, exists := params["event_schema"]; exists {
 		schemaObject, ok := rawSchema.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("eventSchema must be a JSON Schema object")
+			return "", fmt.Errorf("event_schema must be a JSON Schema object")
 		}
 		if schema := cloneSchema(schemaObject); schema != nil {
-			c.eventSchemas[name] = schema
+			c.event_schemas[name] = schema
 		}
 	}
 	return name, nil
@@ -945,7 +945,7 @@ func (c *ModCDPClient) validateCommandParams(method string, params map[string]an
 		return nil
 	}
 	if err := abxjsonschema.Validate(schema, params); err != nil {
-		return fmt.Errorf("%s params did not match paramsSchema: %w", method, err)
+		return fmt.Errorf("%s params did not match params_schema: %w", method, err)
 	}
 	return nil
 }
@@ -958,20 +958,20 @@ func (c *ModCDPClient) validateCommandResult(method string, result any) error {
 		return nil
 	}
 	if err := abxjsonschema.Validate(schema, result); err != nil {
-		return fmt.Errorf("%s result did not match resultSchema: %w", method, err)
+		return fmt.Errorf("%s result did not match result_schema: %w", method, err)
 	}
 	return nil
 }
 
 func (c *ModCDPClient) validateEventData(event string, data any) (any, bool) {
 	c.schemaMu.RLock()
-	schema := c.eventSchemas[event]
+	schema := c.event_schemas[event]
 	c.schemaMu.RUnlock()
 	if schema == nil {
 		return data, true
 	}
 	if err := abxjsonschema.Validate(schema, data); err != nil {
-		fmt.Fprintf(os.Stderr, "[ModCDPClient] %s event did not match eventSchema: %v\n", event, err)
+		fmt.Fprintf(os.Stderr, "[ModCDPClient] %s event did not match event_schema: %v\n", event, err)
 		return nil, false
 	}
 	return data, true

@@ -21,8 +21,8 @@ class _ModCDPAddCustomCommandRequired(TypedDict):
 
 class ModCDPAddCustomCommandParams(_ModCDPAddCustomCommandRequired, total=False):
     expression: str | None
-    paramsSchema: JsonValue
-    resultSchema: JsonValue
+    params_schema: JsonValue
+    result_schema: JsonValue
 
 
 class _ModCDPAddCustomEventObjectRequired(TypedDict):
@@ -30,7 +30,7 @@ class _ModCDPAddCustomEventObjectRequired(TypedDict):
 
 
 class ModCDPAddCustomEventObjectParams(_ModCDPAddCustomEventObjectRequired, total=False):
-    eventSchema: JsonValue
+    event_schema: JsonValue
 
 
 ModCDPAddCustomEventParams: TypeAlias = str | ModCDPAddCustomEventObjectParams

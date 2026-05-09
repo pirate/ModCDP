@@ -87,10 +87,10 @@ func wrapModCDPAddCustomCommand(params map[string]any) map[string]any {
 	name, _ := json.Marshal(params["name"])
 	expr, _ := params["expression"].(string)
 	exprJSON, _ := json.Marshal(expr)
-	pSchema, _ := json.Marshal(params["paramsSchema"])
-	rSchema, _ := json.Marshal(params["resultSchema"])
+	pSchema, _ := json.Marshal(params["params_schema"])
+	rSchema, _ := json.Marshal(params["result_schema"])
 	return evalParams(fmt.Sprintf(
-		`(() => { return globalThis.ModCDP.addCustomCommand({ name: %s, paramsSchema: %s, resultSchema: %s, expression: %s, handler: async (params, cdpSessionId, method) => { const cdp = globalThis.ModCDP.attachToSession(cdpSessionId); const ModCDP = globalThis.ModCDP; const chrome = globalThis.chrome; const handler = (%s); return await handler(params || {}, method); }, }); })()`,
+		`(() => { return globalThis.ModCDP.addCustomCommand({ name: %s, params_schema: %s, result_schema: %s, expression: %s, handler: async (params, cdpSessionId, method) => { const cdp = globalThis.ModCDP.attachToSession(cdpSessionId); const ModCDP = globalThis.ModCDP; const chrome = globalThis.chrome; const handler = (%s); return await handler(params || {}, method); }, }); })()`,
 		string(name), string(pSchema), string(rSchema), string(exprJSON), expr,
 	))
 }
@@ -98,9 +98,9 @@ func wrapModCDPAddCustomCommand(params map[string]any) map[string]any {
 func wrapModCDPAddCustomEvent(params map[string]any) map[string]any {
 	rawName, _ := params["name"].(string)
 	name, _ := json.Marshal(rawName)
-	pSchema, _ := json.Marshal(params["eventSchema"])
+	pSchema, _ := json.Marshal(params["event_schema"])
 	return evalParams(fmt.Sprintf(
-		`globalThis.ModCDP.addCustomEvent({ name: %s, eventSchema: %s })`,
+		`globalThis.ModCDP.addCustomEvent({ name: %s, event_schema: %s })`,
 		string(name), string(pSchema),
 	))
 }

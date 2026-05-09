@@ -19,10 +19,10 @@ func TestPayloadSchemaNormalizationAcceptsEmptyJSONSchemaObjects(t *testing.T) {
 
 func TestPayloadSchemaNormalizationRejectsUnsupportedSchemaSpecs(t *testing.T) {
 	_, err := New(Options{}).Send("Mod.addCustomCommand", map[string]any{
-		"name":         "Custom.bad",
-		"paramsSchema": "not-a-schema",
+		"name":          "Custom.bad",
+		"params_schema": "not-a-schema",
 	})
-	if err == nil || !strings.Contains(err.Error(), "paramsSchema must be a JSON Schema object") {
+	if err == nil || !strings.Contains(err.Error(), "params_schema must be a JSON Schema object") {
 		t.Fatalf("expected unsupported schema error, got %v", err)
 	}
 }

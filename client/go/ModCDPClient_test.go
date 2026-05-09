@@ -244,13 +244,13 @@ func TestCustomCommandSchemasValidateParamsAndResults(t *testing.T) {
 	if err := cdp.validateCommandParams("Custom.echo", map[string]any{"value": "ok"}); err != nil {
 		t.Fatalf("expected valid params, got %v", err)
 	}
-	if err := cdp.validateCommandParams("Custom.echo", map[string]any{"value": 42}); err == nil || !strings.Contains(err.Error(), "paramsSchema") {
+	if err := cdp.validateCommandParams("Custom.echo", map[string]any{"value": 42}); err == nil || !strings.Contains(err.Error(), "params_schema") {
 		t.Fatalf("expected params schema error, got %v", err)
 	}
 	if err := cdp.validateCommandResult("Custom.echo", map[string]any{"value": "ok"}); err != nil {
 		t.Fatalf("expected valid result, got %v", err)
 	}
-	if err := cdp.validateCommandResult("Custom.echo", map[string]any{"value": 42}); err == nil || !strings.Contains(err.Error(), "resultSchema") {
+	if err := cdp.validateCommandResult("Custom.echo", map[string]any{"value": 42}); err == nil || !strings.Contains(err.Error(), "result_schema") {
 		t.Fatalf("expected result schema error, got %v", err)
 	}
 }

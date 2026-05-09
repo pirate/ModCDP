@@ -202,13 +202,13 @@ class ModCDPClientTests(unittest.TestCase):
             "Mod.addCustomCommand",
             {
                 "name": "Custom.echo",
-                "paramsSchema": {
+                "params_schema": {
                     "type": "object",
                     "properties": {"text": {"type": "string", "minLength": 1}},
                     "required": ["text"],
                     "additionalProperties": False,
                 },
-                "resultSchema": {
+                "result_schema": {
                     "type": "object",
                     "properties": {"text": {"type": "string"}},
                     "required": ["text"],
@@ -232,7 +232,7 @@ class ModCDPClientTests(unittest.TestCase):
             custom_commands=[
                 {
                     "name": "Custom.collect",
-                    "paramsSchema": {
+                    "params_schema": {
                         "type": "object",
                         "properties": {
                             "items": {
@@ -268,7 +268,7 @@ class ModCDPClientTests(unittest.TestCase):
             custom_events=[
                 {
                     "name": "Custom.ready",
-                    "eventSchema": {
+                    "event_schema": {
                         "type": "object",
                         "properties": {
                             "url": {"type": "string", "pattern": "^https://"},
@@ -290,7 +290,7 @@ class ModCDPClientTests(unittest.TestCase):
             )
 
     def test_scalar_event_schema_validates_value_payloads(self) -> None:
-        client = ModCDPClient(custom_events=[{"name": "Custom.count", "eventSchema": {"type": "integer", "minimum": 1}}])
+        client = ModCDPClient(custom_events=[{"name": "Custom.count", "event_schema": {"type": "integer", "minimum": 1}}])
 
         self.assertEqual(client._validate_event_payload("Custom.count", {"value": 3}), {"value": 3})
         with redirect_stderr(StringIO()):

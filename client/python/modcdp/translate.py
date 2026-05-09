@@ -99,8 +99,8 @@ def _wrap_modcdp_add_custom_command(params: ProtocolParams) -> RuntimeEvaluatePa
         "(() => {\n"
         "  return globalThis.ModCDP.addCustomCommand({\n"
         f"    name: {json.dumps(name)},\n"
-        f"    paramsSchema: {json.dumps(params.get('paramsSchema'))},\n"
-        f"    resultSchema: {json.dumps(params.get('resultSchema'))},\n"
+        f"    params_schema: {json.dumps(params.get('params_schema'))},\n"
+        f"    result_schema: {json.dumps(params.get('result_schema'))},\n"
         f"    expression: {json.dumps(expression)},\n"
         "    handler: async (params, cdpSessionId, method) => {\n"
         "      const cdp = globalThis.ModCDP.attachToSession(cdpSessionId);\n"
@@ -119,7 +119,7 @@ def _wrap_modcdp_add_custom_event(params: ProtocolParams) -> RuntimeEvaluatePara
     return _eval_params(
         "globalThis.ModCDP.addCustomEvent({\n"
         f"  name: {json.dumps(name)},\n"
-        f"  eventSchema: {json.dumps(params.get('eventSchema'))},\n"
+        f"  event_schema: {json.dumps(params.get('event_schema'))},\n"
         "})"
     )
 

@@ -9,7 +9,7 @@ from modcdp import ModCDPClient
 
 class ModCDPPayloadSchemaNormalizationTests(unittest.TestCase):
     def test_payload_schema_normalization_accepts_empty_json_schema_objects(self) -> None:
-        adapter, schema, _ = ModCDPClient()._adapter_from_optional_schema({}, "paramsSchema")
+        adapter, schema, _ = ModCDPClient()._adapter_from_optional_schema({}, "params_schema")
 
         assert adapter is not None
         self.assertEqual(schema, {})
@@ -17,7 +17,7 @@ class ModCDPPayloadSchemaNormalizationTests(unittest.TestCase):
 
     def test_payload_schema_normalization_rejects_unsupported_schema_specs(self) -> None:
         with self.assertRaises(TypeError):
-            ModCDPClient()._adapter_from_optional_schema("not-a-schema", "paramsSchema")
+            ModCDPClient()._adapter_from_optional_schema("not-a-schema", "params_schema")
 
     def test_payload_schema_normalization_accepts_non_empty_json_schema_objects(self) -> None:
         adapter, schema, _ = ModCDPClient()._adapter_from_optional_schema(
@@ -26,7 +26,7 @@ class ModCDPPayloadSchemaNormalizationTests(unittest.TestCase):
                 "properties": {"value": {"type": "string"}},
                 "required": ["value"],
             },
-            "paramsSchema",
+            "params_schema",
         )
 
         assert adapter is not None
