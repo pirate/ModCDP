@@ -136,7 +136,7 @@ pnpm run proxy -- --launch=local --upstream=nats --upstream-nats-url=ws://127.0.
 # ✨ All ModCDP commands now work through playwright! you can modify/extend playwright behavior to your heart's content
 ```
 
-The proxy uses the same `--launch`, `--extension`, `--upstream*`, `--client='{"routes": {...}}'`, and `--server='{"routes": {...}}'` option groups as `ModCDPClient`. `--client-routes='{...}'` and `--server-routes='{...}'` are accepted as route-only shorthands. `ws` keeps a transparent websocket-to-websocket fast path; `pipe`, `nativemessaging`, and `nats` proxy downstream CDP-shaped messages through the selected `ModCDPClient` upstream transport.
+The proxy uses the same `--launch`, `--extension`, `--upstream*`, `--client='{"routes": {...}}'`, and `--server='{"routes": {...}}'` option groups as `ModCDPClient`. `--launch-options='{...}'` passes launcher-owned options such as `headless` and `sandbox`; `--client-routes='{...}'` and `--server-routes='{...}'` are route-only shorthands. `ws` keeps a transparent websocket-to-websocket fast path; `pipe`, `nativemessaging`, and `nats` proxy downstream CDP-shaped messages through the selected `ModCDPClient` upstream transport.
 
 ### Reverse proxy mode
 
