@@ -146,6 +146,18 @@ func TestModCDPClientPreservesExplicitEmptyServiceWorkerSuffixConfig(t *testing.
 	}
 }
 
+func TestModCDPClientDefaultsServiceWorkerSuffixConfigToModCDPWorker(t *testing.T) {
+	cdp := New(Options{})
+
+	if len(cdp.opts.Extension.ServiceWorkerURLSuffixes) != 1 || cdp.opts.Extension.ServiceWorkerURLSuffixes[0] != "/modcdp/service_worker.js" {
+		t.Fatalf("ServiceWorkerURLSuffixes = %#v", cdp.opts.Extension.ServiceWorkerURLSuffixes)
+	}
+	injectorConfig := cdp.baseExtensionInjectorConfig(nil)
+	if len(injectorConfig.ServiceWorkerURLSuffixes) != 1 || injectorConfig.ServiceWorkerURLSuffixes[0] != "/modcdp/service_worker.js" {
+		t.Fatalf("injector ServiceWorkerURLSuffixes = %#v", injectorConfig.ServiceWorkerURLSuffixes)
+	}
+}
+
 func TestModCDPClientDefaultsLaunchedModCDPServerUpstreamsToExtensionAuto(t *testing.T) {
 	for _, mode := range []string{"nativemessaging", "reversews", "nats"} {
 		launched := New(Options{

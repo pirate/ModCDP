@@ -103,6 +103,15 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertEqual(cdp.extension["service_worker_url_suffixes"], [])
         self.assertEqual(cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"), [])
 
+    def test_defaults_service_worker_suffix_config_to_modcdp_worker(self) -> None:
+        cdp = ModCDPClient()
+
+        self.assertEqual(cdp.extension["service_worker_url_suffixes"], ["/modcdp/service_worker.js"])
+        self.assertEqual(
+            cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"),
+            ["/modcdp/service_worker.js"],
+        )
+
     def test_defaults_launched_modcdp_server_upstreams_to_extension_auto(self) -> None:
         for mode in ("nativemessaging", "reversews", "nats"):
             launched = ModCDPClient(launch={"mode": "local"}, upstream={"mode": mode})

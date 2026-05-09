@@ -133,6 +133,9 @@ type ExtensionOptions = {
   service_worker_poll_interval_ms?: number;
   target_session_poll_interval_ms?: number;
 };
+type ExtensionConfig = Omit<Required<ExtensionOptions>, "service_worker_url_suffixes"> & {
+  service_worker_url_suffixes: string[];
+};
 type ClientConfigOptions = {
   routes?: ModCDPRoutes;
   hydrate_aliases?: boolean;
@@ -160,7 +163,7 @@ type ClientConfig = {
 type NormalizedClientOptions = {
   launch: Required<LaunchOptions>;
   upstream: Required<UpstreamOptions>;
-  extension: Required<ExtensionOptions>;
+  extension: ExtensionConfig;
   client: ClientConfig;
   server: ModCDPServerOptions | null;
   upstream_endpoint_kind: UpstreamEndpointKind;
@@ -272,7 +275,7 @@ function normalizeClientOptions({
       wake_path: extension.wake_path ?? DEFAULT_MODCDP_WAKE_PATH,
       wake_url: extension.wake_url ?? null,
       service_worker_url_includes: extension.service_worker_url_includes ?? [],
-      service_worker_url_suffixes: extension.service_worker_url_suffixes ?? null,
+      service_worker_url_suffixes: extension.service_worker_url_suffixes ?? DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
       trust_service_worker_target: extension.trust_service_worker_target ?? false,
       require_service_worker_target: extension.require_service_worker_target ?? false,
       service_worker_ready_expression: extension.service_worker_ready_expression ?? null,
@@ -679,8 +682,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   async _serviceWorkerUrlSuffixes() {
-    if (this.extension.service_worker_url_suffixes != null) return this.extension.service_worker_url_suffixes;
-    return ["/modcdp/service_worker.js"];
+    return this.extension.service_worker_url_suffixes;
   }
 
   _serverConfigureParams(): ModCDPConfigureParams {

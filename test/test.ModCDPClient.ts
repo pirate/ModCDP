@@ -104,6 +104,15 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
   assert.deepEqual((await cdp._baseExtensionInjectorConfig()).service_worker_url_suffixes, []);
 });
 
+test("ModCDPClient defaults service worker suffix config to the ModCDP worker", async () => {
+  const cdp = new ModCDPClient();
+
+  assert.deepEqual(cdp.extension.service_worker_url_suffixes, ["/modcdp/service_worker.js"]);
+  assert.deepEqual((await cdp._baseExtensionInjectorConfig()).service_worker_url_suffixes, [
+    "/modcdp/service_worker.js",
+  ]);
+});
+
 test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto", () => {
   for (const mode of ["nativemessaging", "reversews", "nats"] as const) {
     const launched = new ModCDPClient({ launch: { mode: "local" }, upstream: { mode } });
