@@ -119,6 +119,9 @@ func (t *ReverseWebSocketUpstreamTransport) Close() error {
 		_ = t.Listener.Close()
 		t.Listener = nil
 	}
+	t.PeerInfo = nil
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 	return nil
 }
 

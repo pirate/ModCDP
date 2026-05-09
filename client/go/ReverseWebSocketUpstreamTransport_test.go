@@ -26,6 +26,25 @@ func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesWaitTimeoutAndInj
 	}
 }
 
+func TestReverseWebSocketUpstreamTransportCloseResetsPeerWaitState(t *testing.T) {
+	transport := NewReverseWebSocketUpstreamTransport("127.0.0.1:29292", 5)
+
+	transport.PeerInfo = map[string]any{"type": "modcdp.reverse.hello"}
+	transport.peerOnce.Do(func() { close(transport.peerCh) })
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before close = %v", err)
+	}
+	if err := transport.Close(); err != nil {
+		t.Fatalf("Close = %v", err)
+	}
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms") {
+		t.Fatalf("WaitForPeer after close = %v", err)
+	}
+	if transport.PeerInfo != nil {
+		t.Fatalf("PeerInfo after close = %#v", transport.PeerInfo)
+	}
+}
+
 func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionAndRoutesCDPThroughLoopback(t *testing.T) {
 	port, err := freePort()
 	if err != nil {
