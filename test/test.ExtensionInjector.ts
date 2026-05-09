@@ -69,6 +69,87 @@ test("ExtensionInjector probes a real extension service worker with shared base 
   }
 }, 60_000);
 
+test("ExtensionInjector keeps the ModCDP service worker alive through offscreen keepalive", async () => {
+  const chrome = await new LocalBrowserLauncher({
+    headless: true,
+    sandbox: process.platform !== "linux",
+    extra_args: [`--load-extension=${EXTENSION_PATH}`],
+  }).launch();
+  const cdp = await CdpSocket.connect(chrome.ws_url!);
+  const injector = new ProbeExtensionInjector({
+    send: (method, params = {}, session_id = null) =>
+      cdp.send(method, params as Record<string, unknown>, session_id ?? undefined),
+    attachToTarget: async (target_id) => {
+      const attached = await cdp.send("Target.attachToTarget", { targetId: target_id, flatten: true });
+      return typeof attached.sessionId === "string" ? attached.sessionId : null;
+    },
+    extension_id: "mdedooklbnfejodmnhmkdpkaedafkehf",
+    service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+    trust_matched_service_worker: true,
+  });
+
+  try {
+    const result = await injector.inject();
+    assert.equal(result?.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf");
+    const session_id = result?.session_id;
+    assert.equal(typeof session_id, "string");
+
+    let contexts: { type?: string; url?: string }[] = [];
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const evaluated = await cdp.send(
+        "Runtime.evaluate",
+        {
+          expression:
+            "chrome.runtime.getContexts({}).then((contexts) => contexts.map((context) => ({ type: context.contextType, url: context.documentUrl || context.origin || '' })))",
+          awaitPromise: true,
+          returnByValue: true,
+        },
+        session_id,
+      );
+      contexts = (evaluated.result as { value?: { type?: string; url?: string }[] }).value ?? [];
+      if (
+        contexts.some(
+          (context) =>
+            context.type === "OFFSCREEN_DOCUMENT" &&
+            context.url === "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/offscreen/keepalive.html",
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(
+      contexts.some(
+        (context) =>
+          context.type === "OFFSCREEN_DOCUMENT" &&
+          context.url === "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/offscreen/keepalive.html",
+      ),
+      true,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    const targets = (await cdp.send("Target.getTargets")) as { targetInfos?: { type?: string; url?: string }[] };
+    assert.equal(
+      targets.targetInfos?.some(
+        (target) =>
+          target.type === "service_worker" &&
+          target.url === "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js",
+      ),
+      true,
+    );
+    const version = await cdp.send(
+      "Runtime.evaluate",
+      { expression: "globalThis.ModCDP?.__ModCDPServerVersion", returnByValue: true },
+      session_id,
+    );
+    assert.equal((version.result as { value?: unknown }).value, 1);
+  } finally {
+    await cdp.close();
+    await injector.close();
+    await chrome.close();
+  }
+}, 60_000);
+
 test("ExtensionInjector owns shared injector config and runtime transport config", async () => {
   const injector = new ProbeExtensionInjector({
     extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
