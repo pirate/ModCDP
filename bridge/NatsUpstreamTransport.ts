@@ -30,7 +30,11 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   private sid = "1";
   private connected = false;
   private peer_seen = false;
-  private peer_waiters = new Set<() => void>();
+  private peer_waiters = new Set<{
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>();
 
   constructor(options: string | null | NatsOptions = {}) {
     super();
@@ -82,14 +86,13 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   async waitForPeer() {
     if (this.peer_seen) return;
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error(`Timed out waiting ${this.wait_timeout_ms}ms for NATS ModCDP peer.`)),
-        this.wait_timeout_ms,
-      );
-      this.peer_waiters.add(() => {
-        clearTimeout(timeout);
-        resolve();
-      });
+      let waiter!: { resolve: () => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> };
+      const timeout = setTimeout(() => {
+        this.peer_waiters.delete(waiter);
+        reject(new Error(`Timed out waiting ${this.wait_timeout_ms}ms for NATS ModCDP peer.`));
+      }, this.wait_timeout_ms);
+      waiter = { resolve, reject, timeout };
+      this.peer_waiters.add(waiter);
     });
   }
 
@@ -101,6 +104,11 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     this.socket = null;
     this.connected = false;
     this.peer_seen = false;
+    for (const waiter of this.peer_waiters) {
+      clearTimeout(waiter.timeout);
+      waiter.reject(new Error(`NATS transport for ${this.subject_prefix} closed before a peer connected.`));
+    }
+    this.peer_waiters.clear();
   }
 
   private async connectWebSocket(url: URL) {
@@ -219,7 +227,10 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     const record = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
     if (record?.type === "modcdp.nats.hello") {
       this.peer_seen = true;
-      for (const waiter of this.peer_waiters) waiter();
+      for (const waiter of this.peer_waiters) {
+        clearTimeout(waiter.timeout);
+        waiter.resolve();
+      }
       this.peer_waiters.clear();
       return;
     }

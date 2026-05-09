@@ -4,6 +4,7 @@ import json
 import socket
 import ssl
 import threading
+import time
 from collections.abc import Mapping
 from typing import Any, cast
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -40,6 +41,8 @@ class NatsUpstreamTransport(UpstreamTransport):
         self.connected = False
         self.closed = False
         self.peer_seen = threading.Event()
+        self._peer_condition = threading.Condition()
+        self._close_generation = 0
         self.write_lock = threading.Lock()
         self.buffer = ""
 
@@ -68,6 +71,9 @@ class NatsUpstreamTransport(UpstreamTransport):
         if self.connected:
             return
         self.closed = False
+        with self._peer_condition:
+            self._close_generation += 1
+            self.peer_seen.clear()
         parsed = urlparse(self.url)
         if parsed.scheme in ("ws", "wss"):
             ws = WebSocket()
@@ -95,8 +101,16 @@ class NatsUpstreamTransport(UpstreamTransport):
         self._publish(self._outgoing_subject(), {"type": "modcdp.nats.message", "message": message})
 
     def waitForPeer(self) -> None:
-        if not self.peer_seen.wait(self.wait_timeout_ms / 1000):
-            raise RuntimeError(f"Timed out waiting {self.wait_timeout_ms}ms for NATS ModCDP peer.")
+        deadline = time.monotonic() + self.wait_timeout_ms / 1000
+        with self._peer_condition:
+            close_generation = self._close_generation
+            while not self.peer_seen.is_set():
+                if close_generation != self._close_generation:
+                    raise RuntimeError(f"NATS transport for {self.subject_prefix} closed before a peer connected.")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(f"Timed out waiting {self.wait_timeout_ms}ms for NATS ModCDP peer.")
+                self._peer_condition.wait(remaining)
 
     def close(self) -> None:
         self.closed = True
@@ -110,6 +124,9 @@ class NatsUpstreamTransport(UpstreamTransport):
         self.socket = None
         self.connected = False
         self.peer_seen.clear()
+        with self._peer_condition:
+            self._close_generation += 1
+            self._peer_condition.notify_all()
 
     def _subscribe(self) -> None:
         self._write_protocol(f"SUB {self._incoming_subject()} 1\r\n")
@@ -188,7 +205,9 @@ class NatsUpstreamTransport(UpstreamTransport):
         except Exception:
             return
         if isinstance(parsed, dict) and parsed.get("type") == "modcdp.nats.hello":
-            self.peer_seen.set()
+            with self._peer_condition:
+                self.peer_seen.set()
+                self._peer_condition.notify_all()
             return
         message = parsed.get("message") if isinstance(parsed, dict) and parsed.get("type") == "modcdp.nats.message" else parsed
         if isinstance(message, dict):

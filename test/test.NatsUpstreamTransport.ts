@@ -37,6 +37,19 @@ test("nats upstream config owns url, subject prefix, wait timeout, and injector 
   await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms for NATS ModCDP peer/);
 });
 
+test("nats upstream close rejects pending peer waits", async () => {
+  const transport = new NatsUpstreamTransport({
+    url: "ws://127.0.0.1:4223",
+    subject_prefix: "modcdp.close",
+    wait_timeout_ms: 5_000,
+  });
+  const pending = transport.waitForPeer();
+
+  await transport.close();
+
+  await assert.rejects(() => pending, /NATS transport for modcdp\.close closed before a peer connected/);
+});
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

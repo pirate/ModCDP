@@ -66,6 +66,30 @@ func TestNatsUpstreamTransportCloseResetsPeerWaitState(t *testing.T) {
 	}
 }
 
+func TestNatsUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
+	transport := NewNatsUpstreamTransport(NatsUpstreamTransportOptions{
+		URL:           "ws://127.0.0.1:4223",
+		SubjectPrefix: "modcdp.close",
+		WaitTimeoutMS: 5_000,
+	})
+	done := make(chan error, 1)
+	go func() {
+		done <- transport.WaitForPeer()
+	}()
+	time.Sleep(50 * time.Millisecond)
+	if err := transport.Close(); err != nil {
+		t.Fatalf("Close = %v", err)
+	}
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "NATS transport for modcdp.close closed before a peer connected") {
+			t.Fatalf("WaitForPeer close error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("WaitForPeer did not return after Close")
+	}
+}
+
 func TestNatsUpstreamTransportRelaysCDPThroughRealExtensionOverRealNATSServer(t *testing.T) {
 	nats := startNATSServer(t)
 	subjectPrefix := fmt.Sprintf("modcdp.test.%d", time.Now().UnixMilli())

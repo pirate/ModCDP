@@ -3,9 +3,11 @@ from __future__ import annotations
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
+from queue import Queue
 
 from websocket import create_connection
 
@@ -40,6 +42,34 @@ class NatsUpstreamTransportTests(unittest.TestCase):
         self.assertEqual(transport.subject_prefix, "modcdp.two")
         with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms for NATS ModCDP peer"):
             transport.waitForPeer()
+
+    def test_close_rejects_pending_peer_waits(self) -> None:
+        transport = NatsUpstreamTransport(
+            {
+                "url": "ws://127.0.0.1:4223",
+                "subject_prefix": "modcdp.close",
+                "wait_timeout_ms": 5_000,
+            }
+        )
+        result: Queue[BaseException | None] = Queue()
+
+        def wait_for_peer() -> None:
+            try:
+                transport.waitForPeer()
+            except BaseException as error:
+                result.put(error)
+                return
+            result.put(None)
+
+        thread = threading.Thread(target=wait_for_peer, daemon=True)
+        thread.start()
+        time.sleep(0.05)
+        transport.close()
+        thread.join(timeout=1)
+
+        error = result.get(timeout=1)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertRegex(str(error), r"NATS transport for modcdp\.close closed before a peer connected")
 
     def test_reconnect_after_close_resets_closed_state_with_real_nats_server(self) -> None:
         nats = _start_nats_server()

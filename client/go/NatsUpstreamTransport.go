@@ -34,6 +34,8 @@ type NatsUpstreamTransport struct {
 	writeMu       sync.Mutex
 	peerCh        chan struct{}
 	peerOnce      sync.Once
+	closeCh       chan struct{}
+	stateMu       sync.Mutex
 }
 
 type NatsUpstreamTransportOptions struct {
@@ -56,6 +58,7 @@ func NewNatsUpstreamTransport(options NatsUpstreamTransportOptions) *NatsUpstrea
 		Role:          role,
 		WaitTimeoutMS: waitTimeoutMS,
 		peerCh:        make(chan struct{}),
+		closeCh:       make(chan struct{}),
 	}
 }
 
@@ -84,7 +87,10 @@ func (t *NatsUpstreamTransport) Connect() error {
 	if t.connected {
 		return nil
 	}
+	t.stateMu.Lock()
 	t.closed = false
+	t.closeCh = make(chan struct{})
+	t.stateMu.Unlock()
 	if !validNATSSubjectPrefix(t.SubjectPrefix) {
 		return fmt.Errorf("invalid NATS subject prefix %q", t.SubjectPrefix)
 	}
@@ -147,16 +153,26 @@ func (t *NatsUpstreamTransport) Send(message map[string]any) error {
 }
 
 func (t *NatsUpstreamTransport) WaitForPeer() error {
+	t.stateMu.Lock()
+	closeCh := t.closeCh
+	t.stateMu.Unlock()
 	select {
 	case <-t.peerCh:
 		return nil
+	case <-closeCh:
+		return fmt.Errorf("NATS transport for %s closed before a peer connected", t.SubjectPrefix)
 	case <-time.After(time.Duration(t.WaitTimeoutMS) * time.Millisecond):
 		return fmt.Errorf("timed out waiting %dms for NATS ModCDP peer", t.WaitTimeoutMS)
 	}
 }
 
 func (t *NatsUpstreamTransport) Close() error {
+	t.stateMu.Lock()
 	t.closed = true
+	closeCh := t.closeCh
+	t.closeCh = make(chan struct{})
+	t.stateMu.Unlock()
+	close(closeCh)
 	t.connected = false
 	if t.Conn != nil {
 		_ = t.Conn.Close()
