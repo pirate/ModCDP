@@ -2,6 +2,13 @@ package modcdp
 
 import "testing"
 
+func TestRemoteBrowserLauncherRequiresUpstreamWSURLOrCDPURL(t *testing.T) {
+	_, err := NewRemoteBrowserLauncher(LaunchOptions{}, "").Launch(LaunchOptions{})
+	if err == nil || err.Error() != "launch.mode=remote requires upstream.ws_url or cdp_url" {
+		t.Fatalf("Launch error = %v", err)
+	}
+}
+
 func TestRemoteBrowserLauncherConnectsToRealBrowserFromHTTPAndWebSocketCDPEndpoints(t *testing.T) {
 	local, err := NewLocalBrowserLauncher(LaunchOptions{}).Launch(LaunchOptions{
 		Headless: boolPtr(true),
@@ -37,6 +44,19 @@ func TestRemoteBrowserLauncherConnectsToRealBrowserFromHTTPAndWebSocketCDPEndpoi
 	defer conn.Close()
 	expectCDPBrowserSurface(t, conn)
 	fromHTTP.Close()
+
+	optionsLauncher := NewRemoteBrowserLauncher(LaunchOptions{CDPURL: local.CDPURL}, "")
+	fromOptions, err := optionsLauncher.Launch(LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromOptions.CDPURL != local.CDPURL {
+		t.Fatalf("fromOptions.CDPURL = %q", fromOptions.CDPURL)
+	}
+	if fromOptions.WSURL != local.WSURL {
+		t.Fatalf("fromOptions.WSURL = %q, want %q", fromOptions.WSURL, local.WSURL)
+	}
+	fromOptions.Close()
 
 	wsLauncher := NewRemoteBrowserLauncher(LaunchOptions{}, "")
 	fromWS, err := wsLauncher.Launch(LaunchOptions{WSURL: local.WSURL})

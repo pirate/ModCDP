@@ -7,7 +7,7 @@ import {
 
 export class RemoteBrowserLauncher extends BrowserLauncher {
   constructor(options: BrowserLaunchOptions = {}, cdp_url: string | null = null) {
-    super({ ...options, cdp_url });
+    super({ ...options, ...(cdp_url == null ? {} : { cdp_url }) });
   }
 
   async launch(options: BrowserLaunchOptions = {}): Promise<LaunchedBrowser> {

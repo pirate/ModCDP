@@ -10,6 +10,10 @@ from modcdp.RemoteBrowserLauncher import RemoteBrowserLauncher
 
 
 class RemoteBrowserLauncherTests(unittest.TestCase):
+    def test_requires_upstream_ws_url_or_cdp_url(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "launch.mode=remote requires upstream.ws_url or cdp_url"):
+            RemoteBrowserLauncher().launch()
+
     def test_connects_to_real_browser_from_http_and_websocket_cdp_endpoints(self) -> None:
         local = LocalBrowserLauncher().launch({"headless": True, "sandbox": False, "chrome_ready_timeout_ms": 45_000})
         ws = None
@@ -23,6 +27,11 @@ class RemoteBrowserLauncherTests(unittest.TestCase):
             ws = create_connection(from_http_ws_url, timeout=10)
             _expect_cdp_browser_surface(ws)
             from_http["close"]()
+
+            from_options = RemoteBrowserLauncher({"cdp_url": local["cdp_url"]}).launch()
+            self.assertEqual(from_options["cdp_url"], local["cdp_url"])
+            self.assertEqual(from_options["ws_url"], local["ws_url"])
+            from_options["close"]()
 
             from_ws = RemoteBrowserLauncher().launch({"ws_url": local["ws_url"]})
             self.assertEqual(from_ws["cdp_url"], local["ws_url"])
