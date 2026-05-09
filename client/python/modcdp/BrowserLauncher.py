@@ -42,6 +42,9 @@ class LaunchedBrowser(TypedDict, total=False):
     profile_dir: str | None
     pipe_read: Any
     pipe_write: Any
+    browserbase_session_id: str | None
+    browserbase_session_url: str | None
+    browserbase_debug_url: str | None
 
 
 DEFAULT_CHROME_READY_TIMEOUT_MS = 45_000
