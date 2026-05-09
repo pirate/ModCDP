@@ -200,6 +200,41 @@ test("proxy CLI maps user-facing flags into a real pipe upstream browser session
   }
 }, 60_000);
 
+test("proxy CLI maps user-facing flags into a real reversews local launch", async () => {
+  const proxy_port = await LocalBrowserLauncher.freePort();
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const proxy_script = path.resolve(HERE, "..", "dist", "bridge", "proxy.js");
+  const proc = spawn(
+    process.execPath,
+    [
+      proxy_script,
+      "--port",
+      String(proxy_port),
+      "--launch=local",
+      "--launch-options",
+      JSON.stringify({ headless: true, sandbox: process.platform !== "linux" }),
+      "--upstream=reversews",
+      "--upstream-reversews-bind",
+      `127.0.0.1:${reverse_port}`,
+      "--upstream-reversews-wait-timeout-ms",
+      "10000",
+      "--extension=auto",
+      "--extension-path",
+      EXTENSION_PATH,
+      "--server-routes",
+      JSON.stringify({ "*.*": "loopback_cdp" }),
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+
+  try {
+    await wait_for_http_json_version(`http://127.0.0.1:${proxy_port}/json/version`, 20_000);
+    await expect_proxy_cdp_works(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-reversews");
+  } finally {
+    await close_process(proc);
+  }
+}, 90_000);
+
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nats upstream", async () => {
   const nats = await start_nats_server();
   const proxy_port = await LocalBrowserLauncher.freePort();
