@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from websocket import create_connection
 
@@ -14,27 +16,48 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         self.assertIsInstance(LocalBrowserLauncher.freePort(), int)
 
     def test_launches_real_browser_and_speaks_cdp(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modcdp-python-local-profile-") as user_data_dir:
+            chrome = LocalBrowserLauncher(
+                {
+                    "headless": True,
+                    "sandbox": False,
+                    "chrome_ready_timeout_ms": 45_000,
+                    "chrome_ready_poll_interval_ms": 50,
+                }
+            ).launch({"user_data_dir": user_data_dir, "args": ["--window-size=900,700"]})
+            ws_url = chrome["ws_url"]
+            if ws_url is None:
+                raise AssertionError("expected launcher to return ws_url")
+            ws = create_connection(ws_url, timeout=10)
+
+            try:
+                self.assertEqual(chrome["profile_dir"], user_data_dir)
+                ws.send(json.dumps({"id": 1, "method": "Browser.getVersion", "params": {}}))
+                version = json.loads(ws.recv())
+                self.assertEqual(version["id"], 1)
+                self.assertIn("Chrome", version["result"]["product"])
+                self.assertIsInstance(version["result"]["protocolVersion"], str)
+            finally:
+                ws.close()
+                chrome["close"]()
+
+            self.assertTrue(Path(user_data_dir).exists())
+
+    def test_cleanup_user_data_dir_removes_explicit_profile(self) -> None:
+        user_data_dir = tempfile.mkdtemp(prefix="modcdp-python-local-profile-")
         chrome = LocalBrowserLauncher(
             {
                 "headless": True,
                 "sandbox": False,
                 "chrome_ready_timeout_ms": 45_000,
             }
-        ).launch()
-        ws_url = chrome["ws_url"]
-        if ws_url is None:
-            raise AssertionError("expected launcher to return ws_url")
-        ws = create_connection(ws_url, timeout=10)
+        ).launch({"user_data_dir": user_data_dir, "cleanup_user_data_dir": True})
 
         try:
-            ws.send(json.dumps({"id": 1, "method": "Browser.getVersion", "params": {}}))
-            version = json.loads(ws.recv())
-            self.assertEqual(version["id"], 1)
-            self.assertIn("Chrome", version["result"]["product"])
-            self.assertIsInstance(version["result"]["protocolVersion"], str)
+            self.assertEqual(chrome["profile_dir"], user_data_dir)
         finally:
-            ws.close()
             chrome["close"]()
+        self.assertFalse(Path(user_data_dir).exists())
 
     def test_launches_real_browser_over_remote_debugging_pipe(self) -> None:
         chrome = LocalBrowserLauncher(

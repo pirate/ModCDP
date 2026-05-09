@@ -5,6 +5,7 @@ import glob
 import os
 import re
 import select
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ class LocalBrowserLauncher(BrowserLauncher):
         if not profile_dir:
             temp_profile_dir = tempfile.TemporaryDirectory(prefix="modcdp.")
             profile_dir = temp_profile_dir.name
+        cleanup_profile_dir = str(profile_dir) if merged.get("cleanup_user_data_dir") else None
         args = [
             "--enable-unsafe-extension-debugging",
             "--remote-allow-origins=*",
@@ -72,6 +74,7 @@ class LocalBrowserLauncher(BrowserLauncher):
             args.append("--headless=new")
         if merged.get("sandbox", False) is False:
             args.append("--no-sandbox")
+        args.extend(list(merged.get("args") or []))
         args.extend(list(merged.get("extra_args") or []))
         args.append("about:blank")
         if use_pipe:
@@ -101,7 +104,7 @@ class LocalBrowserLauncher(BrowserLauncher):
             except Exception:
                 pipe_read.close()
                 pipe_write.close()
-                _close(process, temp_profile_dir)
+                _close(process, temp_profile_dir, cleanup_profile_dir=cleanup_profile_dir)
                 raise
             self.launched = {
                 "cdp_url": f"pipe://{process.pid}",
@@ -109,7 +112,13 @@ class LocalBrowserLauncher(BrowserLauncher):
                 "profile_dir": profile_dir,
                 "pipe_read": pipe_read,
                 "pipe_write": pipe_write,
-                "close": lambda: _close(process, temp_profile_dir, pipe_read, pipe_write),
+                "close": lambda: _close(
+                    process,
+                    temp_profile_dir,
+                    pipe_read,
+                    pipe_write,
+                    cleanup_profile_dir=cleanup_profile_dir,
+                ),
             }
             return self.launched
 
@@ -126,12 +135,12 @@ class LocalBrowserLauncher(BrowserLauncher):
                         "cdp_url": cdp_url,
                         "ws_url": version.get("webSocketDebuggerUrl") or cdp_url,
                         "profile_dir": profile_dir,
-                        "close": lambda: _close(process, temp_profile_dir),
+                        "close": lambda: _close(process, temp_profile_dir, cleanup_profile_dir=cleanup_profile_dir),
                     }
                     return self.launched
             except Exception:
                 time.sleep(poll_s)
-        _close(process, temp_profile_dir)
+        _close(process, temp_profile_dir, cleanup_profile_dir=cleanup_profile_dir)
         raise RuntimeError(f"Chrome at {cdp_url} did not become ready within {timeout_s}s")
 
 
@@ -235,6 +244,7 @@ def _close(
     temp_profile_dir: tempfile.TemporaryDirectory[str] | None,
     pipe_read=None,
     pipe_write=None,
+    cleanup_profile_dir: str | None = None,
 ) -> None:
     for pipe in (pipe_read, pipe_write):
         try:
@@ -250,6 +260,8 @@ def _close(
         process.wait(timeout=2)
     if temp_profile_dir:
         temp_profile_dir.cleanup()
+    if cleanup_profile_dir:
+        shutil.rmtree(cleanup_profile_dir, ignore_errors=True)
 
 
 def _free_port() -> int:
