@@ -1,6 +1,9 @@
 package modcdp
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 type UpstreamMode string
 type UpstreamEndpointKind string
@@ -50,12 +53,28 @@ func (e *UpstreamTransport) GetServerConfig() map[string]any {
 
 func (e *UpstreamTransport) OnRecv(listener func(map[string]any)) func() {
 	e.recvListeners = append(e.recvListeners, listener)
-	return func() {}
+	return func() {
+		pointer := reflect.ValueOf(listener).Pointer()
+		for index, candidate := range e.recvListeners {
+			if reflect.ValueOf(candidate).Pointer() == pointer {
+				e.recvListeners = append(e.recvListeners[:index], e.recvListeners[index+1:]...)
+				return
+			}
+		}
+	}
 }
 
 func (e *UpstreamTransport) OnClose(listener func(error)) func() {
 	e.closeListeners = append(e.closeListeners, listener)
-	return func() {}
+	return func() {
+		pointer := reflect.ValueOf(listener).Pointer()
+		for index, candidate := range e.closeListeners {
+			if reflect.ValueOf(candidate).Pointer() == pointer {
+				e.closeListeners = append(e.closeListeners[:index], e.closeListeners[index+1:]...)
+				return
+			}
+		}
+	}
 }
 
 func (e *UpstreamTransport) emitRecv(message map[string]any) {

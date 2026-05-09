@@ -53,9 +53,14 @@ func TestUpstreamTransportSharedConfigEndpointClassificationAndRecvCallbacks(t *
 		t.Fatalf("parsed = %#v", parsed)
 	}
 
-	stop()
-	if len(received) != 0 {
+	transport.emitRecv(map[string]any{"method": "before.stop"})
+	if len(received) != 1 {
 		t.Fatalf("received = %#v", received)
+	}
+	stop()
+	transport.emitRecv(map[string]any{"method": "after.stop"})
+	if len(received) != 1 {
+		t.Fatalf("received after stop = %#v", received)
 	}
 	if err := transport.Connect(); err == nil || !strings.Contains(err.Error(), "Connect is not implemented") {
 		t.Fatalf("connect error = %v", err)

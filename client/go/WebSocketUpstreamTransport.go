@@ -3,6 +3,7 @@ package modcdp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"sync"
 
@@ -19,11 +20,37 @@ type WebSocketUpstreamTransport struct {
 	cancel  context.CancelFunc
 }
 
-func NewWebSocketUpstreamTransport(url string) *WebSocketUpstreamTransport {
-	return &WebSocketUpstreamTransport{URL: url}
+func NewWebSocketUpstreamTransport(url ...string) *WebSocketUpstreamTransport {
+	transport := &WebSocketUpstreamTransport{}
+	if len(url) > 0 {
+		transport.URL = url[0]
+	}
+	return transport
+}
+
+func (t *WebSocketUpstreamTransport) Update(config map[string]any) {
+	if config == nil {
+		return
+	}
+	for _, key := range []string{"ws_url", "cdp_url", "url"} {
+		if value, ok := config[key].(string); ok && value != "" {
+			t.URL = value
+			return
+		}
+	}
+}
+
+func (t *WebSocketUpstreamTransport) GetServerConfig() map[string]any {
+	if t.URL == "" {
+		return map[string]any{}
+	}
+	return map[string]any{"loopback_cdp_url": t.URL}
 }
 
 func (t *WebSocketUpstreamTransport) Connect() error {
+	if t.URL == "" {
+		return fmt.Errorf("upstream.mode=ws requires upstream.ws_url or launcher-provided ws_url")
+	}
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 	conn, _, _, err := ws.Dial(t.ctx, t.URL)
 	if err != nil {

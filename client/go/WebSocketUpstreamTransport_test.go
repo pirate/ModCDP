@@ -5,6 +5,26 @@ import (
 	"testing"
 )
 
+func TestWebSocketUpstreamTransportConstructorUpdateAndServerConfigMatchTSShape(t *testing.T) {
+	transport := NewWebSocketUpstreamTransport()
+	if transport.URL != "" {
+		t.Fatalf("URL = %q", transport.URL)
+	}
+	if len(transport.GetServerConfig()) != 0 {
+		t.Fatalf("server config = %#v", transport.GetServerConfig())
+	}
+	transport.Update(map[string]any{"ws_url": "ws://127.0.0.1:1/devtools/browser/test"})
+	if transport.URL != "ws://127.0.0.1:1/devtools/browser/test" {
+		t.Fatalf("URL = %q", transport.URL)
+	}
+	if transport.GetServerConfig()["loopback_cdp_url"] != "ws://127.0.0.1:1/devtools/browser/test" {
+		t.Fatalf("server config = %#v", transport.GetServerConfig())
+	}
+	if err := NewWebSocketUpstreamTransport().Connect(); err == nil || !strings.Contains(err.Error(), "upstream.mode=ws requires") {
+		t.Fatalf("connect error = %v", err)
+	}
+}
+
 func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing.T) {
 	cdp := New(Options{
 		Launch: LaunchConfig{
