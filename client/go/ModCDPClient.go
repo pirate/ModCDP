@@ -892,6 +892,10 @@ func (c *ModCDPClient) extensionInjectorsForConfig() []extensionInjector {
 		injector := NewExtensionsLoadUnpackedInjector(ExtensionInjectorConfig{})
 		injectors = append(injectors, &injector)
 	}
+	if c.opts.Extension.Mode == "auto" || c.opts.Extension.Mode == "borrow" {
+		injector := NewBorrowedExtensionInjector(ExtensionInjectorConfig{})
+		injectors = append(injectors, &injector)
+	}
 	return injectors
 }
 
