@@ -106,6 +106,56 @@ func TestReverseWebSocketUpstreamTransportWaitsAgainAfterPeerDisconnects(t *test
 	}
 }
 
+func TestReverseWebSocketUpstreamTransportAcceptsReplacementPeerAfterDisconnect(t *testing.T) {
+	port, err := freePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := NewReverseWebSocketUpstreamTransport(fmt.Sprintf("127.0.0.1:%d", port), 500)
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, _, err := ws.Dial(context.Background(), transport.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hello, err := json.Marshal(map[string]any{"type": "modcdp.reverse.hello", "role": "first-peer", "version": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsutil.WriteClientText(conn, hello); err != nil {
+		t.Fatal(err)
+	}
+
+	defer transport.Close()
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before peer disconnect = %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForReversePeerDisconnect(t, transport)
+
+	replacementConn, _, _, err := ws.Dial(context.Background(), transport.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replacementConn.Close()
+	replacementHello, err := json.Marshal(map[string]any{"type": "modcdp.reverse.hello", "role": "second-peer", "version": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsutil.WriteClientText(replacementConn, replacementHello); err != nil {
+		t.Fatal(err)
+	}
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer after replacement peer = %v", err)
+	}
+	if transport.PeerInfo["role"] != "second-peer" {
+		t.Fatalf("PeerInfo after replacement peer = %#v", transport.PeerInfo)
+	}
+}
+
 func TestReverseWebSocketUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
 	port, err := freePort()
 	if err != nil {

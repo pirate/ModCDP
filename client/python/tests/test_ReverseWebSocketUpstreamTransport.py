@@ -97,6 +97,32 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
             peer.close()
             transport.close()
 
+    def test_accepts_replacement_peer_after_disconnect(self) -> None:
+        reverse_port = _free_port()
+        transport = ReverseWebSocketUpstreamTransport(f"127.0.0.1:{reverse_port}", 500)
+        transport.connect()
+        url = transport.url
+        if url is None:
+            self.fail("reverse transport url was not set")
+        first_peer = create_connection(url, timeout=10)
+        first_peer.send(json.dumps({"type": "modcdp.reverse.hello", "role": "first-peer", "version": 1}))
+
+        try:
+            transport.waitForPeer()
+            first_peer.close()
+            _wait_until(lambda: transport.socket is None)
+
+            second_peer = create_connection(url, timeout=10)
+            second_peer.send(json.dumps({"type": "modcdp.reverse.hello", "role": "second-peer", "version": 1}))
+            try:
+                transport.waitForPeer()
+                self.assertEqual((transport.peer_info or {}).get("role"), "second-peer")
+            finally:
+                second_peer.close()
+        finally:
+            first_peer.close()
+            transport.close()
+
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         reverse_port = _free_port()
         reverse_bind = f"127.0.0.1:{reverse_port}"

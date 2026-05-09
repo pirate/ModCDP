@@ -76,6 +76,34 @@ test("reversews upstream waits again after a peer disconnects", async () => {
   }
 });
 
+test("reversews upstream accepts a replacement peer after disconnect", async () => {
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const transport = new ReverseWebSocketUpstreamTransport(`127.0.0.1:${reverse_port}`, 500);
+  await transport.connect();
+  const first_peer = new WebSocket(transport.url);
+  await once(first_peer, "open");
+  first_peer.send(JSON.stringify({ type: "modcdp.reverse.hello", role: "first-peer", version: 1 }));
+
+  try {
+    await transport.waitForPeer();
+    first_peer.close();
+    await waitFor(() => (transport as unknown as { socket: unknown | null }).socket === null);
+
+    const second_peer = new WebSocket(transport.url);
+    await once(second_peer, "open");
+    second_peer.send(JSON.stringify({ type: "modcdp.reverse.hello", role: "second-peer", version: 1 }));
+    try {
+      await transport.waitForPeer();
+      assert.equal(transport.peer_info?.role, "second-peer");
+    } finally {
+      second_peer.close();
+    }
+  } finally {
+    first_peer.close();
+    await transport.close();
+  }
+});
+
 test("reversews upstream accepts a real extension reverse connection and routes CDP through loopback", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
   const reverse_bind = `127.0.0.1:${reverse_port}`;
