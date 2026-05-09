@@ -381,9 +381,9 @@ export type UnwrappedModCDPEvent = z.infer<typeof UnwrappedModCDPEventSchema>;
 export const ProxyPendingSchema = z
   .object({
     kind: z.string(),
-    clientId: z.number().optional(),
-    clientSessionId: z.string().nullable().optional(),
-    eventName: z.string().optional(),
+    client_id: z.number().optional(),
+    client_session_id: z.string().nullable().optional(),
+    event_name: z.string().optional(),
     resolve: z.custom<(value: ProtocolResult) => void>().optional(),
     reject: z.custom<(error: Error) => void>().optional(),
   })
@@ -396,7 +396,7 @@ export const ProxyUpstreamStateSchema = z
     launched: z
       .custom<Awaited<ReturnType<import("../bridge/BrowserLauncher.js").BrowserLauncher["launch"]>>>()
       .nullable(),
-    launchPromise: z
+    launch_promise: z
       .promise(z.custom<Awaited<ReturnType<import("../bridge/BrowserLauncher.js").BrowserLauncher["launch"]>>>())
       .nullable()
       .optional(),
@@ -416,19 +416,19 @@ export type ProxyWebSocketLike = {
 export const ProxyConnectionStateSchema = z.object({
   client: z.custom<ProxyWebSocketLike>(),
   upstream: z.custom<ProxyWebSocketLike>(),
-  nextUpstreamId: z.number(),
+  next_upstream_id: z.number(),
   pending: z.custom<Map<number, ProxyPending>>(),
-  extSessionId: z.string().nullable(),
-  extTargetId: z.string().nullable(),
-  extExecutionContextId: z.number().nullable(),
-  hiddenSessionIds: z.custom<Set<string>>(),
-  hiddenTargetIds: z.custom<Set<string>>(),
-  targetSessionIds: z.custom<Map<string, string>>(),
-  clientSessionIds: z.custom<Set<string>>(),
-  forwardMirroredUpstreamEvents: z.boolean(),
+  ext_session_id: z.string().nullable(),
+  ext_target_id: z.string().nullable(),
+  ext_execution_context_id: z.number().nullable(),
+  hidden_session_ids: z.custom<Set<string>>(),
+  hidden_target_ids: z.custom<Set<string>>(),
+  target_session_ids: z.custom<Map<string, string>>(),
+  client_session_ids: z.custom<Set<string>>(),
+  forward_mirrored_upstream_events: z.boolean(),
   bootstrapped: z.boolean(),
   closing: z.boolean(),
-  queuedFromClient: z.array(z.custom<ProxyRawData>()),
+  queued_from_client: z.array(z.custom<ProxyRawData>()),
 });
 export type ProxyConnectionState = z.infer<typeof ProxyConnectionStateSchema>;
 

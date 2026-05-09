@@ -401,18 +401,18 @@ type ReverseHello = {
 type ReversePeerState = {
   socket: WebSocket | null;
   info: ReverseHello | null;
-  waitTimeoutMs: number;
+  wait_timeout_ms: number;
   waiters: Set<{ resolve: (socket: WebSocket) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>;
 };
 type ReverseConnectionState = {
   client: WebSocket;
   reverse: WebSocket;
-  nextReverseId: number;
-  pending: Map<number, { clientId: number; clientSessionId: string | null }>;
-  clientSessionIds: Set<string>;
+  next_reverse_id: number;
+  pending: Map<number, { client_id: number; client_session_id: string | null }>;
+  client_session_ids: Set<string>;
   bootstrapped: boolean;
   closing: boolean;
-  queuedFromClient: RawData[];
+  queued_from_client: RawData[];
 };
 
 function parseHostPort(value: string, defaultHost: string, defaultPort: number): HostPort {
@@ -424,11 +424,11 @@ function parseHostPort(value: string, defaultHost: string, defaultPort: number):
   return { host, port };
 }
 
-function createReversePeerState(waitTimeoutMs: number): ReversePeerState {
+function createReversePeerState(wait_timeout_ms: number): ReversePeerState {
   return {
     socket: null,
     info: null,
-    waitTimeoutMs,
+    wait_timeout_ms,
     waiters: new Set(),
   };
 }
@@ -445,8 +445,8 @@ function waitForReversePeer(state: ReversePeerState) {
       reject,
       timeout: setTimeout(() => {
         state.waiters.delete(waiter);
-        reject(new Error(`Timed out waiting ${state.waitTimeoutMs}ms for reverse ModCDP extension connection.`));
-      }, state.waitTimeoutMs),
+        reject(new Error(`Timed out waiting ${state.wait_timeout_ms}ms for reverse ModCDP extension connection.`));
+      }, state.wait_timeout_ms),
     };
     state.waiters.add(waiter);
   });
@@ -474,7 +474,7 @@ function acceptReversePeer(state: ReversePeerState, socket: WebSocket) {
       socket.close(1008, message.slice(0, 120));
     } catch {}
   };
-  const timeout = setTimeout(() => fail("reverse hello timeout"), state.waitTimeoutMs);
+  const timeout = setTimeout(() => fail("reverse hello timeout"), state.wait_timeout_ms);
   socket.once("message", (buf) => {
     clearTimeout(timeout);
     let hello: ReverseHello;
@@ -525,12 +525,12 @@ async function handleReverseConnection(
   const state: ReverseConnectionState = {
     client,
     reverse,
-    nextReverseId: 1_000_000,
+    next_reverse_id: 1_000_000,
     pending: new Map(),
-    clientSessionIds: new Set(),
+    client_session_ids: new Set(),
     bootstrapped: false,
     closing: false,
-    queuedFromClient: [],
+    queued_from_client: [],
   };
 
   const onReverseMessage = (event) => {
@@ -566,17 +566,17 @@ async function handleReverseConnection(
   });
 
   client.off("message", earlyHandler);
-  for (const buf of earlyBuffer) state.queuedFromClient.push(buf);
+  for (const buf of earlyBuffer) state.queued_from_client.push(buf);
   client.on("message", (buf) => {
     if (!state.bootstrapped) {
-      state.queuedFromClient.push(buf);
+      state.queued_from_client.push(buf);
       return;
     }
     handleReverseClientMessage(state, buf);
   });
   state.bootstrapped = true;
-  for (const buf of state.queuedFromClient) handleReverseClientMessage(state, buf);
-  state.queuedFromClient = [];
+  for (const buf of state.queued_from_client) handleReverseClientMessage(state, buf);
+  state.queued_from_client = [];
 }
 
 function handleReverseClientMessage(state: ReverseConnectionState, buf: RawData) {
@@ -588,8 +588,8 @@ function handleReverseClientMessage(state: ReverseConnectionState, buf: RawData)
     return;
   }
   dbg("client->reverse", msg.id ?? "", msg.method, msg.sessionId ?? "");
-  const upId = state.nextReverseId++;
-  state.pending.set(upId, { clientId: msg.id, clientSessionId: msg.sessionId || null });
+  const upId = state.next_reverse_id++;
+  state.pending.set(upId, { client_id: msg.id, client_session_id: msg.sessionId || null });
   const out: CdpCommandMessage = { id: upId, method: msg.method, params: msg.params ?? {} };
   if (msg.sessionId) out.sessionId = msg.sessionId;
   state.reverse.send(JSON.stringify(out));
@@ -602,9 +602,9 @@ function handleReverseUpstreamMessage(state: ReverseConnectionState, msg: CdpRes
     if (!pending) return;
     state.pending.delete(response.id);
     const out: CdpResponseMessage = response.error
-      ? { id: pending.clientId, error: response.error }
-      : { id: pending.clientId, result: response.result ?? {} };
-    if (pending.clientSessionId) out.sessionId = pending.clientSessionId;
+      ? { id: pending.client_id, error: response.error }
+      : { id: pending.client_id, result: response.result ?? {} };
+    if (pending.client_session_id) out.sessionId = pending.client_session_id;
     sendReverseToClient(state, out);
     return;
   }
@@ -618,14 +618,14 @@ function handleReverseUpstreamMessage(state: ReverseConnectionState, msg: CdpRes
       ? event.params.sessionId
       : event.sessionId || null;
   if (event.method === "Target.attachedToTarget" && eventSessionId) {
-    state.clientSessionIds.add(eventSessionId);
+    state.client_session_ids.add(eventSessionId);
   } else if (event.method === "Target.detachedFromTarget" && eventSessionId) {
-    state.clientSessionIds.delete(eventSessionId);
+    state.client_session_ids.delete(eventSessionId);
   }
 
   sendReverseToClient(state, event);
   if (!event.sessionId) {
-    for (const sessionId of state.clientSessionIds) sendReverseToClient(state, { ...event, sessionId });
+    for (const sessionId of state.client_session_ids) sendReverseToClient(state, { ...event, sessionId });
   }
 }
 
@@ -682,22 +682,22 @@ async function handleConnection(
   const state: ProxyConnectionState = {
     client,
     upstream: upstream_socket,
-    nextUpstreamId: 1_000_000,
-    pending: new Map(), // upstreamId -> { kind, clientId?, clientSessionId?, ... }
-    extSessionId: cdp.ext_session_id,
-    extTargetId: cdp.ext_target_id,
-    extExecutionContextId: cdp.ext_execution_context_id,
-    hiddenSessionIds: new Set(), // sessions we attached for ourselves
-    hiddenTargetIds: new Set(), // SW target the client must never see
-    targetSessionIds: cdp.auto_target_sessions,
-    clientSessionIds: new Set(), // session ids the client has attached
-    forwardMirroredUpstreamEvents: forward_mirrored_upstream_events,
+    next_upstream_id: 1_000_000,
+    pending: new Map(), // upstream_id -> { kind, client_id?, client_session_id?, ... }
+    ext_session_id: cdp.ext_session_id,
+    ext_target_id: cdp.ext_target_id,
+    ext_execution_context_id: cdp.ext_execution_context_id,
+    hidden_session_ids: new Set(), // sessions we attached for ourselves
+    hidden_target_ids: new Set(), // SW target the client must never see
+    target_session_ids: cdp.auto_target_sessions,
+    client_session_ids: new Set(), // session ids the client has attached
+    forward_mirrored_upstream_events: forward_mirrored_upstream_events,
     bootstrapped: false,
     closing: false,
-    queuedFromClient: [],
+    queued_from_client: [],
   };
-  if (cdp.ext_session_id) state.hiddenSessionIds.add(cdp.ext_session_id);
-  if (cdp.ext_target_id) state.hiddenTargetIds.add(cdp.ext_target_id);
+  if (cdp.ext_session_id) state.hidden_session_ids.add(cdp.ext_session_id);
+  if (cdp.ext_target_id) state.hidden_target_ids.add(cdp.ext_target_id);
 
   upstream_socket.addEventListener("message", (event) => {
     let msg: CdpResponseMessage | CdpEventMessage;
@@ -739,17 +739,17 @@ async function handleConnection(
   // Swap the early-buffer handler for the real one. Drain anything that
   // arrived before we got here.
   client.off("message", earlyHandler);
-  for (const buf of earlyBuffer) state.queuedFromClient.push(buf);
+  for (const buf of earlyBuffer) state.queued_from_client.push(buf);
   client.on("message", (buf) => {
     if (!state.bootstrapped) {
-      state.queuedFromClient.push(buf);
+      state.queued_from_client.push(buf);
       return;
     }
     handleClientMessage(state, buf);
   });
   state.bootstrapped = true;
-  for (const buf of state.queuedFromClient) handleClientMessage(state, buf);
-  state.queuedFromClient = [];
+  for (const buf of state.queued_from_client) handleClientMessage(state, buf);
+  state.queued_from_client = [];
 }
 
 async function handleClientManagedConnection(
@@ -810,9 +810,9 @@ function wireClientManagedConnection(
   cdp: ModCDPClient,
   close_cdp_on_client_close: boolean,
 ) {
-  const event_listener = (eventName: string | symbol, payload: unknown, sessionId?: string | null) => {
-    const event: CdpEventMessage = { method: String(eventName), params: (payload ?? {}) as Record<string, unknown> };
-    if (typeof sessionId === "string" && sessionId) event.sessionId = sessionId;
+  const event_listener = (event_name: string | symbol, payload: unknown, session_id?: string | null) => {
+    const event: CdpEventMessage = { method: String(event_name), params: (payload ?? {}) as Record<string, unknown> };
+    if (typeof session_id === "string" && session_id) event.sessionId = session_id;
     sendRawClientMessage(client, event);
   };
   cdp.on("*", event_listener);
@@ -876,8 +876,8 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
   // hidden ext session, while remembering the originating client id+session
   // so the response can be steered back to the right Playwright CDPSession.
   if (MAGIC_METHODS.has(method) || ROUTE_TO_SW_RE.test(method)) {
-    const upId = state.nextUpstreamId++;
-    state.pending.set(upId, { kind: "modcdp_eval", clientId: id, clientSessionId: sessionId || null });
+    const upId = state.next_upstream_id++;
+    state.pending.set(upId, { kind: "modcdp_eval", client_id: id, client_session_id: sessionId || null });
     let runtimeParams;
     if (method === "Mod.evaluate") {
       const evaluateParams = ModCDPEvaluateParamsSchema.parse(params ?? {});
@@ -899,21 +899,21 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
           : (sessionId ?? null);
       runtimeParams = wrapCustomCommand(method, params, cdpSessionId);
     }
-    if (state.extExecutionContextId != null) runtimeParams.executionContextId = state.extExecutionContextId;
+    if (state.ext_execution_context_id != null) runtimeParams.executionContextId = state.ext_execution_context_id;
     state.upstream.send(
       JSON.stringify({
         id: upId,
         method: "Runtime.callFunctionOn",
         params: runtimeParams,
-        sessionId: state.extSessionId,
+        sessionId: state.ext_session_id,
       }),
     );
     return;
   }
 
   // passthrough
-  const upId = state.nextUpstreamId++;
-  state.pending.set(upId, { kind: "passthrough", clientId: id, clientSessionId: sessionId || null });
+  const upId = state.next_upstream_id++;
+  state.pending.set(upId, { kind: "passthrough", client_id: id, client_session_id: sessionId || null });
   const out: CdpCommandMessage = { id: upId, method, params };
   if (sessionId) out.sessionId = sessionId;
   state.upstream.send(JSON.stringify(out));
@@ -934,8 +934,8 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
     }
 
     const replyToClient = (extra: Omit<CdpResponseMessage, "id">) => {
-      const out: CdpResponseMessage = { id: p.clientId ?? 0, ...extra };
-      if (p.clientSessionId) out.sessionId = p.clientSessionId;
+      const out: CdpResponseMessage = { id: p.client_id ?? 0, ...extra };
+      if (p.client_session_id) out.sessionId = p.client_session_id;
       sendToClient(state, out);
     };
 
@@ -958,51 +958,51 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
   if (event.method === "Target.attachedToTarget") {
     const attached = TargetEvents["Target.attachedToTarget"].parse(event.params || {});
     if (attached.sessionId) {
-      state.targetSessionIds.set(attached.targetInfo.targetId, attached.sessionId);
-      if (state.hiddenTargetIds.has(attached.targetInfo.targetId)) state.hiddenSessionIds.add(attached.sessionId);
+      state.target_session_ids.set(attached.targetInfo.targetId, attached.sessionId);
+      if (state.hidden_target_ids.has(attached.targetInfo.targetId)) state.hidden_session_ids.add(attached.sessionId);
     }
   } else if (event.method === "Target.detachedFromTarget") {
     const detached = TargetEvents["Target.detachedFromTarget"].parse(event.params || {});
     if (detached.sessionId) {
-      state.hiddenSessionIds.delete(detached.sessionId);
-      for (const [targetId, sessionId] of state.targetSessionIds) {
+      state.hidden_session_ids.delete(detached.sessionId);
+      for (const [targetId, sessionId] of state.target_session_ids) {
         if (sessionId !== detached.sessionId) continue;
-        state.targetSessionIds.delete(targetId);
+        state.target_session_ids.delete(targetId);
         break;
       }
     }
   }
 
   // event
-  if (event.method === "Runtime.bindingCalled" && event.sessionId === state.extSessionId) {
+  if (event.method === "Runtime.bindingCalled" && event.sessionId === state.ext_session_id) {
     const binding = RuntimeEvents["Runtime.bindingCalled"].parse(event.params || {});
-    if (binding.name === UPSTREAM_EVENT_BINDING_NAME && !state.forwardMirroredUpstreamEvents) return;
+    if (binding.name === UPSTREAM_EVENT_BINDING_NAME && !state.forward_mirrored_upstream_events) return;
     const u = unwrapEventIfNeeded(event.method, binding, event.sessionId || null, null);
     if (!u) return;
     // emit to root + every known client session, so any CDPSession listener
     // (Playwright per-target sessions) fires.
     sendToClient(state, { method: u.event, params: (u.data ?? {}) as Record<string, unknown> });
-    for (const sid of state.clientSessionIds) {
+    for (const sid of state.client_session_ids) {
       sendToClient(state, { method: u.event, params: (u.data ?? {}) as Record<string, unknown>, sessionId: sid });
     }
     return;
   }
 
   // hide bridge-attached session traffic from the client
-  if (event.sessionId && state.hiddenSessionIds.has(event.sessionId)) return;
+  if (event.sessionId && state.hidden_session_ids.has(event.sessionId)) return;
 
   // If the client's auto-attach creates a fresh orphan session against the
   // hidden SW target, hide that session and detach it upstream. This MUST run
-  // before the generic hiddenTargetIds drop below: for an attachedToTarget
+  // before the generic hidden_target_ids drop below: for an attachedToTarget
   // event, msg.params.targetInfo.targetId is the SW target (which we want to
   // act on), not a target the client owns.
   if (event.method === "Target.attachedToTarget") {
     const attached = TargetEvents["Target.attachedToTarget"].parse(event.params || {});
-    if (state.hiddenTargetIds.has(attached.targetInfo.targetId)) {
+    if (state.hidden_target_ids.has(attached.targetInfo.targetId)) {
       const orphan = attached.sessionId;
-      if (orphan && orphan !== state.extSessionId) {
-        state.hiddenSessionIds.add(orphan);
-        const upId = state.nextUpstreamId++;
+      if (orphan && orphan !== state.ext_session_id) {
+        state.hidden_session_ids.add(orphan);
+        const upId = state.next_upstream_id++;
         state.pending.set(upId, { kind: "internal", resolve: () => {}, reject: () => {} });
         state.upstream.send(
           JSON.stringify({ id: upId, method: "Target.detachFromTarget", params: { sessionId: orphan } }),
@@ -1028,7 +1028,7 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
           typeof event.params.targetId === "string"
         ? event.params.targetId
         : null;
-  if (targetId && state.hiddenTargetIds.has(targetId)) return;
+  if (targetId && state.hidden_target_ids.has(targetId)) return;
   const eventSessionId =
     event.params &&
     typeof event.params === "object" &&
@@ -1036,16 +1036,16 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
     typeof event.params.sessionId === "string"
       ? event.params.sessionId
       : null;
-  if (event.method.startsWith("Target.detached") && eventSessionId && state.hiddenSessionIds.has(eventSessionId))
+  if (event.method.startsWith("Target.detached") && eventSessionId && state.hidden_session_ids.has(eventSessionId))
     return;
 
   if (!state.bootstrapped) return; // do not leak bootstrap events
 
   if (event.method === "Target.attachedToTarget" && eventSessionId) {
-    state.clientSessionIds.add(eventSessionId);
+    state.client_session_ids.add(eventSessionId);
   }
   if (event.method === "Target.detachedFromTarget" && eventSessionId) {
-    state.clientSessionIds.delete(eventSessionId);
+    state.client_session_ids.delete(eventSessionId);
   }
 
   sendToClient(state, event);
