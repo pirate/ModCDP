@@ -2,6 +2,7 @@ package modcdp
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -25,7 +26,7 @@ func NewLocalBrowserLaunchExtensionInjector(options ExtensionInjectorConfig) Loc
 
 func (i *LocalBrowserLaunchExtensionInjector) Prepare() error {
 	extensionPath := i.Options.ExtensionPath
-	if extensionPath == "" || i.UnpackedExtensionPath != "" {
+	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
 	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.ExtensionRuntimeConfig()) > 0)
@@ -90,6 +91,22 @@ func (i *LocalBrowserLaunchExtensionInjector) ResolveExtensionID() (string, erro
 }
 
 func prepareUnpackedExtension(extensionPath string, copyDirectory bool) (string, string, error) {
+	if extensionPath == "" {
+		dir, err := os.MkdirTemp("", "modcdp-extension-")
+		if err != nil {
+			return "", "", err
+		}
+		reader, err := zip.NewReader(bytes.NewReader(bundledExtensionZip), int64(len(bundledExtensionZip)))
+		if err != nil {
+			_ = os.RemoveAll(dir)
+			return "", "", err
+		}
+		if err := extractZipFiles(reader.File, dir); err != nil {
+			_ = os.RemoveAll(dir)
+			return "", "", err
+		}
+		return extensionRoot(dir), dir, nil
+	}
 	if !strings.HasSuffix(extensionPath, ".zip") {
 		if !copyDirectory {
 			return extensionPath, "", nil

@@ -19,7 +19,7 @@ func NewExtensionsLoadUnpackedInjector(options ExtensionInjectorConfig) Extensio
 
 func (i *ExtensionsLoadUnpackedInjector) Prepare() error {
 	extensionPath := i.Options.ExtensionPath
-	if extensionPath == "" || i.UnpackedExtensionPath != "" {
+	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
 	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.ExtensionRuntimeConfig()) > 0)

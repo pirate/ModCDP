@@ -19,8 +19,6 @@
 package modcdp
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -30,7 +28,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -310,7 +307,6 @@ type ModCDPClient struct {
 	LastCommandTiming    map[string]any
 	LastRawTiming        map[string]any
 	launchedBrowser      *LaunchedBrowser
-	preparedExtensionDir string
 	extensionInjectors   []extensionInjector
 }
 
@@ -441,9 +437,6 @@ func (c *ModCDPClient) Connect() error {
 	launcher := c.browserLauncher()
 	launchOptions := c.opts.Launch.Options
 	if c.opts.Extension.Mode != "none" {
-		if err := c.prepareExtensionPath(); err != nil {
-			return err
-		}
 		for _, injector := range injectors {
 			injector.Update(c.baseExtensionInjectorConfig(nil))
 			injector.Update(launcher.GetInjectorConfig())
@@ -596,9 +589,6 @@ func (c *ModCDPClient) connectPipeRawCDPTransport(connectStartedAt int64) error 
 	c.extensionInjectors = injectors
 	launchOptions := mergeLaunchOptions(c.opts.Launch.Options, pipeTransport.GetLauncherConfig())
 	if c.opts.Extension.Mode != "none" {
-		if err := c.prepareExtensionPath(); err != nil {
-			return err
-		}
 		for _, injector := range injectors {
 			injector.Update(c.baseExtensionInjectorConfig(nil))
 			injector.Update(launcher.GetInjectorConfig())
@@ -716,9 +706,6 @@ func (c *ModCDPClient) connectModCDPServerTransport(connectStartedAt int64) erro
 	})
 
 	if c.opts.Extension.Mode != "none" {
-		if err := c.prepareExtensionPath(); err != nil {
-			return err
-		}
 		for _, injector := range injectors {
 			injector.Update(c.baseExtensionInjectorConfig(nil))
 			injector.Update(launcher.GetInjectorConfig())
@@ -1137,10 +1124,6 @@ func (c *ModCDPClient) Close() {
 		c.launchedBrowser.Close()
 		c.launchedBrowser = nil
 	}
-	if c.preparedExtensionDir != "" {
-		_ = os.RemoveAll(c.preparedExtensionDir)
-		c.preparedExtensionDir = ""
-	}
 }
 
 func (c *ModCDPClient) browserLauncher() interface {
@@ -1270,77 +1253,6 @@ func formatInjectorErrors(errors []string) string {
 		return ""
 	}
 	return "\n\n" + strings.Join(errors, "\n")
-}
-
-// --- internals -----------------------------------------------------------
-
-func (c *ModCDPClient) prepareExtensionPath() error {
-	if c.opts.Extension.Path == "" {
-		reader, err := zip.NewReader(bytes.NewReader(bundledExtensionZip), int64(len(bundledExtensionZip)))
-		if err != nil {
-			return err
-		}
-		return c.extractExtensionZip(reader.File)
-	}
-	if !strings.HasSuffix(c.opts.Extension.Path, ".zip") {
-		return nil
-	}
-	reader, err := zip.OpenReader(c.opts.Extension.Path)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-	return c.extractExtensionZip(reader.File)
-}
-
-func (c *ModCDPClient) extractExtensionZip(files []*zip.File) error {
-	dir, err := os.MkdirTemp("", "modcdp-extension.")
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		targetPath := filepath.Join(dir, file.Name)
-		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(targetPath, 0o755); err != nil {
-				_ = os.RemoveAll(dir)
-				return err
-			}
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-			_ = os.RemoveAll(dir)
-			return err
-		}
-		src, err := file.Open()
-		if err != nil {
-			_ = os.RemoveAll(dir)
-			return err
-		}
-		dst, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.FileInfo().Mode())
-		if err != nil {
-			_ = src.Close()
-			_ = os.RemoveAll(dir)
-			return err
-		}
-		_, copyErr := io.Copy(dst, src)
-		srcErr := src.Close()
-		dstErr := dst.Close()
-		if copyErr != nil {
-			_ = os.RemoveAll(dir)
-			return copyErr
-		}
-		if srcErr != nil {
-			_ = os.RemoveAll(dir)
-			return srcErr
-		}
-		if dstErr != nil {
-			_ = os.RemoveAll(dir)
-			return dstErr
-		}
-	}
-	c.preparedExtensionDir = dir
-	c.opts.Extension.Path = extensionRoot(dir)
-	return nil
 }
 
 func (c *ModCDPClient) sendRaw(command rawCommand) (any, error) {
