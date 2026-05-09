@@ -303,16 +303,20 @@ type ModCDPClient struct {
 type extensionInjector interface {
 	Update(ExtensionInjectorConfig) *ExtensionInjector
 	GetLauncherConfig() LaunchOptions
+	GetTransportConfig() map[string]any
 	Prepare() error
 	Inject() (*ExtensionInjectionResult, error)
 	Close() error
 }
 
 type upstreamTransportClient interface {
+	Update(map[string]any)
 	Connect() error
 	Close() error
 	Send(map[string]any) error
+	GetLauncherConfig() LaunchOptions
 	GetInjectorConfig() ExtensionInjectorConfig
+	GetServerConfig() map[string]any
 	OnRecv(func(map[string]any)) func()
 	OnClose(func(error)) func()
 	WaitForPeer() error
@@ -674,7 +678,33 @@ func (c *ModCDPClient) connectModCDPServerTransport(connectStartedAt int64) erro
 	launcher := c.browserLauncher()
 	injectors := c.extensionInjectorsForConfig()
 	c.extensionInjectors = injectors
-	launchOptions := c.opts.Launch.Options
+	launchOptions := mergeLaunchOptions(c.opts.Launch.Options, transport.GetLauncherConfig())
+	transport.Update(map[string]any{
+		"ws_url":              c.opts.Upstream.WSURL,
+		"cdp_url":             c.opts.Upstream.WSURL,
+		"nats_url":            c.opts.Upstream.NATSURL,
+		"reversews_bind":      c.opts.Upstream.ReverseWSBind,
+		"manifest_path":       c.opts.Upstream.NativeMessagingManifest,
+		"extension_id":        c.opts.Extension.ExtensionID,
+		"nats_subject_prefix": "",
+		"user_data_dir":       launchOptions.UserDataDir,
+	})
+
+	if c.opts.Extension.Mode != "none" {
+		if err := c.prepareExtensionPath(); err != nil {
+			return err
+		}
+		for _, injector := range injectors {
+			injector.Update(c.baseExtensionInjectorConfig(nil))
+			injector.Update(transport.GetInjectorConfig())
+			if err := injector.Prepare(); err != nil {
+				return err
+			}
+			launchOptions = mergeLaunchOptions(launchOptions, injector.GetLauncherConfig())
+			transport.Update(injector.GetTransportConfig())
+		}
+	}
+	transport.Update(map[string]any{"user_data_dir": launchOptions.UserDataDir})
 	if err := transport.Connect(); err != nil {
 		return err
 	}
@@ -682,21 +712,6 @@ func (c *ModCDPClient) connectModCDPServerTransport(connectStartedAt int64) erro
 	transport.OnRecv(func(message map[string]any) { c.handleMessage(message) })
 	transport.OnClose(func(err error) { c.rejectAll(err) })
 
-	if c.opts.Extension.Mode != "none" {
-		if err := c.prepareExtensionPath(); err != nil {
-			c.Close()
-			return err
-		}
-		for _, injector := range injectors {
-			injector.Update(c.baseExtensionInjectorConfig(nil))
-			injector.Update(transport.GetInjectorConfig())
-			if err := injector.Prepare(); err != nil {
-				c.Close()
-				return err
-			}
-			launchOptions = mergeLaunchOptions(launchOptions, injector.GetLauncherConfig())
-		}
-	}
 	if c.opts.Launch.Mode != "none" {
 		launched, err := launcher.Launch(launchOptions)
 		if err != nil {
@@ -705,8 +720,21 @@ func (c *ModCDPClient) connectModCDPServerTransport(connectStartedAt int64) erro
 		}
 		c.launchedBrowser = launched
 		c.CDPURL = firstNonEmptyString(launched.WSURL, launched.CDPURL)
+		transport.Update(map[string]any{
+			"ws_url":        launched.WSURL,
+			"cdp_url":       launched.CDPURL,
+			"user_data_dir": launched.ProfileDir,
+		})
+		for _, injector := range injectors {
+			transport.Update(injector.GetTransportConfig())
+		}
+		serverConfig := transport.GetServerConfig()
 		if c.opts.Server != nil && c.opts.Server.LoopbackCDPURL == "" {
-			c.opts.Server.LoopbackCDPURL = c.CDPURL
+			if loopbackCDPURL, _ := serverConfig["loopback_cdp_url"].(string); loopbackCDPURL != "" {
+				c.opts.Server.LoopbackCDPURL = loopbackCDPURL
+			} else {
+				c.opts.Server.LoopbackCDPURL = c.CDPURL
+			}
 		}
 	}
 	transportConnectedAt := time.Now().UnixMilli()

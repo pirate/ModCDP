@@ -21,6 +21,9 @@ type UpstreamTransport struct {
 	closeListeners []func(error)
 }
 
+func (e *UpstreamTransport) Update(config map[string]any) {
+}
+
 func (e *UpstreamTransport) Connect() error {
 	return fmt.Errorf("%T.Connect is not implemented", e)
 }
@@ -39,6 +42,10 @@ func (e *UpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {
 
 func (e *UpstreamTransport) GetLauncherConfig() LaunchOptions {
 	return LaunchOptions{}
+}
+
+func (e *UpstreamTransport) GetServerConfig() map[string]any {
+	return map[string]any{}
 }
 
 func (e *UpstreamTransport) OnRecv(listener func(map[string]any)) func() {
