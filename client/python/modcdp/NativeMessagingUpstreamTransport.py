@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -167,10 +168,10 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
         host_dir.mkdir(parents=True, exist_ok=True)
         config_path = host_dir / f"{self.host_name}.config.json"
         host_script_path = host_dir / f"{self.host_name}.py"
-        host_executable_path = host_dir / f"{self.host_name}.sh"
+        host_executable_path = host_dir / f"{self.host_name}{'.cmd' if sys.platform.startswith('win') else '.sh'}"
         config_path.write_text(json.dumps({"host": "127.0.0.1", "port": port}, indent=2) + "\n")
         host_script_path.write_text(_native_host_script(str(config_path)))
-        host_executable_path.write_text(f"#!/bin/sh\nexec {json.dumps(sys.executable)} {json.dumps(str(host_script_path))}\n")
+        host_executable_path.write_text(_native_host_wrapper(sys.executable, str(host_script_path)))
         host_executable_path.chmod(0o755)
 
         manifest_paths = []
@@ -191,6 +192,8 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
             path = Path(manifest_path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(manifest_text)
+        if sys.platform.startswith("win") and manifest_paths:
+            _register_windows_native_messaging_host(self.host_name, manifest_paths[0])
 
     def _set_profile_manifest_paths(self, user_data_dir: str) -> None:
         self.manifest_paths = [
@@ -218,7 +221,38 @@ def _default_native_messaging_manifest_paths(host_name: str) -> list[str]:
             f"{home}/.config/chromium/NativeMessagingHosts/{host_name}.json",
             f"{home}/.config/chromium-browser/NativeMessagingHosts/{host_name}.json",
         ]
+    if sys.platform.startswith("win"):
+        return [str(Path.home() / ".modcdp" / "native-messaging" / f"{host_name}.json")]
     raise RuntimeError("upstream nativemessaging manifest_path is required on this platform.")
+
+
+def _native_host_wrapper(python_path: str, host_script_path: str) -> str:
+    if sys.platform.startswith("win"):
+        return f"@echo off\r\n{_cmd_quote(python_path)} {_cmd_quote(host_script_path)}\r\n"
+    return f"#!/bin/sh\nexec {json.dumps(python_path)} {json.dumps(host_script_path)}\n"
+
+
+def _cmd_quote(value: str) -> str:
+    return f'"{value.replace(chr(34), chr(34) + chr(34))}"'
+
+
+def _register_windows_native_messaging_host(host_name: str, manifest_path: str) -> None:
+    subprocess.run(
+        [
+            "reg",
+            "add",
+            rf"HKCU\Software\Google\Chrome\NativeMessagingHosts\{host_name}",
+            "/ve",
+            "/t",
+            "REG_SZ",
+            "/d",
+            manifest_path,
+            "/f",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def _write_length_prefixed_json(sock: socket.socket, message: dict[str, Any]) -> None:

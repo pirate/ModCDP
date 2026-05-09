@@ -66,46 +66,42 @@ test("nativemessaging upstream close rejects pending peer waits", async () => {
   );
 });
 
-test.skipIf(process.platform === "win32")(
-  "nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension",
-  async () => {
-    const native_client = new ModCDPClient({
-      launch: {
-        mode: "local",
-        options: { headless: true, sandbox: process.platform !== "linux" },
-      },
-      upstream: { mode: "nativemessaging" },
-      extension: {
-        mode: "auto",
-        path: EXTENSION_PATH,
-        service_worker_url_suffixes: ["/modcdp/service_worker.js"],
-        trust_service_worker_target: true,
-      },
-      server: {
-        routes: { "*.*": "loopback_cdp" },
-      },
-    });
+test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
+  const native_client = new ModCDPClient({
+    launch: {
+      mode: "local",
+      options: { headless: true, sandbox: process.platform !== "linux" },
+    },
+    upstream: { mode: "nativemessaging" },
+    extension: {
+      mode: "auto",
+      path: EXTENSION_PATH,
+      service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+      trust_service_worker_target: true,
+    },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
+  });
 
-    try {
-      await native_client.connect();
-      assert.equal(native_client.transport?.mode, "nativemessaging");
-      assert.equal(native_client.upstream_endpoint_kind, "modcdp_server");
-      assert.match(native_client.transport?.url ?? "", /^native:\/\/com\.modcdp\.bridge@127\.0\.0\.1:\d+$/);
-      assert.equal(
-        existsSync(
-          path.join(
-            native_client._launched?.profile_dir ?? "",
-            "NativeMessagingHosts",
-            `${DEFAULT_NATIVE_MESSAGING_HOST_NAME}.json`,
-          ),
+  try {
+    await native_client.connect();
+    assert.equal(native_client.transport?.mode, "nativemessaging");
+    assert.equal(native_client.upstream_endpoint_kind, "modcdp_server");
+    assert.match(native_client.transport?.url ?? "", /^native:\/\/com\.modcdp\.bridge@127\.0\.0\.1:\d+$/);
+    assert.equal(
+      existsSync(
+        path.join(
+          native_client._launched?.profile_dir ?? "",
+          "NativeMessagingHosts",
+          `${DEFAULT_NATIVE_MESSAGING_HOST_NAME}.json`,
         ),
-        true,
-      );
-      const version = (await native_client.send("Browser.getVersion")) as Record<string, unknown>;
-      assert.equal(typeof version.product, "string");
-    } finally {
-      await native_client.close();
-    }
-  },
-  90_000,
-);
+      ),
+      true,
+    );
+    const version = (await native_client.send("Browser.getVersion")) as Record<string, unknown>;
+    assert.equal(typeof version.product, "string");
+  } finally {
+    await native_client.close();
+  }
+}, 90_000);

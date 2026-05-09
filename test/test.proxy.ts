@@ -331,33 +331,29 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
   }
 }, 90_000);
 
-test.skipIf(process.platform === "win32")(
-  "proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nativemessaging upstream",
-  async () => {
-    const proxy_port = await LocalBrowserLauncher.freePort();
-    const proxy = await startProxy({
-      port: proxy_port,
-      launch: {
-        mode: "local",
-      },
-      upstream: { mode: "nativemessaging" },
-      extension: {
-        mode: "auto",
-        path: EXTENSION_PATH,
-      },
-      server: {
-        routes: { "*.*": "loopback_cdp" },
-      },
-    });
+test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nativemessaging upstream", async () => {
+  const proxy_port = await LocalBrowserLauncher.freePort();
+  const proxy = await startProxy({
+    port: proxy_port,
+    launch: {
+      mode: "local",
+    },
+    upstream: { mode: "nativemessaging" },
+    extension: {
+      mode: "auto",
+      path: EXTENSION_PATH,
+    },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
+  });
 
-    try {
-      await expect_proxy_cdp_works(proxy.url, "nativemessaging");
-    } finally {
-      await proxy.close();
-    }
-  },
-  90_000,
-);
+  try {
+    await expect_proxy_cdp_works(proxy.url, "nativemessaging");
+  } finally {
+    await proxy.close();
+  }
+}, 90_000);
 
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over reversews upstream", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -251,6 +252,9 @@ func (t *NativeMessagingUpstreamTransport) installNativeHost(port int) error {
 	}
 	configPath := filepath.Join(hostDir, t.HostName+".config.json")
 	hostExecutablePath := filepath.Join(hostDir, t.HostName+".sh")
+	if runtime.GOOS == "windows" {
+		hostExecutablePath = filepath.Join(hostDir, t.HostName+".cmd")
+	}
 	exePath, err := os.Executable()
 	if err != nil {
 		return err
@@ -263,6 +267,9 @@ func (t *NativeMessagingUpstreamTransport) installNativeHost(port int) error {
 		return err
 	}
 	wrapper := fmt.Sprintf("#!/bin/sh\n%s=%s exec %s\n", nativeHostConfigEnv, shellQuote(configPath), shellQuote(exePath))
+	if runtime.GOOS == "windows" {
+		wrapper = fmt.Sprintf("@echo off\r\nset %s=%s\r\n%s\r\n", nativeHostConfigEnv, configPath, cmdQuote(exePath))
+	}
 	if err := os.WriteFile(hostExecutablePath, []byte(wrapper), 0o755); err != nil {
 		return err
 	}
@@ -293,6 +300,11 @@ func (t *NativeMessagingUpstreamTransport) installNativeHost(port int) error {
 			return err
 		}
 		if err := os.WriteFile(manifestPath, append(manifestBody, '\n'), 0o644); err != nil {
+			return err
+		}
+	}
+	if runtime.GOOS == "windows" && len(manifestPaths) > 0 {
+		if err := registerWindowsNativeMessagingHost(t.HostName, manifestPaths[0]); err != nil {
 			return err
 		}
 	}
@@ -327,7 +339,24 @@ func defaultNativeMessagingManifestPaths(hostName string) []string {
 			filepath.Join(home, ".config/chromium-browser/NativeMessagingHosts", hostName+".json"),
 		}
 	}
+	if runtime.GOOS == "windows" {
+		return []string{filepath.Join(home, ".modcdp", "native-messaging", hostName+".json")}
+	}
 	return nil
+}
+
+func registerWindowsNativeMessagingHost(hostName string, manifestPath string) error {
+	return osexec.Command(
+		"reg",
+		"add",
+		`HKCU\Software\Google\Chrome\NativeMessagingHosts\`+hostName,
+		"/ve",
+		"/t",
+		"REG_SZ",
+		"/d",
+		manifestPath,
+		"/f",
+	).Run()
 }
 
 func runNativeMessagingHost(configPath string) error {
@@ -415,6 +444,10 @@ func readLengthPrefixedJSON(reader io.Reader) (map[string]any, error) {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func cmdQuote(value string) string {
+	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
 }
 
 func userHomeDir() string {

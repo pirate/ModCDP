@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -90,9 +89,6 @@ func TestNativeMessagingUpstreamTransportCloseRejectsPendingPeerWaits(t *testing
 }
 
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("native messaging profile manifest path is not implemented on Windows")
-	}
 	cdp := New(Options{
 		Launch: LaunchConfig{
 			Mode: "local",

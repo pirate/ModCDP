@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import type { CdpCommandMessage } from "../types/modcdp.js";
 import { DEFAULT_MODCDP_EXTENSION_ID } from "./ExtensionInjector.js";
 import { UpstreamTransport, type UpstreamTransportConfig } from "./UpstreamTransport.js";
@@ -178,13 +179,10 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
 
     const configPath = path.join(hostDir, `${this.host_name}.config.json`);
     const hostScriptPath = path.join(hostDir, `${this.host_name}.mjs`);
-    const hostExecutablePath = path.join(hostDir, `${this.host_name}.sh`);
+    const hostExecutablePath = path.join(hostDir, `${this.host_name}${process.platform === "win32" ? ".cmd" : ".sh"}`);
     fs.writeFileSync(configPath, JSON.stringify({ host: "127.0.0.1", port }, null, 2));
     fs.writeFileSync(hostScriptPath, nativeHostScript(configPath));
-    fs.writeFileSync(
-      hostExecutablePath,
-      `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(hostScriptPath)}\n`,
-    );
+    fs.writeFileSync(hostExecutablePath, nativeHostWrapper(process.execPath, hostScriptPath));
     fs.chmodSync(hostExecutablePath, 0o755);
 
     const manifestPaths =
@@ -211,6 +209,9 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     for (const manifestPath of manifestPaths) {
       fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
       fs.writeFileSync(manifestPath, manifest);
+    }
+    if (process.platform === "win32" && manifestPaths[0]) {
+      registerWindowsNativeMessagingHost(this.host_name, manifestPaths[0]);
     }
   }
 
@@ -242,7 +243,38 @@ function defaultNativeMessagingManifestPaths(host_name: string, home: string) {
       `${home}/.config/chromium-browser/NativeMessagingHosts/${host_name}.json`,
     ];
   }
+  if (process.platform === "win32") {
+    return [path.join(home, ".modcdp", "native-messaging", `${host_name}.json`)];
+  }
   throw new Error("upstream-nativemessaging-manifest is required on this platform.");
+}
+
+function nativeHostWrapper(node_path: string, host_script_path: string) {
+  if (process.platform === "win32") {
+    return `@echo off\r\n${cmdQuote(node_path)} ${cmdQuote(host_script_path)}\r\n`;
+  }
+  return `#!/bin/sh\nexec ${JSON.stringify(node_path)} ${JSON.stringify(host_script_path)}\n`;
+}
+
+function cmdQuote(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function registerWindowsNativeMessagingHost(host_name: string, manifest_path: string) {
+  execFileSync(
+    "reg",
+    [
+      "add",
+      `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${host_name}`,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      manifest_path,
+      "/f",
+    ],
+    { stdio: "ignore" },
+  );
 }
 
 function writeLengthPrefixedJSON(stream: { write: (chunk: Buffer) => void }, message: unknown) {

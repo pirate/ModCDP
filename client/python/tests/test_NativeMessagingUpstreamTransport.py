@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import threading
 import time
 import unittest
@@ -11,7 +10,6 @@ from modcdp import ModCDPClient
 from modcdp.NativeMessagingUpstreamTransport import DEFAULT_NATIVE_MESSAGING_HOST_NAME, NativeMessagingUpstreamTransport
 
 
-@unittest.skipIf(sys.platform.startswith("win"), "native messaging profile manifest path is not implemented on Windows")
 class NativeMessagingUpstreamTransportTests(unittest.TestCase):
     def test_config_owns_manifest_host_wait_timeout_loopback_and_injector_config(self) -> None:
         transport = NativeMessagingUpstreamTransport(
