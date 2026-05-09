@@ -28,6 +28,7 @@ class UpstreamTransportTests(unittest.TestCase):
         self.assertEqual(transport.getLauncherConfig(), {})
         self.assertEqual(transport.getInjectorConfig(), {})
         self.assertEqual(transport.getServerConfig(), {})
+        self.assertIsNone(transport.close())
 
         parsed = []
         test_transport = TestTransport()

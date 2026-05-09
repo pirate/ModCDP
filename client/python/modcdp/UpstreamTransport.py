@@ -34,7 +34,7 @@ class UpstreamTransport:
         return {}
 
     def close(self) -> None:
-        raise NotImplementedError(f"{type(self).__name__}.close is not implemented.")
+        return None
 
     def send(self, message: dict[str, Any]) -> None:
         raise NotImplementedError(f"{type(self).__name__}.send is not implemented.")
