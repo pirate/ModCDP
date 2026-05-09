@@ -206,6 +206,7 @@ type ExtensionConfig struct {
 
 type ClientConfig struct {
 	Routes               map[string]string
+	HydrateAliases       *bool
 	MirrorUpstreamEvents *bool
 	CDPSendTimeoutMS     int
 	EventWaitTimeoutMS   int
@@ -377,6 +378,10 @@ func New(opts Options) *ModCDPClient {
 		}
 		opts.Client.Routes = merged
 	}
+	if opts.Client.HydrateAliases == nil {
+		value := true
+		opts.Client.HydrateAliases = &value
+	}
 	if opts.Server == nil {
 		opts.Server = &ServerConfig{}
 	}
@@ -431,7 +436,9 @@ func New(opts Options) *ModCDPClient {
 		},
 		func() int { return client.opts.Extension.ExecutionContextTimeoutMS },
 	)
-	initCDPSurface(client)
+	if *opts.Client.HydrateAliases {
+		initCDPSurface(client)
+	}
 	client.hydrateCustomSurface()
 	return client
 }

@@ -53,6 +53,7 @@ class ModCDPClientTests(unittest.TestCase):
             },
             client={
                 "routes": {"*.*": "direct_cdp"},
+                "hydrate_aliases": False,
                 "mirror_upstream_events": False,
                 "cdp_send_timeout_ms": 1234,
                 "event_wait_timeout_ms": 2345,
@@ -77,9 +78,13 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertEqual(cdp.extension["service_worker_poll_interval_ms"], 76)
         self.assertEqual(cdp.extension["target_session_poll_interval_ms"], 87)
         self.assertEqual(cdp.client["routes"]["*.*"], "direct_cdp")
+        self.assertEqual(cdp.client["hydrate_aliases"], False)
         self.assertEqual(cdp.client["mirror_upstream_events"], False)
         self.assertEqual(cdp.client["cdp_send_timeout_ms"], 1234)
         self.assertEqual(cdp.client["event_wait_timeout_ms"], 2345)
+        self.assertNotIn("Browser", cdp.__dict__)
+        with self.assertRaises(AttributeError):
+            _ = cdp.Browser
         self.assertNotIn("routes", cdp.__dict__)
         self.assertNotIn("cdp_send_timeout_ms", cdp.__dict__)
         self.assertNotIn("service_worker_probe_timeout_ms", cdp.__dict__)

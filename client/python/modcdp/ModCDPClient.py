@@ -365,7 +365,8 @@ class ModCDPClient(CDPSurfaceMixin):
         self._command_result_model_schemas: set[str] = set()
         self._event_model_schemas: set[str] = set()
         self._event_classes: dict[str, type[CDPEvent]] = {}
-        install_cdp_surface(self)
+        if self.client["hydrate_aliases"]:
+            install_cdp_surface(self)
         self.Mod = _ModDomain(self)
         self._reader_thread: threading.Thread | None = None
         self._closed = False
@@ -657,6 +658,8 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def __getattr__(self, domain: str):
         if domain.startswith("_"):
+            raise AttributeError(domain)
+        if not self.client["hydrate_aliases"]:
             raise AttributeError(domain)
         from .cdp.surface import DynamicDomain
 

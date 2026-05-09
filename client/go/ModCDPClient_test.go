@@ -48,6 +48,7 @@ func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
 		},
 		Client: ClientConfig{
 			Routes:               map[string]string{"*.*": "direct_cdp"},
+			HydrateAliases:       boolPtr(false),
 			MirrorUpstreamEvents: boolPtr(false),
 			CDPSendTimeoutMS:     1234,
 			EventWaitTimeoutMS:   2345,
@@ -90,6 +91,12 @@ func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
 	}
 	if cdp.opts.Client.Routes["*.*"] != "direct_cdp" {
 		t.Fatalf("Client.Routes[*.*] = %q", cdp.opts.Client.Routes["*.*"])
+	}
+	if cdp.opts.Client.HydrateAliases == nil || *cdp.opts.Client.HydrateAliases {
+		t.Fatalf("Client.HydrateAliases = %#v", cdp.opts.Client.HydrateAliases)
+	}
+	if _, err := cdp.Browser.GetVersion(); err == nil || !strings.Contains(err.Error(), "client.hydrate_aliases is false") {
+		t.Fatalf("Browser.GetVersion with aliases disabled error = %v", err)
 	}
 	if cdp.opts.Client.MirrorUpstreamEvents == nil || *cdp.opts.Client.MirrorUpstreamEvents {
 		t.Fatalf("Client.MirrorUpstreamEvents = %#v", cdp.opts.Client.MirrorUpstreamEvents)
