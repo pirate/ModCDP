@@ -6,10 +6,9 @@ Constructor option groups mirror the JS / Go ports:
     extension         raw-CDP extension discovery/injection/borrowing
     client.routes     client-side direct_cdp/service_worker routing
     server            ModCDPServer.configure params
-    mirror_upstream_events
-                      when false, do not mirror server-side upstream CDP events back through Runtime bindings
-    *_timeout_ms / *_interval_ms
-                      override default CDP send, service-worker probe, event, and poll timings
+    client            client routing and client-owned send/event timings
+    extension         extension discovery, wake, probe, and keepalive timings
+    upstream          upstream transport options and upstream-owned timings
 
 Public methods: connect(), send(method, params), on(event, handler), close(), _cdp.send(), _cdp.on().
 Synchronous (blocking) API; one background thread reads messages off the WS.
@@ -39,6 +38,7 @@ from .BBBrowserExtensionInjector import BBBrowserExtensionInjector
 from .BorrowedExtensionInjector import BorrowedExtensionInjector
 from .DiscoveredExtensionInjector import DiscoveredExtensionInjector
 from .ExtensionInjector import (
+    DEFAULT_MODCDP_WAKE_PATH,
     DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
     ExtensionInjector,
     ExtensionInjectorConfig,
@@ -238,31 +238,81 @@ class ModCDPClient(CDPSurfaceMixin):
         custom_commands: Sequence[ModCDPAddCustomCommandParams] | None = None,
         custom_events: Sequence[ModCDPAddCustomEventParams] | None = None,
         custom_middlewares: Sequence[ModCDPAddMiddlewareParams] | None = None,
-        mirror_upstream_events: bool = True,
-        cdp_send_timeout_ms: int = DEFAULT_CDP_SEND_TIMEOUT_MS,
-        event_wait_timeout_ms: int = DEFAULT_EVENT_WAIT_TIMEOUT_MS,
-        execution_context_timeout_ms: int = DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS,
-        service_worker_probe_timeout_ms: int = DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
-        service_worker_ready_timeout_ms: int = DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
-        service_worker_poll_interval_ms: int = DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS,
-        target_session_poll_interval_ms: int = DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
-        ws_connect_error_settle_timeout_ms: int = DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
     ) -> None:
-        self.launch = dict(launch or {})
-        self.upstream = dict(upstream or {})
-        self.extension = dict(extension or {})
-        self.client = dict(client or {})
-        self.upstream["mode"] = self.upstream.get("mode") or "ws"
+        launch_input = dict(launch or {})
+        upstream_input = dict(upstream or {})
+        extension_input = dict(extension or {})
+        client_input = dict(client or {})
+        upstream_mode = str(upstream_input.get("mode") or "ws")
+        self.upstream: dict[str, Any] = {
+            "mode": upstream_mode,
+            "ws_url": upstream_input.get("ws_url"),
+            "nats_url": upstream_input.get("nats_url"),
+            "nats_subject_prefix": upstream_input.get("nats_subject_prefix"),
+            "reversews_bind": upstream_input.get("reversews_bind"),
+            "nativemessaging_manifest": upstream_input.get("nativemessaging_manifest"),
+            "ws_connect_error_settle_timeout_ms": int(
+                upstream_input.get("ws_connect_error_settle_timeout_ms")
+                or DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS
+            ),
+        }
         self.upstream_endpoint_kind = "raw_cdp" if self.upstream["mode"] in ("ws", "pipe") else "modcdp_server"
-        self.launch["mode"] = self.launch.get("mode") or (
+        launch_mode = launch_input.get("mode") or (
             "none" if self.upstream_endpoint_kind == "modcdp_server" else "remote" if self.upstream.get("ws_url") else "local"
         )
-        self.extension["mode"] = self.extension.get("mode") or (
+        self.launch: dict[str, Any] = {
+            "mode": launch_mode,
+            "executable_path": launch_input.get("executable_path"),
+            "user_data_dir": launch_input.get("user_data_dir"),
+            "options": dict(cast(Mapping[str, Any], launch_input.get("options") or {})),
+        }
+        extension_mode = extension_input.get("mode") or (
             "auto" if self.upstream_endpoint_kind == "raw_cdp" else "none"
         )
+        self.extension: dict[str, Any] = {
+            "mode": extension_mode,
+            "path": extension_input.get("path") or default_extension_path(),
+            "extension_id": extension_input.get("extension_id"),
+            "wake_path": extension_input.get("wake_path") or DEFAULT_MODCDP_WAKE_PATH,
+            "wake_url": extension_input.get("wake_url"),
+            "service_worker_url_includes": list(cast(Sequence[str], extension_input.get("service_worker_url_includes") or [])),
+            "service_worker_url_suffixes": list(
+                cast(
+                    Sequence[str],
+                    extension_input.get("service_worker_url_suffixes")
+                    or DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
+                )
+            ),
+            "trust_service_worker_target": bool(extension_input.get("trust_service_worker_target", False)),
+            "require_service_worker_target": bool(extension_input.get("require_service_worker_target", False)),
+            "service_worker_ready_expression": extension_input.get("service_worker_ready_expression"),
+            "execution_context_timeout_ms": int(
+                extension_input.get("execution_context_timeout_ms") or DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS
+            ),
+            "service_worker_probe_timeout_ms": int(
+                extension_input.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS
+            ),
+            "service_worker_ready_timeout_ms": int(
+                extension_input.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS
+            ),
+            "service_worker_poll_interval_ms": int(
+                extension_input.get("service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS
+            ),
+            "target_session_poll_interval_ms": int(
+                extension_input.get("target_session_poll_interval_ms") or DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS
+            ),
+        }
+        self.client: dict[str, Any] = {
+            "routes": {
+                **DEFAULT_CLIENT_ROUTES,
+                **dict(cast(Mapping[str, str], client_input.get("routes") or {})),
+            },
+            "hydrate_aliases": bool(client_input.get("hydrate_aliases", True)),
+            "mirror_upstream_events": bool(client_input.get("mirror_upstream_events", True)),
+            "cdp_send_timeout_ms": int(client_input.get("cdp_send_timeout_ms") or DEFAULT_CDP_SEND_TIMEOUT_MS),
+            "event_wait_timeout_ms": int(client_input.get("event_wait_timeout_ms") or DEFAULT_EVENT_WAIT_TIMEOUT_MS),
+        }
         self.cdp_url: str | None = cast(str | None, self.upstream.get("ws_url"))
-        self.extension_path: str | None = cast(str | None, self.extension.get("path")) or default_extension_path()
-        self.routes: ModCDPRoutes = {**DEFAULT_CLIENT_ROUTES, **dict(cast(Mapping[str, str], self.client.get("routes") or {}))}
         if server is DEFAULT_SERVER:
             self.server: ModCDPServerConfig | None = {"routes": {"*.*": "chrome_debugger"}} if self.upstream_endpoint_kind == "modcdp_server" else {}
         elif server is None:
@@ -277,30 +327,6 @@ class ModCDPClient(CDPSurfaceMixin):
         self.custom_commands: list[ModCDPAddCustomCommandParams] = list(custom_commands or [])
         self.custom_events: list[ModCDPAddCustomEventParams] = list(custom_events or [])
         self.custom_middlewares: list[ModCDPAddMiddlewareParams] = list(custom_middlewares or [])
-        self.service_worker_url_includes: list[str] = list(cast(Sequence[str], self.extension.get("service_worker_url_includes") or []))
-        self.service_worker_url_suffixes: list[str] = list(cast(Sequence[str], self.extension.get("service_worker_url_suffixes") or DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES))
-        self.trust_service_worker_target = bool(self.extension.get("trust_service_worker_target", False))
-        self.require_service_worker_target = bool(self.extension.get("require_service_worker_target", False))
-        self.service_worker_ready_expression = cast(str | None, self.extension.get("service_worker_ready_expression"))
-        self.mirror_upstream_events = mirror_upstream_events
-        self.cdp_send_timeout_ms = cdp_send_timeout_ms
-        self.event_wait_timeout_ms = event_wait_timeout_ms
-        self.execution_context_timeout_ms = execution_context_timeout_ms
-        self.service_worker_probe_timeout_ms = service_worker_probe_timeout_ms
-        self.service_worker_ready_timeout_ms = service_worker_ready_timeout_ms
-        self.service_worker_poll_interval_ms = service_worker_poll_interval_ms
-        self.target_session_poll_interval_ms = target_session_poll_interval_ms
-        self.ws_connect_error_settle_timeout_ms = ws_connect_error_settle_timeout_ms
-        self.server_options: ModCDPServerConfig = {
-            "cdp_send_timeout_ms": cdp_send_timeout_ms,
-            "loopback_execution_context_timeout_ms": execution_context_timeout_ms,
-            "ws_connect_error_settle_timeout_ms": ws_connect_error_settle_timeout_ms,
-        }
-        self.launch_options = cast(BrowserLaunchOptions, dict(cast(Mapping[str, Any], self.launch.get("options") or {})))
-        if self.launch.get("executable_path"):
-            self.launch_options["executable_path"] = self.launch["executable_path"]
-        if self.launch.get("user_data_dir"):
-            self.launch_options["user_data_dir"] = self.launch["user_data_dir"]
 
         self.extension_id: str | None = None
         self.ext_target_id: str | None = None
@@ -339,7 +365,7 @@ class ModCDPClient(CDPSurfaceMixin):
         if self.upstream_endpoint_kind == "modcdp_server":
             transport_started_at = int(time.time() * 1000)
             launcher = self._browser_launcher()
-            launcher.update(self.launch_options)
+            launcher.update(self._launch_options())
             transport = self._upstream_transport()
             transport.update(
                 {
@@ -395,7 +421,7 @@ class ModCDPClient(CDPSurfaceMixin):
             })
             return self
         launcher = self._browser_launcher()
-        launcher.update(self.launch_options)
+        launcher.update(self._launch_options())
         transport: UpstreamTransport | None = None
         if self.upstream.get("mode") != "ws" or self.cdp_url is not None:
             transport = self._upstream_transport()
@@ -462,14 +488,14 @@ class ModCDPClient(CDPSurfaceMixin):
         self.ext_session_id = ext["session_id"]
         self._send_message("Runtime.enable", {}, self.ext_session_id)
         self._send_message("Runtime.addBinding", {"name": CUSTOM_EVENT_BINDING_NAME}, self.ext_session_id)
-        if self.mirror_upstream_events:
+        if self.client["mirror_upstream_events"]:
             self._send_message("Runtime.addBinding", {"name": UPSTREAM_EVENT_BINDING_NAME}, self.ext_session_id)
 
         if self.server is not None:
             self._send_raw(wrap_command_if_needed(
                 "Mod.configure",
                 cast(ProtocolParams, self._server_configure_params()),
-                routes=self.routes,
+                routes=cast(ModCDPRoutes, self.client["routes"]),
                 cdp_session_id=self.ext_session_id,
             ))
         threading.Thread(target=self._measure_ping_latency, daemon=True).start()
@@ -543,7 +569,7 @@ class ModCDPClient(CDPSurfaceMixin):
         command = wrap_command_if_needed(
             method,
             command_params,
-            routes=self.routes,
+            routes=cast(ModCDPRoutes, self.client["routes"]),
             cdp_session_id=self.ext_session_id,
             target_cdp_session_id=session_id,
         )
@@ -650,9 +676,11 @@ class ModCDPClient(CDPSurfaceMixin):
                     else {}
                 ),
             },
-            "client": {"routes": self.routes},
+            "client": {"routes": self.client["routes"]},
             "server": {
-                **self.server_options,
+                "cdp_send_timeout_ms": self.client["cdp_send_timeout_ms"],
+                "loopback_execution_context_timeout_ms": self.extension["execution_context_timeout_ms"],
+                "ws_connect_error_settle_timeout_ms": self.upstream["ws_connect_error_settle_timeout_ms"],
                 **(self.server or {}),
             },
             "custom_events": custom_events,
@@ -701,7 +729,7 @@ class ModCDPClient(CDPSurfaceMixin):
             session_id = self._target_sessions.get(target_id)
             if session_id:
                 return session_id
-            time.sleep(self.target_session_poll_interval_ms / 1000)
+            time.sleep(self.extension["target_session_poll_interval_ms"] / 1000)
         return None
 
     def _ensure_session_id_for_target(self, target_id: str, timeout: float = 0, allow_attach: bool = False) -> str | None:
@@ -712,7 +740,7 @@ class ModCDPClient(CDPSurfaceMixin):
             result = self._send_message(
                 "Target.attachToTarget",
                 {"targetId": target_id, "flatten": True},
-                timeout=max(timeout, self.cdp_send_timeout_ms / 1000),
+                timeout=max(timeout, self.client["cdp_send_timeout_ms"] / 1000),
             )
             attached_session_id = result.get("sessionId")
             if isinstance(attached_session_id, str) and attached_session_id:
@@ -722,19 +750,27 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def _browser_launcher(self):
         if self.launch.get("mode") == "local":
-            return LocalBrowserLauncher(self.launch_options)
+            return LocalBrowserLauncher(self._launch_options())
         if self.launch.get("mode") == "remote":
-            return RemoteBrowserLauncher(self.launch_options, self.cdp_url)
+            return RemoteBrowserLauncher(self._launch_options(), self.cdp_url)
         if self.launch.get("mode") == "bb":
-            return BrowserbaseBrowserLauncher(self.launch_options)
-        return NoopBrowserLauncher(self.launch_options)
+            return BrowserbaseBrowserLauncher(self._launch_options())
+        return NoopBrowserLauncher(self._launch_options())
+
+    def _launch_options(self) -> BrowserLaunchOptions:
+        launch_options = cast(BrowserLaunchOptions, dict(cast(Mapping[str, Any], self.launch.get("options") or {})))
+        if self.launch.get("executable_path"):
+            launch_options["executable_path"] = cast(str, self.launch["executable_path"])
+        if self.launch.get("user_data_dir"):
+            launch_options["user_data_dir"] = cast(str, self.launch["user_data_dir"])
+        return launch_options
 
     def _upstream_transport(self):
         mode = self.upstream.get("mode")
         if mode == "ws":
             if not self.cdp_url:
                 raise RuntimeError("upstream.mode='ws' requires upstream.ws_url or launch.mode='local'.")
-            return WebSocketUpstreamTransport(self.cdp_url, timeout_s=self.cdp_send_timeout_ms / 1000)
+            return WebSocketUpstreamTransport(self.cdp_url, timeout_s=self.client["cdp_send_timeout_ms"] / 1000)
         if mode == "pipe":
             return PipeUpstreamTransport()
         if mode == "reversews":
@@ -764,9 +800,12 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def _base_extension_injector_config(self, send: Any | None) -> ExtensionInjectorConfig:
         trust_matched_service_worker = (
-            self.trust_service_worker_target
-            or len(self.service_worker_url_includes) > 0
-            or any(len([part for part in suffix.split("/") if part]) > 1 for suffix in self.service_worker_url_suffixes)
+            self.extension["trust_service_worker_target"]
+            or len(self.extension["service_worker_url_includes"]) > 0
+            or any(
+                len([part for part in suffix.split("/") if part]) > 1
+                for suffix in self.extension["service_worker_url_suffixes"]
+            )
         )
 
         def send_cdp(method: str, params: ProtocolParams | None = None, session_id: str | None = None) -> ProtocolResult:
@@ -776,13 +815,13 @@ class ModCDPClient(CDPSurfaceMixin):
                 method,
                 params or {},
                 session_id,
-                timeout=self.cdp_send_timeout_ms / 1000,
+                timeout=self.client["cdp_send_timeout_ms"] / 1000,
             )
 
         def attach_to_target(target_id: str) -> str | None:
             return self._ensure_session_id_for_target(
                 target_id,
-                timeout=self.service_worker_probe_timeout_ms / 1000,
+                timeout=self.extension["service_worker_probe_timeout_ms"] / 1000,
                 allow_attach=True,
             )
 
@@ -791,21 +830,21 @@ class ModCDPClient(CDPSurfaceMixin):
             "sessionIdForTarget": lambda target_id: self._target_sessions.get(target_id),
             "attachToTarget": attach_to_target if send is not None else None,
             "waitForExecutionContext": None,
-            "extension_path": self.extension_path,
+            "extension_path": cast(str | None, self.extension.get("path")),
             "extension_id": cast(str | None, self.extension.get("extension_id")),
-            "wake_path": cast(str | None, self.extension.get("wake_path") or "/modcdp/wake.html"),
+            "wake_path": cast(str | None, self.extension.get("wake_path")),
             "wake_url": cast(str | None, self.extension.get("wake_url")),
-            "service_worker_url_includes": self.service_worker_url_includes,
-            "service_worker_url_suffixes": self.service_worker_url_suffixes,
+            "service_worker_url_includes": cast(list[str], self.extension["service_worker_url_includes"]),
+            "service_worker_url_suffixes": cast(list[str], self.extension["service_worker_url_suffixes"]),
             "trust_matched_service_worker": trust_matched_service_worker,
-            "require_service_worker_target": self.require_service_worker_target or self.extension.get("mode") == "discover",
-            "service_worker_ready_expression": self.service_worker_ready_expression,
-            "cdp_send_timeout_ms": self.cdp_send_timeout_ms,
-            "execution_context_timeout_ms": self.execution_context_timeout_ms,
-            "service_worker_probe_timeout_ms": self.service_worker_probe_timeout_ms,
-            "service_worker_ready_timeout_ms": self.service_worker_ready_timeout_ms,
-            "service_worker_poll_interval_ms": self.service_worker_poll_interval_ms,
-            "target_session_poll_interval_ms": self.target_session_poll_interval_ms,
+            "require_service_worker_target": self.extension["require_service_worker_target"] or self.extension.get("mode") == "discover",
+            "service_worker_ready_expression": cast(str | None, self.extension.get("service_worker_ready_expression")),
+            "cdp_send_timeout_ms": self.client["cdp_send_timeout_ms"],
+            "execution_context_timeout_ms": self.extension["execution_context_timeout_ms"],
+            "service_worker_probe_timeout_ms": self.extension["service_worker_probe_timeout_ms"],
+            "service_worker_ready_timeout_ms": self.extension["service_worker_ready_timeout_ms"],
+            "service_worker_poll_interval_ms": self.extension["service_worker_poll_interval_ms"],
+            "target_session_poll_interval_ms": self.extension["target_session_poll_interval_ms"],
         }
 
     def _inject_extension(self, injectors: list[ExtensionInjector] | None = None) -> ExtensionInfo:
@@ -1000,7 +1039,7 @@ class ModCDPClient(CDPSurfaceMixin):
         timeout: float | None = None,
         record_raw_timing: bool = False,
     ) -> ProtocolResult:
-        effective_timeout = self.cdp_send_timeout_ms / 1000 if timeout is None else timeout
+        effective_timeout = self.client["cdp_send_timeout_ms"] / 1000 if timeout is None else timeout
         with self._lock:
             self._next_id += 1
             msg_id = self._next_id
