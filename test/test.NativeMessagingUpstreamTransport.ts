@@ -73,6 +73,24 @@ test("nativemessaging upstream close rejects pending peer waits", async () => {
   );
 });
 
+test("nativemessaging upstream close resets peer wait state", async () => {
+  const transport = new NativeMessagingUpstreamTransport({ wait_timeout_ms: 5 });
+  (transport as unknown as { socket: { destroyed: boolean; destroy: () => void } | null }).socket = {
+    destroyed: false,
+    destroy() {
+      this.destroyed = true;
+    },
+  };
+
+  await transport.waitForPeer();
+  await transport.close();
+
+  await assert.rejects(
+    () => transport.waitForPeer(),
+    /Timed out waiting 5ms for native messaging host com\.modcdp\.bridge/,
+  );
+});
+
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
   const native_client = new ModCDPClient({
     launch: {

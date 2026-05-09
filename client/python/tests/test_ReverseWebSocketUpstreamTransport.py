@@ -48,6 +48,18 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
             rf"Reverse websocket transport at ws://127\.0\.0\.1:{reverse_port} closed before a peer connected",
         )
 
+    def test_close_resets_peer_wait_state(self) -> None:
+        transport = ReverseWebSocketUpstreamTransport("127.0.0.1:29292", 5)
+        transport.socket = cast(socket.socket, _FakeSocket())
+        transport.peer_info = {"type": "modcdp.reverse.hello"}
+
+        transport.waitForPeer()
+        transport.close()
+
+        with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms"):
+            transport.waitForPeer()
+        self.assertIsNone(transport.peer_info)
+
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         reverse_port = _free_port()
         reverse_bind = f"127.0.0.1:{reverse_port}"
@@ -85,6 +97,11 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
     finally:
         sock.close()
+
+
+class _FakeSocket:
+    def close(self) -> None:
+        pass
 
 
 if __name__ == "__main__":

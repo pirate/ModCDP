@@ -3,8 +3,10 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+import socket
 from pathlib import Path
 from queue import Queue
+from typing import cast
 
 from modcdp import ModCDPClient
 from modcdp.NativeMessagingUpstreamTransport import DEFAULT_NATIVE_MESSAGING_HOST_NAME, NativeMessagingUpstreamTransport
@@ -58,6 +60,8 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
     def test_close_resets_peer_wait_state(self) -> None:
         transport = NativeMessagingUpstreamTransport({"wait_timeout_ms": 5})
 
+        transport.socket = cast(socket.socket, _FakeSocket())
+        transport.waitForPeer()
         transport.close()
         with self.assertRaisesRegex(RuntimeError, r"Timed out waiting 5ms for native messaging host com\.modcdp\.bridge"):
             transport.waitForPeer()
@@ -118,6 +122,11 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(version["product"], str)
         finally:
             cdp.close()
+
+
+class _FakeSocket:
+    def close(self) -> None:
+        pass
 
 
 if __name__ == "__main__":
