@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const DefaultModCDPExtensionID = "mdedooklbnfejodmnhmkdpkaedafkehf"
@@ -238,6 +239,173 @@ func (i ExtensionInjector) ReadyExpression() string {
 		return modcdpReadyExpression
 	}
 	return fmt.Sprintf("(%s) && Boolean(%s)", modcdpReadyExpression, i.Options.ServiceWorkerReadyExpression)
+}
+
+func (i ExtensionInjector) SendWithTimeout(method string, params map[string]any, sessionID string, timeoutMS int) (map[string]any, error) {
+	if i.Options.Send == nil {
+		return nil, fmt.Errorf("%T requires a CDP send function", i)
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+	return i.Options.Send(method, params, sessionID)
+}
+
+func (i ExtensionInjector) SessionIDForTarget(targetID string, timeoutMS int) string {
+	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
+	for {
+		if i.Options.SessionIDForTarget != nil {
+			if sessionID := i.Options.SessionIDForTarget(targetID); sessionID != "" {
+				return sessionID
+			}
+		}
+		if timeoutMS <= 0 || time.Now().After(deadline) {
+			return ""
+		}
+		time.Sleep(time.Duration(i.Options.TargetSessionPollIntervalMS) * time.Millisecond)
+	}
+}
+
+func (i ExtensionInjector) EnsureSessionIDForTarget(targetID string, timeoutMS int, allowAttach bool) string {
+	if i.Options.SessionIDForTarget != nil {
+		if sessionID := i.Options.SessionIDForTarget(targetID); sessionID != "" {
+			return sessionID
+		}
+	}
+	if allowAttach && i.Options.AttachToTarget != nil {
+		if sessionID := i.Options.AttachToTarget(targetID); sessionID != "" {
+			return sessionID
+		}
+	}
+	return i.SessionIDForTarget(targetID, timeoutMS)
+}
+
+func (i ExtensionInjector) TargetInfos() ([]map[string]any, error) {
+	result, err := i.SendWithTimeout("Target.getTargets", map[string]any{}, "", i.Options.CDPSendTimeoutMS)
+	if err != nil {
+		return nil, err
+	}
+	rawTargets, _ := result["targetInfos"].([]any)
+	targets := make([]map[string]any, 0, len(rawTargets))
+	for _, rawTarget := range rawTargets {
+		target, _ := rawTarget.(map[string]any)
+		if target != nil {
+			targets = append(targets, target)
+		}
+	}
+	return targets, nil
+}
+
+func (i ExtensionInjector) ConfiguredWakeURL() string {
+	if i.Options.WakeURL != "" {
+		return i.Options.WakeURL
+	}
+	if i.Options.ExtensionID == "" {
+		return ""
+	}
+	wakePath := i.Options.WakePath
+	if wakePath == "" {
+		wakePath = DefaultModCDPWakePath
+	}
+	if !strings.HasPrefix(wakePath, "/") {
+		wakePath = "/" + wakePath
+	}
+	return "chrome-extension://" + i.Options.ExtensionID + wakePath
+}
+
+func (i ExtensionInjector) WakeConfiguredExtension() bool {
+	wakeURL := i.ConfiguredWakeURL()
+	if wakeURL == "" || i.Options.Send == nil {
+		return false
+	}
+	_, err := i.SendWithTimeout("Target.createTarget", map[string]any{"url": wakeURL}, "", i.Options.CDPSendTimeoutMS)
+	return err == nil
+}
+
+func (i ExtensionInjector) ProbeTarget(target map[string]any, sessionTimeoutMS int, allowAttach bool) (*ExtensionInjectionResult, error) {
+	targetID, _ := target["targetId"].(string)
+	targetURL, _ := target["url"].(string)
+	if targetID == "" || i.UnusableTargetIDs[targetID] {
+		return nil, nil
+	}
+	sessionID := i.EnsureSessionIDForTarget(targetID, sessionTimeoutMS, allowAttach)
+	if sessionID == "" {
+		return nil, nil
+	}
+	if _, err := i.SendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS); err != nil {
+		return nil, err
+	}
+	probe, err := i.SendWithTimeout("Runtime.evaluate", map[string]any{
+		"expression":    i.ReadyExpression(),
+		"returnByValue": true,
+	}, sessionID, i.Options.CDPSendTimeoutMS)
+	if err != nil {
+		return nil, err
+	}
+	result, _ := probe["result"].(map[string]any)
+	if ready, _ := result["value"].(bool); !ready {
+		return nil, nil
+	}
+	extensionID := ""
+	if m := extIDFromURL.FindStringSubmatch(targetURL); len(m) > 1 {
+		extensionID = m[1]
+	}
+	return &ExtensionInjectionResult{
+		Source:      "discovered",
+		ExtensionID: extensionID,
+		TargetID:    targetID,
+		URL:         targetURL,
+		SessionID:   sessionID,
+	}, nil
+}
+
+func (i ExtensionInjector) DiscoverReadyServiceWorker(matchedOnly bool) (*ExtensionInjectionResult, error) {
+	targets, err := i.TargetInfos()
+	if err != nil {
+		return nil, err
+	}
+	if i.Options.TrustMatchedServiceWorker {
+		for _, target := range targets {
+			if !i.ServiceWorkerTargetMatches(target) {
+				continue
+			}
+			probed, err := i.ProbeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
+			if err != nil {
+				return nil, err
+			}
+			if probed != nil {
+				probed.Source = "trusted"
+				return probed, nil
+			}
+		}
+	}
+	if i.Options.TrustMatchedServiceWorker || matchedOnly {
+		return nil, nil
+	}
+	for _, target := range targets {
+		targetType, _ := target["type"].(string)
+		targetURL, _ := target["url"].(string)
+		if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
+			continue
+		}
+		probed, err := i.ProbeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, false)
+		if err == nil && probed != nil {
+			return probed, nil
+		}
+	}
+	return nil, nil
+}
+
+func (i ExtensionInjector) WaitForReadyServiceWorker(timeoutMS int, matchedOnly bool) (*ExtensionInjectionResult, error) {
+	deadline := time.Now().Add(time.Duration(timeoutMS) * time.Millisecond)
+	for time.Now().Before(deadline) {
+		discovered, err := i.DiscoverReadyServiceWorker(matchedOnly)
+		if err != nil || discovered != nil {
+			return discovered, err
+		}
+		time.Sleep(time.Duration(i.Options.ServiceWorkerPollIntervalMS) * time.Millisecond)
+	}
+	return nil, nil
 }
 
 func (i ExtensionInjector) ServiceWorkerTargetMatches(target map[string]any) bool {
