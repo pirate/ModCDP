@@ -58,3 +58,40 @@ func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 		t.Fatal("expected protocolVersion")
 	}
 }
+
+func TestLocalBrowserLauncherLaunchesRealBrowserOverRemoteDebuggingPipe(t *testing.T) {
+	headless := true
+	sandbox := false
+	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
+		Headless: &headless,
+		Sandbox:  &sandbox,
+	}).Launch(LaunchOptions{RemoteDebugging: "pipe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chrome.Close()
+	if !strings.HasPrefix(chrome.CDPURL, "pipe://") {
+		t.Fatalf("CDPURL = %q", chrome.CDPURL)
+	}
+	if chrome.WSURL != "" {
+		t.Fatalf("WSURL = %q", chrome.WSURL)
+	}
+	if chrome.PipeRead == nil || chrome.PipeWrite == nil {
+		t.Fatal("expected pipe handles")
+	}
+	if err := writePipeMessage(chrome.PipeWrite, map[string]any{"id": 10, "method": "Browser.getVersion", "params": map[string]any{}}); err != nil {
+		t.Fatal(err)
+	}
+	response, err := readPipeMessage(chrome.PipeRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response["id"] != float64(10) {
+		t.Fatalf("response id = %v", response["id"])
+	}
+	result, _ := response["result"].(map[string]any)
+	product, _ := result["product"].(string)
+	if !strings.Contains(product, "Chrome") && !strings.Contains(product, "Chromium") {
+		t.Fatalf("product = %q", product)
+	}
+}

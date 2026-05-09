@@ -2,6 +2,7 @@ package modcdp
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -10,6 +11,8 @@ type LaunchedBrowser struct {
 	WSURL      string
 	Close      func()
 	ProfileDir string
+	PipeRead   *os.File
+	PipeWrite  *os.File
 }
 
 type BrowserLauncher struct {
@@ -31,8 +34,8 @@ func (l BrowserLauncher) GetTransportConfig() map[string]any {
 		"cdp_url":       firstString(launchedCDPURL(l.Launched), l.Options.CDPURL),
 		"ws_url":        firstString(launchedWSURL(l.Launched), l.Options.WSURL),
 		"user_data_dir": firstString(launchedProfileDir(l.Launched), l.Options.UserDataDir),
-		"pipe_read":     nil,
-		"pipe_write":    nil,
+		"pipe_read":     launchedPipeRead(l.Launched),
+		"pipe_write":    launchedPipeWrite(l.Launched),
 	}
 }
 
@@ -56,6 +59,9 @@ func mergeLaunchOptions(existing LaunchOptions, incoming LaunchOptions) LaunchOp
 	}
 	if incoming.Port != 0 {
 		merged.Port = incoming.Port
+	}
+	if incoming.RemoteDebugging != "" {
+		merged.RemoteDebugging = incoming.RemoteDebugging
 	}
 	if incoming.UserDataDir != "" {
 		merged.UserDataDir = incoming.UserDataDir
@@ -160,4 +166,18 @@ func launchedProfileDir(launched *LaunchedBrowser) string {
 		return ""
 	}
 	return launched.ProfileDir
+}
+
+func launchedPipeRead(launched *LaunchedBrowser) *os.File {
+	if launched == nil {
+		return nil
+	}
+	return launched.PipeRead
+}
+
+func launchedPipeWrite(launched *LaunchedBrowser) *os.File {
+	if launched == nil {
+		return nil
+	}
+	return launched.PipeWrite
 }

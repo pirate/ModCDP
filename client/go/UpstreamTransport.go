@@ -37,6 +37,10 @@ func (e *UpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {
 	return ExtensionInjectorConfig{}
 }
 
+func (e *UpstreamTransport) GetLauncherConfig() LaunchOptions {
+	return LaunchOptions{}
+}
+
 func (e *UpstreamTransport) OnRecv(listener func(map[string]any)) func() {
 	e.recvListeners = append(e.recvListeners, listener)
 	return func() {}

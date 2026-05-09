@@ -140,6 +140,7 @@ type LaunchOptions struct {
 	ExtraArgs          []string
 	Headless           *bool
 	Port               int
+	RemoteDebugging    string
 	Sandbox            *bool
 	UserDataDir        string
 	CDPURL             string
@@ -407,6 +408,9 @@ func New(opts Options) *ModCDPClient {
 
 func (c *ModCDPClient) Connect() error {
 	connectStartedAt := time.Now().UnixMilli()
+	if c.opts.Upstream.Mode == "pipe" {
+		return c.connectPipeRawCDPTransport(connectStartedAt)
+	}
 	if c.opts.Upstream.Mode != "ws" {
 		return c.connectModCDPServerTransport(connectStartedAt)
 	}
@@ -547,6 +551,113 @@ func (c *ModCDPClient) Connect() error {
 	connectedAt := time.Now().UnixMilli()
 	c.ConnectTiming = map[string]any{
 		"started_at":             connectStartedAt,
+		"extension_source":       ext.Source,
+		"extension_started_at":   extensionStartedAt,
+		"extension_completed_at": extensionCompletedAt,
+		"extension_duration_ms":  extensionCompletedAt - extensionStartedAt,
+		"connected_at":           connectedAt,
+		"duration_ms":            connectedAt - connectStartedAt,
+	}
+	return nil
+}
+
+func (c *ModCDPClient) connectPipeRawCDPTransport(connectStartedAt int64) error {
+	if c.opts.Launch.Mode != "local" {
+		return fmt.Errorf("upstream.mode=pipe requires launch.mode='local'")
+	}
+	transportStartedAt := time.Now().UnixMilli()
+	pipeTransport := NewPipeUpstreamTransport()
+	launcher := c.browserLauncher()
+	injectors := c.extensionInjectorsForConfig()
+	c.extensionInjectors = injectors
+	launchOptions := mergeLaunchOptions(c.opts.Launch.Options, pipeTransport.GetLauncherConfig())
+	if c.opts.Extension.Mode != "none" {
+		if err := c.prepareExtensionPath(); err != nil {
+			return err
+		}
+		for _, injector := range injectors {
+			injector.Update(c.baseExtensionInjectorConfig(nil))
+			if err := injector.Prepare(); err != nil {
+				return err
+			}
+			launchOptions = mergeLaunchOptions(launchOptions, injector.GetLauncherConfig())
+		}
+	}
+	launched, err := launcher.Launch(launchOptions)
+	if err != nil {
+		return err
+	}
+	c.launchedBrowser = launched
+	c.CDPURL = launched.CDPURL
+	pipeTransport.SetPipes(launched.PipeRead, launched.PipeWrite, launched.CDPURL)
+	c.transport = pipeTransport
+	if err := pipeTransport.Connect(); err != nil {
+		c.Close()
+		return err
+	}
+	pipeTransport.OnRecv(func(message map[string]any) { c.handleMessage(message) })
+	pipeTransport.OnClose(func(err error) { c.rejectAll(err) })
+	transportConnectedAt := time.Now().UnixMilli()
+	if _, err := c.sendMessage("Target.setAutoAttach", map[string]any{
+		"autoAttach":             true,
+		"waitForDebuggerOnStart": false,
+		"flatten":                true,
+	}, ""); err != nil {
+		c.Close()
+		return err
+	}
+	if _, err := c.sendMessage("Target.setDiscoverTargets", map[string]any{"discover": true}, ""); err != nil {
+		c.Close()
+		return err
+	}
+	extensionStartedAt := time.Now().UnixMilli()
+	ext, err := c.injectExtension(injectors)
+	if err != nil {
+		c.Close()
+		return err
+	}
+	extensionCompletedAt := time.Now().UnixMilli()
+	c.ExtensionID = ext.ExtensionID
+	c.ExtTargetID = ext.TargetID
+	c.ExtSessionID = ext.SessionID
+	if _, err := c.sendMessage("Runtime.enable", map[string]any{}, c.ExtSessionID); err != nil {
+		c.Close()
+		return err
+	}
+	if _, err := c.sendMessage("Runtime.addBinding", map[string]any{"name": customEventBindingName}, c.ExtSessionID); err != nil {
+		c.Close()
+		return err
+	}
+	mirrorUpstreamEvents := true
+	if c.opts.MirrorUpstreamEvents != nil {
+		mirrorUpstreamEvents = *c.opts.MirrorUpstreamEvents
+	}
+	if mirrorUpstreamEvents {
+		if _, err := c.sendMessage("Runtime.addBinding", map[string]any{"name": upstreamEventBindingName}, c.ExtSessionID); err != nil {
+			c.Close()
+			return err
+		}
+	}
+	if c.opts.Server != nil {
+		command, err := wrapCommandIfNeeded("Mod.configure", c.serverConfigureParams(nil, nil, nil), c.opts.Client.Routes, c.ExtSessionID)
+		if err != nil {
+			c.Close()
+			return fmt.Errorf("Mod.configure: %w", err)
+		}
+		if _, err := c.sendRaw(command); err != nil {
+			c.Close()
+			return fmt.Errorf("Mod.configure: %w", err)
+		}
+	}
+	go func() { _ = c.measurePingLatency() }()
+	connectedAt := time.Now().UnixMilli()
+	c.ConnectTiming = map[string]any{
+		"started_at":             connectStartedAt,
+		"upstream_mode":          c.opts.Upstream.Mode,
+		"upstream_endpoint_kind": endpointKindForUpstream(c.opts.Upstream.Mode),
+		"transport_started_at":   transportStartedAt,
+		"transport_connected_at": transportConnectedAt,
+		"transport_duration_ms":  transportConnectedAt - transportStartedAt,
 		"extension_source":       ext.Source,
 		"extension_started_at":   extensionStartedAt,
 		"extension_completed_at": extensionCompletedAt,
