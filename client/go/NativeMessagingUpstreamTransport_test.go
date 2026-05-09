@@ -1,6 +1,7 @@
 package modcdp
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -10,6 +11,20 @@ import (
 )
 
 func TestNativeMessagingUpstreamTransportConfigOwnsManifestHostWaitTimeoutLoopbackAndInjectorConfig(t *testing.T) {
+	encoded, err := json.Marshal(NativeMessagingUpstreamTransportOptions{
+		ManifestPath:  "/tmp/modcdp-native-host.json",
+		ManifestPaths: []string{"/tmp/modcdp-native-host-extra.json"},
+		HostName:      "com.modcdp.test",
+		ExtensionID:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		WaitTimeoutMS: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw := string(encoded); raw != `{"manifest_path":"/tmp/modcdp-native-host.json","manifest_paths":["/tmp/modcdp-native-host-extra.json"],"host_name":"com.modcdp.test","extension_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","wait_timeout_ms":10}` {
+		t.Fatalf("NativeMessagingUpstreamTransportOptions JSON = %s", raw)
+	}
+
 	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
 		ManifestPath:  "/tmp/modcdp-native-host.json",
 		ManifestPaths: []string{"/tmp/modcdp-native-host-extra.json"},

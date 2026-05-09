@@ -39,10 +39,10 @@ type NatsUpstreamTransport struct {
 }
 
 type NatsUpstreamTransportOptions struct {
-	URL           string
-	SubjectPrefix string
-	Role          string
-	WaitTimeoutMS int
+	URL           string `json:"url,omitempty"`
+	SubjectPrefix string `json:"subject_prefix,omitempty"`
+	Role          string `json:"role,omitempty"`
+	WaitTimeoutMS int    `json:"wait_timeout_ms,omitempty"`
 }
 
 func NewNatsUpstreamTransport(options NatsUpstreamTransportOptions) *NatsUpstreamTransport {
@@ -90,6 +90,7 @@ func (t *NatsUpstreamTransport) Connect() error {
 	t.stateMu.Lock()
 	t.closed = false
 	t.closeCh = make(chan struct{})
+	closeCh := t.closeCh
 	t.stateMu.Unlock()
 	if !validNATSSubjectPrefix(t.SubjectPrefix) {
 		return fmt.Errorf("invalid NATS subject prefix %q", t.SubjectPrefix)
@@ -110,7 +111,7 @@ func (t *NatsUpstreamTransport) Connect() error {
 			_ = conn.Close()
 			return err
 		}
-		go t.readWebSocketLoop()
+		go t.readWebSocketLoop(conn, closeCh)
 	case "nats", "tls":
 		host := parsed.Hostname()
 		if host == "" {
@@ -134,7 +135,7 @@ func (t *NatsUpstreamTransport) Connect() error {
 			_ = conn.Close()
 			return err
 		}
-		go t.readTCPLoop()
+		go t.readTCPLoop(conn, closeCh)
 	default:
 		return fmt.Errorf("upstream.mode=nats requires ws://, wss://, nats://, or tls:// URL, got %s", t.URL)
 	}
@@ -184,6 +185,15 @@ func (t *NatsUpstreamTransport) Close() error {
 	return nil
 }
 
+func natsClosed(closeCh chan struct{}) bool {
+	select {
+	case <-closeCh:
+		return true
+	default:
+		return false
+	}
+}
+
 func (t *NatsUpstreamTransport) subscribe() error {
 	return t.writeProtocol("SUB " + t.incomingSubject() + " 1\r\n")
 }
@@ -223,11 +233,11 @@ func (t *NatsUpstreamTransport) outgoingSubject() string {
 	return t.SubjectPrefix + ".browser_to_client"
 }
 
-func (t *NatsUpstreamTransport) readWebSocketLoop() {
-	for !t.closed {
-		data, _, err := wsutil.ReadServerData(t.Conn)
+func (t *NatsUpstreamTransport) readWebSocketLoop(conn net.Conn, closeCh chan struct{}) {
+	for !natsClosed(closeCh) {
+		data, _, err := wsutil.ReadServerData(conn)
 		if err != nil {
-			if !t.closed {
+			if !natsClosed(closeCh) {
 				t.emitClose(err)
 			}
 			return
@@ -236,12 +246,12 @@ func (t *NatsUpstreamTransport) readWebSocketLoop() {
 	}
 }
 
-func (t *NatsUpstreamTransport) readTCPLoop() {
+func (t *NatsUpstreamTransport) readTCPLoop(conn net.Conn, closeCh chan struct{}) {
 	chunk := make([]byte, 65536)
-	for !t.closed {
-		n, err := t.Conn.Read(chunk)
+	for !natsClosed(closeCh) {
+		n, err := conn.Read(chunk)
 		if err != nil {
-			if !t.closed {
+			if !natsClosed(closeCh) {
 				t.emitClose(err)
 			}
 			return

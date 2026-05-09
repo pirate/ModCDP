@@ -2,6 +2,7 @@ package modcdp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,19 @@ import (
 )
 
 func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixWaitTimeoutAndInjectorConfig(t *testing.T) {
+	encoded, err := json.Marshal(NatsUpstreamTransportOptions{
+		URL:           "ws://127.0.0.1:4223",
+		SubjectPrefix: "modcdp.one",
+		Role:          "client",
+		WaitTimeoutMS: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw := string(encoded); raw != `{"url":"ws://127.0.0.1:4223","subject_prefix":"modcdp.one","role":"client","wait_timeout_ms":10}` {
+		t.Fatalf("NatsUpstreamTransportOptions JSON = %s", raw)
+	}
+
 	transport := NewNatsUpstreamTransport(NatsUpstreamTransportOptions{
 		URL:           "ws://127.0.0.1:4223",
 		SubjectPrefix: "modcdp.one",

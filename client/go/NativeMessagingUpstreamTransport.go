@@ -54,11 +54,11 @@ type NativeMessagingUpstreamTransport struct {
 }
 
 type NativeMessagingUpstreamTransportOptions struct {
-	ManifestPath  string
-	ManifestPaths []string
-	HostName      string
-	ExtensionID   string
-	WaitTimeoutMS int
+	ManifestPath  string   `json:"manifest_path,omitempty"`
+	ManifestPaths []string `json:"manifest_paths,omitempty"`
+	HostName      string   `json:"host_name,omitempty"`
+	ExtensionID   string   `json:"extension_id,omitempty"`
+	WaitTimeoutMS int      `json:"wait_timeout_ms,omitempty"`
 }
 
 func NewNativeMessagingUpstreamTransport(options NativeMessagingUpstreamTransportOptions) *NativeMessagingUpstreamTransport {
