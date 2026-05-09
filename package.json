@@ -86,6 +86,10 @@
       "types": "./bridge/NatsUpstreamTransport.ts",
       "import": "./dist/bridge/NatsUpstreamTransport.js"
     },
+    "./bridge/proxy.js": {
+      "types": "./bridge/proxy.ts",
+      "import": "./dist/bridge/proxy.js"
+    },
     "./bridge/ExtensionInjector.js": {
       "types": "./bridge/ExtensionInjector.ts",
       "import": "./dist/bridge/ExtensionInjector.js"
