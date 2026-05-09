@@ -98,14 +98,6 @@ class ModCDPServerConfig(TypedDict, total=False):
     custom_middlewares: list[ModCDPAddMiddlewareParams]
 
 
-class LaunchOptions(TypedDict, total=False):
-    executable_path: str
-    port: int
-    headless: bool
-    sandbox: bool
-    extra_args: list[str]
-
-
 RuntimeEvaluateParams: TypeAlias = dict[str, JsonValue]
 
 
