@@ -888,13 +888,21 @@ func (c *ModCDPClient) registerCustomCommandParams(params map[string]any) (strin
 	}
 	c.schemaMu.Lock()
 	defer c.schemaMu.Unlock()
-	if rawSchema, ok := params["paramsSchema"].(map[string]any); ok {
-		if schema := cloneSchema(rawSchema); schema != nil {
+	if rawSchema, exists := params["paramsSchema"]; exists {
+		schemaObject, ok := rawSchema.(map[string]any)
+		if !ok {
+			return "", false, fmt.Errorf("paramsSchema must be a JSON Schema object")
+		}
+		if schema := cloneSchema(schemaObject); schema != nil {
 			c.commandParamsSchemas[name] = schema
 		}
 	}
-	if rawSchema, ok := params["resultSchema"].(map[string]any); ok {
-		if schema := cloneSchema(rawSchema); schema != nil {
+	if rawSchema, exists := params["resultSchema"]; exists {
+		schemaObject, ok := rawSchema.(map[string]any)
+		if !ok {
+			return "", false, fmt.Errorf("resultSchema must be a JSON Schema object")
+		}
+		if schema := cloneSchema(schemaObject); schema != nil {
 			c.commandResultSchemas[name] = schema
 		}
 	}
@@ -910,8 +918,12 @@ func (c *ModCDPClient) registerCustomEventParams(params map[string]any) (string,
 	}
 	c.schemaMu.Lock()
 	defer c.schemaMu.Unlock()
-	if rawSchema, ok := params["eventSchema"].(map[string]any); ok {
-		if schema := cloneSchema(rawSchema); schema != nil {
+	if rawSchema, exists := params["eventSchema"]; exists {
+		schemaObject, ok := rawSchema.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("eventSchema must be a JSON Schema object")
+		}
+		if schema := cloneSchema(schemaObject); schema != nil {
 			c.eventSchemas[name] = schema
 		}
 	}
