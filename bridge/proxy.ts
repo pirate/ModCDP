@@ -91,7 +91,12 @@ export async function startProxy({
 }: {
   host?: string;
   port?: number;
-  launch?: { mode?: string; executable_path?: string | null; user_data_dir?: string | null; options?: Record<string, unknown> };
+  launch?: {
+    mode?: string;
+    executable_path?: string | null;
+    user_data_dir?: string | null;
+    options?: Record<string, unknown>;
+  };
   upstream?: {
     mode?: string;
     ws_url?: string | null;
@@ -110,7 +115,8 @@ export async function startProxy({
   const { WebSocket, WebSocketServer } = await loadWsForProxy();
   const upstreamMode = upstream.mode ?? "ws";
   const upstreamWsUrl = upstream.ws_url ?? (launch.mode === "local" ? null : DEFAULT_UPSTREAM);
-  const clientManagedUpstream = upstreamMode === "nativemessaging" || upstreamMode === "nats" || upstreamMode === "pipe";
+  const clientManagedUpstream =
+    upstreamMode === "nativemessaging" || upstreamMode === "nats" || upstreamMode === "pipe";
   const managed_reverse_upstream =
     upstreamMode === "reversews" &&
     (launch.mode === "local" || launch.mode === "bb" || (launch.mode === "remote" && upstream.ws_url != null));
@@ -311,8 +317,8 @@ export async function startProxy({
       : managed_reverse_upstream
         ? `listening on ws://${host}:${port}/  (upstream: reversews:${upstream.reversews_bind ?? "127.0.0.1:29292"})`
         : clientManagedUpstream
-        ? `listening on ws://${host}:${port}/  (upstream: ${upstreamMode})`
-        : `listening on ws://${host}:${port}/  (upstream: ${upstreamMode}:${upstreamWsUrl ?? "local-launch"})`,
+          ? `listening on ws://${host}:${port}/  (upstream: ${upstreamMode})`
+          : `listening on ws://${host}:${port}/  (upstream: ${upstreamMode}:${upstreamWsUrl ?? "local-launch"})`,
   );
 
   return {
@@ -648,7 +654,12 @@ async function handleConnection(
     forward_mirrored_upstream_events,
     onUpstreamClosed,
   }: {
-    launch: { mode?: string; executable_path?: string | null; user_data_dir?: string | null; options?: Record<string, unknown> };
+    launch: {
+      mode?: string;
+      executable_path?: string | null;
+      user_data_dir?: string | null;
+      options?: Record<string, unknown>;
+    };
     upstream: { mode?: string; ws_url?: string | null };
     extension: { mode?: string; path?: string | null };
     client?: Record<string, unknown>;
@@ -763,7 +774,12 @@ async function handleClientManagedConnection(
     client: clientOptions,
     server,
   }: {
-    launch: { mode?: string; executable_path?: string | null; user_data_dir?: string | null; options?: Record<string, unknown> };
+    launch: {
+      mode?: string;
+      executable_path?: string | null;
+      user_data_dir?: string | null;
+      options?: Record<string, unknown>;
+    };
     upstream: {
       mode?: string;
       ws_url?: string | null;
@@ -1110,8 +1126,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           ? String(argv["upstream-nats-url"])
           : null,
       nats_subject_prefix:
-        typeof argv["upstream-nats-subject-prefix"] === "string" &&
-        argv["upstream-nats-subject-prefix"] !== "true"
+        typeof argv["upstream-nats-subject-prefix"] === "string" && argv["upstream-nats-subject-prefix"] !== "true"
           ? String(argv["upstream-nats-subject-prefix"])
           : null,
       reversews_bind:

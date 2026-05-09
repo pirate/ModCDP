@@ -51,8 +51,9 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
     const version = (await cdp.sendRaw("Browser.getVersion")) as Record<string, unknown>;
     assert.equal(typeof version.product, "string");
     await new Promise((resolve) => setTimeout(resolve, 1_500));
-    const target_infos = ((await cdp.sendRaw("Target.getTargets")) as { targetInfos?: { type?: string; url?: string }[] })
-      .targetInfos;
+    const target_infos = (
+      (await cdp.sendRaw("Target.getTargets")) as { targetInfos?: { type?: string; url?: string }[] }
+    ).targetInfos;
     assert.equal(
       target_infos?.some(
         (target) => target.type === "service_worker" && target.url?.endsWith("/modcdp/service_worker.js"),

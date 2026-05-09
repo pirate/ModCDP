@@ -36,10 +36,19 @@ test("nativemessaging upstream config owns manifest, host, wait timeout, loopbac
     loopback_cdp_url: "ws://127.0.0.1:9222/devtools/browser/test",
   });
   assert.deepEqual(transport.getInjectorConfig(), { native_host_name: "com.modcdp.updated" });
-  assert.equal((transport as unknown as { include_default_manifest_paths: boolean }).include_default_manifest_paths, false);
+  assert.equal(
+    (transport as unknown as { include_default_manifest_paths: boolean }).include_default_manifest_paths,
+    false,
+  );
   transport.update({ manifest_path: null });
-  assert.equal((transport as unknown as { include_default_manifest_paths: boolean }).include_default_manifest_paths, true);
-  await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms for native messaging host com\.modcdp\.updated/);
+  assert.equal(
+    (transport as unknown as { include_default_manifest_paths: boolean }).include_default_manifest_paths,
+    true,
+  );
+  await assert.rejects(
+    () => transport.waitForPeer(),
+    /Timed out waiting 5ms for native messaging host com\.modcdp\.updated/,
+  );
 });
 
 test("nativemessaging upstream close rejects pending peer waits", async () => {
