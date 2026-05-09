@@ -32,9 +32,18 @@ export class BorrowedExtensionInjector extends ExtensionInjector {
 
   private async borrowVisibleServiceWorkers() {
     const borrowed: ExtensionInjectionResult[] = [];
-    for (const target of await this.targetInfos()) {
-      if (target.type !== "service_worker") continue;
-      if (!target.url.startsWith("chrome-extension://")) continue;
+    const visible_service_workers = (await this.targetInfos()).filter((target) => {
+      const target_url = target.url ?? "";
+      return target.type === "service_worker" && target_url.startsWith("chrome-extension://");
+    });
+    const has_configured_matcher =
+      Boolean(this.options.extension_id) ||
+      (this.options.service_worker_url_includes?.length ?? 0) > 0 ||
+      (this.options.service_worker_url_suffixes?.length ?? 0) > 0;
+    const candidates = has_configured_matcher
+      ? visible_service_workers.filter((target) => this.serviceWorkerTargetMatches(target))
+      : visible_service_workers;
+    for (const target of candidates) {
       try {
         const bootstrapped = await this.bootstrapTarget(target as TargetInfo);
         if (bootstrapped) borrowed.push({ ...bootstrapped, source: "borrowed" });

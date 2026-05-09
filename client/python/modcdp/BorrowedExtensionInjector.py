@@ -20,11 +20,18 @@ class BorrowedExtensionInjector(ExtensionInjector):
 
     def borrowVisibleServiceWorkers(self) -> ExtensionInjectionResult | None:
         borrowed: list[ExtensionInjectionResult] = []
-        for target in self.targetInfos():
-            if target["type"] != "service_worker":
-                continue
-            if not target["url"].startswith("chrome-extension://"):
-                continue
+        visible_service_workers = [
+            target
+            for target in self.targetInfos()
+            if target.get("type") == "service_worker" and isinstance(target.get("url"), str) and target["url"].startswith("chrome-extension://")
+        ]
+        has_configured_matcher = bool(
+            self.options.get("extension_id")
+            or self.options.get("service_worker_url_includes")
+            or self.options.get("service_worker_url_suffixes")
+        )
+        candidates = [target for target in visible_service_workers if self.serviceWorkerTargetMatches(target)] if has_configured_matcher else visible_service_workers
+        for target in candidates:
             try:
                 bootstrapped = self.bootstrapTarget(target)
             except Exception:

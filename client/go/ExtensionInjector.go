@@ -439,6 +439,7 @@ func (i ExtensionInjector) ServiceWorkerTargetMatches(target map[string]any) boo
 	if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 		return false
 	}
+	hasExtensionID := i.Options.ExtensionID != ""
 	if i.Options.ExtensionID != "" && !strings.HasPrefix(targetURL, "chrome-extension://"+i.Options.ExtensionID+"/") {
 		return false
 	}
@@ -459,5 +460,5 @@ func (i ExtensionInjector) ServiceWorkerTargetMatches(target map[string]any) boo
 			return false
 		}
 	}
-	return len(i.Options.ServiceWorkerURLIncludes) > 0 || len(i.Options.ServiceWorkerURLSuffixes) > 0
+	return hasExtensionID || len(i.Options.ServiceWorkerURLIncludes) > 0 || len(i.Options.ServiceWorkerURLSuffixes) > 0
 }

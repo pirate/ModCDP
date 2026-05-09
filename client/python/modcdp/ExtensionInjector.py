@@ -359,6 +359,7 @@ class ExtensionInjector:
         if not target_url.startswith("chrome-extension://"):
             return False
         extension_id = self.options.get("extension_id")
+        has_extension_id = bool(extension_id)
         if extension_id and not target_url.startswith(f"chrome-extension://{extension_id}/"):
             return False
         includes = self.options.get("service_worker_url_includes") or []
@@ -367,4 +368,4 @@ class ExtensionInjector:
             return False
         if suffixes and not any(target_url.endswith(suffix) for suffix in suffixes):
             return False
-        return bool(includes or suffixes)
+        return bool(has_extension_id or includes or suffixes)

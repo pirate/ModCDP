@@ -305,11 +305,12 @@ export class ExtensionInjector {
     const url = candidate.url ?? "";
     if (candidate.type !== "service_worker") return false;
     if (!url.startsWith("chrome-extension://")) return false;
+    const has_extension_id = Boolean(this.options.extension_id);
     if (this.options.extension_id && !url.startsWith(`chrome-extension://${this.options.extension_id}/`)) return false;
     const includes = this.options.service_worker_url_includes ?? [];
     const suffixes = this.options.service_worker_url_suffixes ?? [];
     if (includes.length > 0 && !includes.every((part) => url.includes(part))) return false;
     if (suffixes.length > 0 && !suffixes.some((suffix) => url.endsWith(suffix))) return false;
-    return includes.length > 0 || suffixes.length > 0;
+    return has_extension_id || includes.length > 0 || suffixes.length > 0;
   }
 }

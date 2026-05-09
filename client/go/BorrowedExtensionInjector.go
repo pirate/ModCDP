@@ -37,13 +37,21 @@ func (i *BorrowedExtensionInjector) BorrowVisibleServiceWorkers() (*ExtensionInj
 	if err != nil {
 		return nil, err
 	}
-	var borrowed []*ExtensionInjectionResult
+	hasConfiguredMatcher := i.Options.ExtensionID != "" || len(i.Options.ServiceWorkerURLIncludes) > 0 || len(i.Options.ServiceWorkerURLSuffixes) > 0
+	candidates := []map[string]any{}
 	for _, target := range targets {
 		targetType, _ := target["type"].(string)
 		targetURL, _ := target["url"].(string)
 		if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 			continue
 		}
+		if hasConfiguredMatcher && !i.ServiceWorkerTargetMatches(target) {
+			continue
+		}
+		candidates = append(candidates, target)
+	}
+	var borrowed []*ExtensionInjectionResult
+	for _, target := range candidates {
 		bootstrapped, err := i.BootstrapTarget(target)
 		if err == nil && bootstrapped != nil {
 			bootstrapped.Source = "borrowed"
