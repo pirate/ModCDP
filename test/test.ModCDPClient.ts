@@ -72,6 +72,21 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       true,
     );
     assert.equal(typeof (await cdp.Browser.getVersion()).product, "string");
+    const sent_at = Date.now();
+    const pong = new Promise<Record<string, unknown>>((resolve) => {
+      const listener = (payload: Record<string, unknown>) => {
+        if (payload.sent_at !== sent_at) return;
+        cdp.off("Mod.pong", listener);
+        resolve(payload);
+      };
+      cdp.on("Mod.pong", listener);
+    });
+    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<string, unknown>;
+    const pong_payload = await pong;
+    assert.equal(ping_result.ok, true);
+    assert.equal(pong_payload.sent_at, sent_at);
+    assert.equal(typeof pong_payload.received_at, "number");
+    assert.equal(pong_payload.from, "extension-service-worker");
   } finally {
     await cdp.close();
   }

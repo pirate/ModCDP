@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
+from queue import Queue
 from typing import Any, cast
 
 from websocket import create_connection
@@ -121,6 +122,20 @@ class ModCDPClientTests(unittest.TestCase):
                 cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),
                 "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js",
             )
+            sent_at = int(time.time() * 1000)
+            pong: Queue[Mapping[str, Any]] = Queue()
+
+            def on_pong(payload: Mapping[str, Any]) -> None:
+                if payload.get("sent_at") == sent_at:
+                    pong.put(payload)
+
+            cdp.on("Mod.pong", on_pong)
+            ping_result = cdp.Mod.ping(sent_at=sent_at)
+            pong_payload = pong.get(timeout=10)
+            self.assertEqual(ping_result["ok"], True)
+            self.assertEqual(pong_payload["sent_at"], sent_at)
+            self.assertIsInstance(pong_payload["received_at"], int | float)
+            self.assertEqual(pong_payload["from"], "extension-service-worker")
         finally:
             cdp.close()
 

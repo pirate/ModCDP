@@ -46,12 +46,12 @@ class ModCDPAddMiddlewareParams(_ModCDPAddMiddlewareRequired, total=False):
 
 
 class ModCDPPingLatency(TypedDict):
-    sentAt: int
-    receivedAt: int | float | None
-    returnedAt: int
-    roundTripMs: int
-    serviceWorkerMs: int | float | None
-    returnPathMs: int | float | None
+    sent_at: int
+    received_at: int | float | None
+    returned_at: int
+    round_trip_ms: int
+    service_worker_ms: int | float | None
+    return_path_ms: int | float | None
 
 
 class ModCDPConnectTiming(TypedDict):

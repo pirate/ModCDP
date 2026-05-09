@@ -182,8 +182,8 @@ export function wrapCustomCommand(
 }
 
 function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, cdpSessionId: string | null = null) {
-  if (method === "Mod.ping" && !Object.prototype.hasOwnProperty.call(params, "sentAt")) {
-    params = { ...(params as ModCDPPingParams), sentAt: Date.now() };
+  if (method === "Mod.ping" && !Object.prototype.hasOwnProperty.call(params, "sent_at")) {
+    params = { ...(params as ModCDPPingParams), sent_at: Date.now() };
   }
 
   if (method === "Mod.addCustomEvent") {

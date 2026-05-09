@@ -160,8 +160,8 @@ def _wrap_service_worker_command(
     session_id: str,
     target_session_id: str | None = None,
 ) -> list[TranslatedStep]:
-    if method == "Mod.ping" and "sentAt" not in params:
-        params = {**params, "sentAt": int(time.time() * 1000)}
+    if method == "Mod.ping" and "sent_at" not in params:
+        params = {**params, "sent_at": int(time.time() * 1000)}
 
     if method == "Mod.addCustomEvent":
         return [

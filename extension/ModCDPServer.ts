@@ -426,7 +426,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         type: "modcdp.nats.hello",
         role: "extension-service-worker",
         version: 1,
-        extensionId: globalScope.chrome?.runtime?.id ?? null,
+        extension_id: globalScope.chrome?.runtime?.id ?? null,
       });
       return;
     }
@@ -512,7 +512,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         type: "modcdp.native.hello",
         role: "extension-service-worker",
         version: 1,
-        extensionId: globalScope.chrome?.runtime?.id ?? null,
+        extension_id: globalScope.chrome?.runtime?.id ?? null,
       });
       port.onMessage.addListener((message) => {
         void handleNativeBridgeMessage(port, message);
@@ -556,7 +556,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         type: "modcdp.nats.hello",
         role: "extension-service-worker",
         version: 1,
-        extensionId: globalScope.chrome?.runtime?.id ?? null,
+        extension_id: globalScope.chrome?.runtime?.id ?? null,
       });
     });
     ws.addEventListener("message", (event) => {
@@ -1363,12 +1363,12 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     name: "Mod.ping",
     handler: async (raw_params: ProtocolParams = {}, cdpSessionId: string | null = null) => {
       const params = raw_params as ModCDPPingParams;
-      const receivedAt = Date.now();
+      const received_at = Date.now();
       await ModCDPServer.emit(
         "Mod.pong",
         {
-          sentAt: typeof params.sentAt === "number" ? params.sentAt : receivedAt,
-          receivedAt,
+          sent_at: typeof params.sent_at === "number" ? params.sent_at : received_at,
+          received_at,
           from: "extension-service-worker",
         },
         cdpSessionId,

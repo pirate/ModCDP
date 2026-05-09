@@ -978,7 +978,7 @@ class ModCDPClient(CDPSurfaceMixin):
 
         self._handlers.setdefault("Mod.pong", []).append(on_pong)
         try:
-            self.send("Mod.ping", {"sentAt": sent_at})
+            self.send("Mod.ping", {"sent_at": sent_at})
             payload = done.get(timeout=10)
         except Empty:
             return self.latency
@@ -990,15 +990,15 @@ class ModCDPClient(CDPSurfaceMixin):
                 handlers.remove(on_pong)
 
         returned_at = int(time.time() * 1000)
-        raw_received_at = payload.get("receivedAt")
+        raw_received_at = payload.get("received_at")
         received_at = raw_received_at if isinstance(raw_received_at, (int, float)) else None
         latency: ModCDPPingLatency = {
-            "sentAt": sent_at,
-            "receivedAt": received_at,
-            "returnedAt": returned_at,
-            "roundTripMs": returned_at - sent_at,
-            "serviceWorkerMs": received_at - sent_at if received_at is not None else None,
-            "returnPathMs": returned_at - received_at if received_at is not None else None,
+            "sent_at": sent_at,
+            "received_at": received_at,
+            "returned_at": returned_at,
+            "round_trip_ms": returned_at - sent_at,
+            "service_worker_ms": received_at - sent_at if received_at is not None else None,
+            "return_path_ms": returned_at - received_at if received_at is not None else None,
         }
         self.latency = latency
         return latency

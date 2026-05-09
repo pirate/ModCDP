@@ -159,11 +159,11 @@ def main():
                 pong_events.append(payload)
 
         cdp.on("Mod.pong", on_pong)
-        ping_result = expect_object(cdp.send("Mod.ping", {"sentAt": ping_sent_at}), "Mod.ping")
+        ping_result = expect_object(cdp.send("Mod.ping", {"sent_at": ping_sent_at}), "Mod.ping")
         deadline = time.monotonic() + 3.0
         while True:
             with pong_lock:
-                pong = next((event for event in pong_events if event.get("sentAt") == ping_sent_at), None)
+                pong = next((event for event in pong_events if event.get("sent_at") == ping_sent_at), None)
             if pong or time.monotonic() >= deadline:
                 break
             time.sleep(0.02)
@@ -190,8 +190,8 @@ def main():
                 raise RuntimeError(f"unexpected Browser.getVersion result {version}")
             print(f"Browser.getVersion -> {version}")
 
-        modcdp_eval = expect_object(cdp.send("Mod.evaluate", {"expression": "({ extensionId: chrome.runtime.id })"}), "Mod.evaluate")
-        if modcdp_eval.get("extensionId") != cdp.extension_id:
+        modcdp_eval = expect_object(cdp.send("Mod.evaluate", {"expression": "({ extension_id: chrome.runtime.id })"}), "Mod.evaluate")
+        if modcdp_eval.get("extension_id") != cdp.extension_id:
             raise RuntimeError(f"unexpected Mod.evaluate result {modcdp_eval}")
         print(f"Mod.evaluate     -> {modcdp_eval}")
 

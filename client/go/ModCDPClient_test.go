@@ -182,6 +182,36 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	if result != "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js" {
 		t.Fatalf("Mod.evaluate = %#v", result)
 	}
+	sent_at := time.Now().UnixMilli()
+	pong := make(chan map[string]any, 1)
+	cdp.On("Mod.pong", func(payload any) {
+		event, _ := payload.(map[string]any)
+		if event == nil {
+			return
+		}
+		if event["sent_at"] == float64(sent_at) || event["sent_at"] == sent_at {
+			pong <- event
+		}
+	})
+	ping_raw, err := cdp.Send("Mod.ping", map[string]any{"sent_at": sent_at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ping_result, _ := ping_raw.(map[string]any)
+	if ping_result["ok"] != true {
+		t.Fatalf("Mod.ping = %#v", ping_result)
+	}
+	select {
+	case pong_payload := <-pong:
+		if pong_payload["from"] != "extension-service-worker" {
+			t.Fatalf("Mod.pong from = %#v", pong_payload["from"])
+		}
+		if _, ok := numberAsInt64(pong_payload["received_at"]); !ok {
+			t.Fatalf("Mod.pong received_at = %#v", pong_payload["received_at"])
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for Mod.pong")
+	}
 }
 
 func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) {

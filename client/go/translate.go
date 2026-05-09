@@ -135,12 +135,12 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 		targetSessionID = sessionID
 	}
 	if method == "Mod.ping" {
-		if _, ok := params["sentAt"]; !ok {
+		if _, ok := params["sent_at"]; !ok {
 			next := map[string]any{}
 			for key, value := range params {
 				next[key] = value
 			}
-			next["sentAt"] = time.Now().UnixMilli()
+			next["sent_at"] = time.Now().UnixMilli()
 			params = next
 		}
 	}

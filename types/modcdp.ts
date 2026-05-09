@@ -167,24 +167,24 @@ export const ModCDPConfigureParamsSchema = z.object({
 export type ModCDPConfigureParams = z.infer<typeof ModCDPConfigureParamsSchema>;
 
 export const ModCDPPingParamsSchema = z.object({
-  sentAt: z.number().optional(),
+  sent_at: z.number().optional(),
 });
 export type ModCDPPingParams = z.infer<typeof ModCDPPingParamsSchema>;
 
 export const ModCDPPongEventSchema = z.object({
-  sentAt: z.number(),
-  receivedAt: z.number(),
+  sent_at: z.number(),
+  received_at: z.number(),
   from: z.string(),
 });
 export type ModCDPPongEvent = z.infer<typeof ModCDPPongEventSchema>;
 
 export const ModCDPPingLatencySchema = z.object({
-  sentAt: z.number(),
-  receivedAt: z.number().nullable(),
-  returnedAt: z.number(),
-  roundTripMs: z.number(),
-  serviceWorkerMs: z.number().nullable(),
-  returnPathMs: z.number().nullable(),
+  sent_at: z.number(),
+  received_at: z.number().nullable(),
+  returned_at: z.number(),
+  round_trip_ms: z.number(),
+  service_worker_ms: z.number().nullable(),
+  return_path_ms: z.number().nullable(),
 });
 export type ModCDPPingLatency = z.infer<typeof ModCDPPingLatencySchema>;
 

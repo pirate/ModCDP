@@ -203,12 +203,12 @@ func main() {
 			pongCh <- event
 		}
 	})
-	pingSentAt := time.Now().UnixMilli()
-	ping := mustMap(mustSend(cdp, "Mod.ping", map[string]any{"sentAt": pingSentAt}), "Mod.ping")
+	ping_sent_at := time.Now().UnixMilli()
+	ping := mustMap(mustSend(cdp, "Mod.ping", map[string]any{"sent_at": ping_sent_at}), "Mod.ping")
 	pong := waitForEvent(pongCh, "Mod.pong", func(event map[string]any) bool {
-		return event["sentAt"] == float64(pingSentAt) || event["sentAt"] == pingSentAt
+		return event["sent_at"] == float64(ping_sent_at) || event["sent_at"] == ping_sent_at
 	})
-	if ping["ok"] != true || pong["receivedAt"] == nil || pong["from"] != "extension-service-worker" {
+	if ping["ok"] != true || pong["received_at"] == nil || pong["from"] != "extension-service-worker" {
 		log.Fatalf("unexpected Mod.ping/Mod.pong result: ping=%v pong=%v", ping, pong)
 	}
 	fmt.Println("Mod.ping/pong    ->", ping, pong)
@@ -240,12 +240,12 @@ func main() {
 	}
 
 	if r, err := cdp.Send("Mod.evaluate", map[string]any{
-		"expression": "({ extensionId: chrome.runtime.id })",
+		"expression": "({ extension_id: chrome.runtime.id })",
 	}); err != nil {
 		log.Fatalf("Mod.evaluate: %v", err)
 	} else {
 		modcdpEval, _ := r.(map[string]any)
-		if modcdpEval["extensionId"] != cdp.ExtensionID {
+		if modcdpEval["extension_id"] != cdp.ExtensionID {
 			log.Fatalf("unexpected Mod.evaluate result: %v", modcdpEval)
 		}
 		b, _ := json.Marshal(r)

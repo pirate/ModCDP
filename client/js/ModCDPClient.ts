@@ -975,20 +975,20 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   async _measurePingLatency() {
-    const sentAt = Date.now();
+    const sent_at = Date.now();
     const pong = this._waitForEvent("Mod.pong");
     try {
-      await this.send("Mod.ping", { sentAt });
+      await this.send("Mod.ping", { sent_at });
       const payload = (await pong.promise) as ModCDPPongEvent | null;
       if (payload == null) return this.latency;
-      const returnedAt = Date.now();
+      const returned_at = Date.now();
       this.latency = {
-        sentAt,
-        receivedAt: payload.receivedAt ?? null,
-        returnedAt,
-        roundTripMs: returnedAt - sentAt,
-        serviceWorkerMs: typeof payload.receivedAt === "number" ? payload.receivedAt - sentAt : null,
-        returnPathMs: typeof payload.receivedAt === "number" ? returnedAt - payload.receivedAt : null,
+        sent_at,
+        received_at: payload.received_at ?? null,
+        returned_at,
+        round_trip_ms: returned_at - sent_at,
+        service_worker_ms: typeof payload.received_at === "number" ? payload.received_at - sent_at : null,
+        return_path_ms: typeof payload.received_at === "number" ? returned_at - payload.received_at : null,
       };
       return this.latency;
     } finally {

@@ -1201,7 +1201,7 @@ func (c *ModCDPClient) sendRaw(command rawCommand) (any, error) {
 }
 
 func (c *ModCDPClient) measurePingLatency() error {
-	sentAt := time.Now().UnixMilli()
+	sent_at := time.Now().UnixMilli()
 	ch := make(chan any, 1)
 	c.On("Mod.pong", func(data any) {
 		select {
@@ -1209,25 +1209,25 @@ func (c *ModCDPClient) measurePingLatency() error {
 		default:
 		}
 	})
-	if _, err := c.Send("Mod.ping", map[string]any{"sentAt": sentAt}); err != nil {
+	if _, err := c.Send("Mod.ping", map[string]any{"sent_at": sent_at}); err != nil {
 		return err
 	}
 	select {
 	case payload := <-ch:
-		returnedAt := time.Now().UnixMilli()
+		returned_at := time.Now().UnixMilli()
 		latency := map[string]any{
-			"sentAt":          sentAt,
-			"receivedAt":      nil,
-			"returnedAt":      returnedAt,
-			"roundTripMs":     returnedAt - sentAt,
-			"serviceWorkerMs": nil,
-			"returnPathMs":    nil,
+			"sent_at":           sent_at,
+			"received_at":       nil,
+			"returned_at":       returned_at,
+			"round_trip_ms":     returned_at - sent_at,
+			"service_worker_ms": nil,
+			"return_path_ms":    nil,
 		}
 		if data, ok := payload.(map[string]any); ok {
-			if receivedAt, ok := numberAsInt64(data["receivedAt"]); ok {
-				latency["receivedAt"] = receivedAt
-				latency["serviceWorkerMs"] = receivedAt - sentAt
-				latency["returnPathMs"] = returnedAt - receivedAt
+			if received_at, ok := numberAsInt64(data["received_at"]); ok {
+				latency["received_at"] = received_at
+				latency["service_worker_ms"] = received_at - sent_at
+				latency["return_path_ms"] = returned_at - received_at
 			}
 		}
 		c.Latency = latency

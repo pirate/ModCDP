@@ -231,14 +231,14 @@ async function main() {
     }
     console.log("Mod.configure    ->", configureResult.routes);
 
-    const pingSentAt = Date.now();
-    const pongPromise = waitForEvent(cdp, "Mod.pong", (event) => event?.sentAt === pingSentAt);
-    const pingResult = assertObject(await cdp.Mod.ping({ sentAt: pingSentAt }), "Mod.ping");
+    const ping_sent_at = Date.now();
+    const pongPromise = waitForEvent(cdp, "Mod.pong", (event) => event?.sent_at === ping_sent_at);
+    const ping_result = assertObject(await cdp.Mod.ping({ sent_at: ping_sent_at }), "Mod.ping");
     const pong = assertObject(await pongPromise, "Mod.pong");
-    if (pingResult.ok !== true || pong.receivedAt == null || pong.from !== "extension-service-worker") {
-      throw new Error(`unexpected Mod.ping/Mod.pong result ${JSON.stringify({ pingResult, pong })}`);
+    if (ping_result.ok !== true || pong.received_at == null || pong.from !== "extension-service-worker") {
+      throw new Error(`unexpected Mod.ping/Mod.pong result ${JSON.stringify({ ping_result, pong })}`);
     }
-    console.log("Mod.ping/pong    ->", { pingResult, pong });
+    console.log("Mod.ping/pong    ->", { ping_result, pong });
 
     // Browser.getVersion is browser-scoped and chrome.debugger is tab-scoped,
     // so debugger mode asserts a positive raw CDP Runtime.evaluate instead.
@@ -267,10 +267,10 @@ async function main() {
       console.log("Browser.getVersion ->", version);
     }
 
-    const modcdpEval = (await cdp.Mod.evaluate({ expression: "({ extensionId: chrome.runtime.id })" })) as {
-      extensionId?: string;
+    const modcdpEval = (await cdp.Mod.evaluate({ expression: "({ extension_id: chrome.runtime.id })" })) as {
+      extension_id?: string;
     };
-    if (modcdpEval.extensionId !== cdp.extension_id)
+    if (modcdpEval.extension_id !== cdp.extension_id)
       throw new Error(`unexpected Mod.evaluate result ${JSON.stringify(modcdpEval)}`);
     console.log("Mod.evaluate     ->", modcdpEval);
 
