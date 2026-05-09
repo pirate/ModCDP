@@ -73,6 +73,7 @@ class NatsUpstreamTransport(UpstreamTransport):
         self.closed = False
         with self._peer_condition:
             self._close_generation += 1
+            close_generation = self._close_generation
             self.peer_seen.clear()
         parsed = urlparse(self.url)
         if parsed.scheme in ("ws", "wss"):
@@ -80,7 +81,7 @@ class NatsUpstreamTransport(UpstreamTransport):
             ws.connect(self.url)
             self.socket = ws
             self._write_protocol(f"CONNECT {json.dumps(_connect_options())}\r\nPING\r\n")
-            threading.Thread(target=self._read_websocket_loop, daemon=True).start()
+            threading.Thread(target=self._read_websocket_loop, args=(ws, close_generation), daemon=True).start()
         elif parsed.scheme in ("nats", "tls"):
             port = parsed.port or 4222
             host = cast(str, parsed.hostname or "127.0.0.1")
@@ -88,7 +89,7 @@ class NatsUpstreamTransport(UpstreamTransport):
             tcp_socket = ssl.create_default_context().wrap_socket(raw_socket, server_hostname=host) if parsed.scheme == "tls" else raw_socket
             self.socket = tcp_socket
             self._write_protocol(f"CONNECT {json.dumps(_connect_options())}\r\nPING\r\n")
-            threading.Thread(target=self._read_tcp_loop, daemon=True).start()
+            threading.Thread(target=self._read_tcp_loop, args=(tcp_socket, close_generation), daemon=True).start()
         else:
             raise RuntimeError(f"upstream.mode=nats requires ws://, wss://, nats://, or tls:// URL, got {self.url}.")
         self.connected = True
@@ -150,29 +151,33 @@ class NatsUpstreamTransport(UpstreamTransport):
     def _outgoing_subject(self) -> str:
         return f"{self.subject_prefix}.{'client_to_browser' if self.role == 'client' else 'browser_to_client'}"
 
-    def _read_websocket_loop(self) -> None:
+    def _generation_closed(self, close_generation: int) -> bool:
+        with self._peer_condition:
+            return self.closed or close_generation != self._close_generation
+
+    def _read_websocket_loop(self, ws: WebSocket, close_generation: int) -> None:
         try:
-            while not self.closed and isinstance(self.socket, WebSocket):
-                data = self.socket.recv()
+            while not self._generation_closed(close_generation):
+                data = ws.recv()
                 if isinstance(data, bytes):
                     self.buffer += data.decode()
                 else:
                     self.buffer += str(data)
                 self.buffer = self._consume_protocol(self.buffer)
         except Exception as error:
-            if not self.closed:
+            if not self._generation_closed(close_generation):
                 self._emit_close(error if isinstance(error, Exception) else RuntimeError(str(error)))
 
-    def _read_tcp_loop(self) -> None:
+    def _read_tcp_loop(self, tcp_socket: socket.socket, close_generation: int) -> None:
         try:
-            while not self.closed and isinstance(self.socket, socket.socket):
-                chunk = self.socket.recv(65536)
+            while not self._generation_closed(close_generation):
+                chunk = tcp_socket.recv(65536)
                 if not chunk:
                     break
                 self.buffer += chunk.decode()
                 self.buffer = self._consume_protocol(self.buffer)
         except Exception as error:
-            if not self.closed:
+            if not self._generation_closed(close_generation):
                 self._emit_close(error if isinstance(error, Exception) else RuntimeError(str(error)))
 
     def _consume_protocol(self, buffer: str) -> str:
