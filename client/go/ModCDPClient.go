@@ -7,10 +7,9 @@
 //	Extension      raw-CDP extension discovery/injection/borrowing.
 //	Client.Routes  client-side direct_cdp/service_worker routing.
 //	Server         ModCDPServer.configure params.
-//	MirrorUpstreamEvents
-//	                when false, do not mirror server-side upstream CDP events back through Runtime bindings.
-//	*TimeoutMS / *IntervalMS
-//	                override default CDP send, service-worker probe, event, and poll timings.
+//	Client        client routing and client-owned send/event timings.
+//	Extension     extension discovery, wake, probe, and keepalive timings.
+//	Upstream      upstream transport options and upstream-owned timings.
 //
 // Public methods: Connect, Send(method, params), SendRaw, On, OnRaw, Close.
 // Synchronous; one background goroutine reads messages off the WS.
@@ -171,12 +170,13 @@ type LaunchConfig struct {
 }
 
 type UpstreamConfig struct {
-	Mode                    string
-	WSURL                   string
-	NATSURL                 string
-	NATSSubjectPrefix       string
-	ReverseWSBind           string
-	NativeMessagingManifest string
+	Mode                          string
+	WSURL                         string
+	NATSURL                       string
+	NATSSubjectPrefix             string
+	ReverseWSBind                 string
+	NativeMessagingManifest       string
+	WSConnectErrorSettleTimeoutMS int
 }
 
 type ExtensionConfig struct {
@@ -190,30 +190,29 @@ type ExtensionConfig struct {
 	TrustServiceWorkerTarget     bool
 	RequireServiceWorkerTarget   bool
 	ServiceWorkerReadyExpression string
+	ExecutionContextTimeoutMS    int
+	ServiceWorkerProbeTimeoutMS  int
+	ServiceWorkerReadyTimeoutMS  int
+	ServiceWorkerPollIntervalMS  int
+	TargetSessionPollIntervalMS  int
 }
 
 type ClientConfig struct {
-	Routes map[string]string
+	Routes               map[string]string
+	MirrorUpstreamEvents *bool
+	CDPSendTimeoutMS     int
+	EventWaitTimeoutMS   int
 }
 
 type Options struct {
-	Launch                        LaunchConfig
-	Upstream                      UpstreamConfig
-	Extension                     ExtensionConfig
-	Client                        ClientConfig
-	Server                        *ServerConfig
-	CustomCommands                []CustomCommand
-	CustomEvents                  []CustomEvent
-	CustomMiddlewares             []CustomMiddleware
-	MirrorUpstreamEvents          *bool
-	CDPSendTimeoutMS              int
-	EventWaitTimeoutMS            int
-	ExecutionContextTimeoutMS     int
-	ServiceWorkerProbeTimeoutMS   int
-	ServiceWorkerReadyTimeoutMS   int
-	ServiceWorkerPollIntervalMS   int
-	TargetSessionPollIntervalMS   int
-	WSConnectErrorSettleTimeoutMS int
+	Launch            LaunchConfig
+	Upstream          UpstreamConfig
+	Extension         ExtensionConfig
+	Client            ClientConfig
+	Server            *ServerConfig
+	CustomCommands    []CustomCommand
+	CustomEvents      []CustomEvent
+	CustomMiddlewares []CustomMiddleware
 }
 
 type Handler func(data any)
@@ -383,29 +382,29 @@ func New(opts Options) *ModCDPClient {
 	if opts.Extension.ServiceWorkerURLSuffixes == nil {
 		opts.Extension.ServiceWorkerURLSuffixes = append([]string{}, DefaultModCDPServiceWorkerURLSuffixes...)
 	}
-	if opts.CDPSendTimeoutMS == 0 {
-		opts.CDPSendTimeoutMS = DefaultCDPSendTimeoutMS
+	if opts.Client.CDPSendTimeoutMS == 0 {
+		opts.Client.CDPSendTimeoutMS = DefaultCDPSendTimeoutMS
 	}
-	if opts.EventWaitTimeoutMS == 0 {
-		opts.EventWaitTimeoutMS = DefaultEventWaitTimeoutMS
+	if opts.Client.EventWaitTimeoutMS == 0 {
+		opts.Client.EventWaitTimeoutMS = DefaultEventWaitTimeoutMS
 	}
-	if opts.ExecutionContextTimeoutMS == 0 {
-		opts.ExecutionContextTimeoutMS = DefaultExecutionContextTimeoutMS
+	if opts.Extension.ExecutionContextTimeoutMS == 0 {
+		opts.Extension.ExecutionContextTimeoutMS = DefaultExecutionContextTimeoutMS
 	}
-	if opts.ServiceWorkerProbeTimeoutMS == 0 {
-		opts.ServiceWorkerProbeTimeoutMS = DefaultServiceWorkerProbeTimeoutMS
+	if opts.Extension.ServiceWorkerProbeTimeoutMS == 0 {
+		opts.Extension.ServiceWorkerProbeTimeoutMS = DefaultServiceWorkerProbeTimeoutMS
 	}
-	if opts.ServiceWorkerReadyTimeoutMS == 0 {
-		opts.ServiceWorkerReadyTimeoutMS = DefaultServiceWorkerReadyTimeoutMS
+	if opts.Extension.ServiceWorkerReadyTimeoutMS == 0 {
+		opts.Extension.ServiceWorkerReadyTimeoutMS = DefaultServiceWorkerReadyTimeoutMS
 	}
-	if opts.ServiceWorkerPollIntervalMS == 0 {
-		opts.ServiceWorkerPollIntervalMS = DefaultServiceWorkerPollIntervalMS
+	if opts.Extension.ServiceWorkerPollIntervalMS == 0 {
+		opts.Extension.ServiceWorkerPollIntervalMS = DefaultServiceWorkerPollIntervalMS
 	}
-	if opts.TargetSessionPollIntervalMS == 0 {
-		opts.TargetSessionPollIntervalMS = DefaultTargetSessionPollIntervalMS
+	if opts.Extension.TargetSessionPollIntervalMS == 0 {
+		opts.Extension.TargetSessionPollIntervalMS = DefaultTargetSessionPollIntervalMS
 	}
-	if opts.WSConnectErrorSettleTimeoutMS == 0 {
-		opts.WSConnectErrorSettleTimeoutMS = DefaultWSConnectErrorSettleTimeoutMS
+	if opts.Upstream.WSConnectErrorSettleTimeoutMS == 0 {
+		opts.Upstream.WSConnectErrorSettleTimeoutMS = DefaultWSConnectErrorSettleTimeoutMS
 	}
 	client := &ModCDPClient{
 		opts:                 opts,
@@ -512,8 +511,8 @@ func (c *ModCDPClient) Connect() error {
 		return err
 	}
 	mirrorUpstreamEvents := true
-	if c.opts.MirrorUpstreamEvents != nil {
-		mirrorUpstreamEvents = *c.opts.MirrorUpstreamEvents
+	if c.opts.Client.MirrorUpstreamEvents != nil {
+		mirrorUpstreamEvents = *c.opts.Client.MirrorUpstreamEvents
 	}
 	if mirrorUpstreamEvents {
 		if _, err := c.sendMessage("Runtime.addBinding", map[string]any{"name": upstreamEventBindingName}, c.ExtSessionID); err != nil {
@@ -646,8 +645,8 @@ func (c *ModCDPClient) connectPipeRawCDPTransport(connectStartedAt int64) error 
 		return err
 	}
 	mirrorUpstreamEvents := true
-	if c.opts.MirrorUpstreamEvents != nil {
-		mirrorUpstreamEvents = *c.opts.MirrorUpstreamEvents
+	if c.opts.Client.MirrorUpstreamEvents != nil {
+		mirrorUpstreamEvents = *c.opts.Client.MirrorUpstreamEvents
 	}
 	if mirrorUpstreamEvents {
 		if _, err := c.sendMessage("Runtime.addBinding", map[string]any{"name": upstreamEventBindingName}, c.ExtSessionID); err != nil {
@@ -787,9 +786,9 @@ func (c *ModCDPClient) serverConfigureParams(customCommands []map[string]any, cu
 		customMiddlewares = []map[string]any{}
 	}
 	server := map[string]any{
-		"cdp_send_timeout_ms":                   c.opts.CDPSendTimeoutMS,
-		"loopback_execution_context_timeout_ms": c.opts.ExecutionContextTimeoutMS,
-		"ws_connect_error_settle_timeout_ms":    c.opts.WSConnectErrorSettleTimeoutMS,
+		"cdp_send_timeout_ms":                   c.opts.Client.CDPSendTimeoutMS,
+		"loopback_execution_context_timeout_ms": c.opts.Extension.ExecutionContextTimeoutMS,
+		"ws_connect_error_settle_timeout_ms":    c.opts.Upstream.WSConnectErrorSettleTimeoutMS,
 	}
 	if c.opts.Server != nil {
 		server["loopback_cdp_url"] = c.opts.Server.LoopbackCDPURL
@@ -1186,7 +1185,7 @@ func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInject
 		Send:               send,
 		SessionIDForTarget: func(targetID string) string { return c.sessionIDForTarget(targetID, 0) },
 		AttachToTarget: func(targetID string) string {
-			return c.ensureSessionIDForTarget(targetID, time.Duration(c.opts.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true)
+			return c.ensureSessionIDForTarget(targetID, time.Duration(c.opts.Extension.ServiceWorkerProbeTimeoutMS)*time.Millisecond, true)
 		},
 		ExtensionPath:                c.opts.Extension.Path,
 		ExtensionID:                  c.opts.Extension.ExtensionID,
@@ -1197,12 +1196,12 @@ func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInject
 		TrustMatchedServiceWorker:    trustMatchedServiceWorker,
 		RequireServiceWorkerTarget:   c.opts.Extension.RequireServiceWorkerTarget || c.opts.Extension.Mode == "discover",
 		ServiceWorkerReadyExpression: c.opts.Extension.ServiceWorkerReadyExpression,
-		CDPSendTimeoutMS:             c.opts.CDPSendTimeoutMS,
-		ExecutionContextTimeoutMS:    c.opts.ExecutionContextTimeoutMS,
-		ServiceWorkerProbeTimeoutMS:  c.opts.ServiceWorkerProbeTimeoutMS,
-		ServiceWorkerReadyTimeoutMS:  c.opts.ServiceWorkerReadyTimeoutMS,
-		ServiceWorkerPollIntervalMS:  c.opts.ServiceWorkerPollIntervalMS,
-		TargetSessionPollIntervalMS:  c.opts.TargetSessionPollIntervalMS,
+		CDPSendTimeoutMS:             c.opts.Client.CDPSendTimeoutMS,
+		ExecutionContextTimeoutMS:    c.opts.Extension.ExecutionContextTimeoutMS,
+		ServiceWorkerProbeTimeoutMS:  c.opts.Extension.ServiceWorkerProbeTimeoutMS,
+		ServiceWorkerReadyTimeoutMS:  c.opts.Extension.ServiceWorkerReadyTimeoutMS,
+		ServiceWorkerPollIntervalMS:  c.opts.Extension.ServiceWorkerPollIntervalMS,
+		TargetSessionPollIntervalMS:  c.opts.Extension.TargetSessionPollIntervalMS,
 	}
 }
 
@@ -1211,7 +1210,7 @@ func (c *ModCDPClient) injectExtension(injectors []extensionInjector) (*Extensio
 		return nil, fmt.Errorf("extension.mode='none' cannot be used with a raw_cdp upstream")
 	}
 	send := func(method string, params map[string]any, sessionID string) (map[string]any, error) {
-		return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
+		return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.opts.Client.CDPSendTimeoutMS)*time.Millisecond)
 	}
 	var errors []string
 	for _, injector := range injectors {
@@ -1364,7 +1363,7 @@ func (c *ModCDPClient) measurePingLatency() error {
 		}
 		c.Latency = latency
 		return nil
-	case <-time.After(time.Duration(c.opts.EventWaitTimeoutMS) * time.Millisecond):
+	case <-time.After(time.Duration(c.opts.Client.EventWaitTimeoutMS) * time.Millisecond):
 		return fmt.Errorf("Mod.pong timed out")
 	}
 }
@@ -1383,7 +1382,7 @@ func numberAsInt64(value any) (int64, bool) {
 }
 
 func (c *ModCDPClient) sendMessage(method string, params map[string]any, sessionID string) (map[string]any, error) {
-	return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.opts.CDPSendTimeoutMS)*time.Millisecond)
+	return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.opts.Client.CDPSendTimeoutMS)*time.Millisecond)
 }
 
 func (c *ModCDPClient) sendMessageTimeout(method string, params map[string]any, sessionID string, timeout time.Duration) (map[string]any, error) {
@@ -1602,7 +1601,7 @@ func (c *ModCDPClient) sessionIDForTarget(targetID string, timeout time.Duration
 		if sessionID != "" {
 			return sessionID
 		}
-		time.Sleep(time.Duration(c.opts.TargetSessionPollIntervalMS) * time.Millisecond)
+		time.Sleep(time.Duration(c.opts.Extension.TargetSessionPollIntervalMS) * time.Millisecond)
 	}
 	return ""
 }

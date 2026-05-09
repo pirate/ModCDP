@@ -11,6 +11,99 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
+func TestModCDPClientNormalizesNestedConfigOwners(t *testing.T) {
+	cdp := New(Options{
+		Launch: LaunchConfig{
+			Mode:           "local",
+			ExecutablePath: "/tmp/chrome",
+			UserDataDir:    "/tmp/profile",
+			Options: LaunchOptions{
+				Headless: boolPtr(true),
+			},
+		},
+		Upstream: UpstreamConfig{
+			Mode:                          "ws",
+			WSURL:                         "http://127.0.0.1:9222",
+			WSConnectErrorSettleTimeoutMS: 321,
+		},
+		Extension: ExtensionConfig{
+			Mode:                        "discover",
+			Path:                        "/tmp/ext",
+			ExtensionID:                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			ServiceWorkerURLIncludes:    []string{"modcdp"},
+			ServiceWorkerURLSuffixes:    []string{"/custom/service_worker.js"},
+			TrustServiceWorkerTarget:    true,
+			RequireServiceWorkerTarget:  true,
+			ExecutionContextTimeoutMS:   4321,
+			ServiceWorkerProbeTimeoutMS: 5432,
+			ServiceWorkerReadyTimeoutMS: 6543,
+			ServiceWorkerPollIntervalMS: 76,
+			TargetSessionPollIntervalMS: 87,
+		},
+		Client: ClientConfig{
+			Routes:               map[string]string{"*.*": "direct_cdp"},
+			MirrorUpstreamEvents: boolPtr(false),
+			CDPSendTimeoutMS:     1234,
+			EventWaitTimeoutMS:   2345,
+		},
+		Server: &ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
+	})
+
+	if cdp.opts.Launch.Options.ExecutablePath != "/tmp/chrome" {
+		t.Fatalf("Launch.Options.ExecutablePath = %q", cdp.opts.Launch.Options.ExecutablePath)
+	}
+	if cdp.opts.Launch.Options.UserDataDir != "/tmp/profile" {
+		t.Fatalf("Launch.Options.UserDataDir = %q", cdp.opts.Launch.Options.UserDataDir)
+	}
+	if cdp.opts.Upstream.WSConnectErrorSettleTimeoutMS != 321 {
+		t.Fatalf("Upstream.WSConnectErrorSettleTimeoutMS = %d", cdp.opts.Upstream.WSConnectErrorSettleTimeoutMS)
+	}
+	if cdp.opts.Extension.ExecutionContextTimeoutMS != 4321 {
+		t.Fatalf("Extension.ExecutionContextTimeoutMS = %d", cdp.opts.Extension.ExecutionContextTimeoutMS)
+	}
+	if cdp.opts.Extension.ServiceWorkerProbeTimeoutMS != 5432 {
+		t.Fatalf("Extension.ServiceWorkerProbeTimeoutMS = %d", cdp.opts.Extension.ServiceWorkerProbeTimeoutMS)
+	}
+	if cdp.opts.Extension.ServiceWorkerReadyTimeoutMS != 6543 {
+		t.Fatalf("Extension.ServiceWorkerReadyTimeoutMS = %d", cdp.opts.Extension.ServiceWorkerReadyTimeoutMS)
+	}
+	if cdp.opts.Extension.ServiceWorkerPollIntervalMS != 76 {
+		t.Fatalf("Extension.ServiceWorkerPollIntervalMS = %d", cdp.opts.Extension.ServiceWorkerPollIntervalMS)
+	}
+	if cdp.opts.Extension.TargetSessionPollIntervalMS != 87 {
+		t.Fatalf("Extension.TargetSessionPollIntervalMS = %d", cdp.opts.Extension.TargetSessionPollIntervalMS)
+	}
+	if cdp.opts.Client.Routes["*.*"] != "direct_cdp" {
+		t.Fatalf("Client.Routes[*.*] = %q", cdp.opts.Client.Routes["*.*"])
+	}
+	if cdp.opts.Client.MirrorUpstreamEvents == nil || *cdp.opts.Client.MirrorUpstreamEvents {
+		t.Fatalf("Client.MirrorUpstreamEvents = %#v", cdp.opts.Client.MirrorUpstreamEvents)
+	}
+	if cdp.opts.Client.CDPSendTimeoutMS != 1234 {
+		t.Fatalf("Client.CDPSendTimeoutMS = %d", cdp.opts.Client.CDPSendTimeoutMS)
+	}
+	if cdp.opts.Client.EventWaitTimeoutMS != 2345 {
+		t.Fatalf("Client.EventWaitTimeoutMS = %d", cdp.opts.Client.EventWaitTimeoutMS)
+	}
+
+	params := cdp.serverConfigureParams(nil, nil, nil)
+	clientConfig := params["client"].(map[string]any)
+	routes := clientConfig["routes"].(map[string]string)
+	serverConfig := params["server"].(map[string]any)
+	if routes["*.*"] != "direct_cdp" {
+		t.Fatalf("configure client routes = %#v", routes)
+	}
+	if serverConfig["cdp_send_timeout_ms"] != 1234 {
+		t.Fatalf("configure cdp_send_timeout_ms = %#v", serverConfig["cdp_send_timeout_ms"])
+	}
+	if serverConfig["loopback_execution_context_timeout_ms"] != 4321 {
+		t.Fatalf("configure loopback_execution_context_timeout_ms = %#v", serverConfig["loopback_execution_context_timeout_ms"])
+	}
+	if serverConfig["ws_connect_error_settle_timeout_ms"] != 321 {
+		t.Fatalf("configure ws_connect_error_settle_timeout_ms = %#v", serverConfig["ws_connect_error_settle_timeout_ms"])
+	}
+}
+
 func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	cdp := New(Options{
 		Launch: LaunchConfig{
