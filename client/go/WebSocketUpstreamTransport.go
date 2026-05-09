@@ -77,9 +77,12 @@ func (t *WebSocketUpstreamTransport) Send(message map[string]any) error {
 func (t *WebSocketUpstreamTransport) Close() error {
 	if t.cancel != nil {
 		t.cancel()
+		t.cancel = nil
 	}
 	if t.Conn != nil {
-		return t.Conn.Close()
+		err := t.Conn.Close()
+		t.Conn = nil
+		return err
 	}
 	return nil
 }

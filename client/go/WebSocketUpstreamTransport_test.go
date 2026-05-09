@@ -98,3 +98,31 @@ func TestWebSocketUpstreamTransportResolvesRealHTTPCDPEndpointToBrowserWebSocket
 		t.Fatalf("Browser.getVersion response = %s", string(data))
 	}
 }
+
+func TestWebSocketUpstreamTransportCloseClearsConnectionState(t *testing.T) {
+	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
+		Headless: boolPtr(true),
+		Sandbox:  boolPtr(false),
+	}).Launch(LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chrome.Close()
+
+	transport := NewWebSocketUpstreamTransport(chrome.CDPURL)
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if transport.Conn == nil {
+		t.Fatal("expected connected websocket")
+	}
+	if err := transport.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if transport.Conn != nil {
+		t.Fatal("Close left Conn set")
+	}
+	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err == nil || !strings.Contains(err.Error(), "CDP websocket is not connected") {
+		t.Fatalf("Send after close error = %v", err)
+	}
+}
