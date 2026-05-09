@@ -635,7 +635,9 @@ class ModCDPClient(CDPSurfaceMixin):
             return RemoteBrowserLauncher(self._launch_options(), self.cdp_url)
         if self.launch.get("mode") == "bb":
             return BrowserbaseBrowserLauncher(self._launch_options())
-        return NoopBrowserLauncher(self._launch_options())
+        if self.launch.get("mode") == "none":
+            return NoopBrowserLauncher(self._launch_options())
+        raise RuntimeError(f"unknown launch.mode={self.launch.get('mode')}")
 
     def _launch_options(self) -> BrowserLaunchOptions:
         launch_options = cast(BrowserLaunchOptions, dict(cast(Mapping[str, Any], self.launch.get("options") or {})))
@@ -768,6 +770,8 @@ class ModCDPClient(CDPSurfaceMixin):
             injectors.append(ExtensionsLoadUnpackedInjector())
         if mode in ("auto", "borrow"):
             injectors.append(BorrowedExtensionInjector())
+        if not injectors:
+            raise RuntimeError(f"unknown extension.mode={mode}")
         return injectors
 
     def _base_extension_injector_config(self, send: Any | None) -> ExtensionInjectorConfig:

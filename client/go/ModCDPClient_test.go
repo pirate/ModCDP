@@ -277,6 +277,42 @@ func TestModCDPClientDefaultsLaunchedModCDPServerUpstreamsToExtensionAuto(t *tes
 	}
 }
 
+func TestModCDPClientRejectsUnknownComponentModesAtTheirOwningFactoryBoundary(t *testing.T) {
+	cases := []struct {
+		name string
+		cdp  *ModCDPClient
+		want string
+	}{
+		{
+			name: "upstream",
+			cdp:  New(Options{Upstream: UpstreamConfig{Mode: "bogus"}}),
+			want: "unknown upstream.mode=bogus",
+		},
+		{
+			name: "launch",
+			cdp: New(Options{
+				Launch:   LaunchConfig{Mode: "bogus"},
+				Upstream: UpstreamConfig{Mode: "ws", WSURL: "ws://127.0.0.1:1/devtools/browser/test"},
+			}),
+			want: "unknown launch.mode=bogus",
+		},
+		{
+			name: "extension",
+			cdp: New(Options{
+				Launch:    LaunchConfig{Mode: "none"},
+				Upstream:  UpstreamConfig{Mode: "ws", WSURL: "ws://127.0.0.1:1/devtools/browser/test"},
+				Extension: ExtensionConfig{Mode: "bogus"},
+			}),
+			want: "unknown extension.mode=bogus",
+		},
+	}
+	for _, testCase := range cases {
+		if err := testCase.cdp.Connect(); err == nil || !strings.Contains(err.Error(), testCase.want) {
+			t.Fatalf("%s Connect error = %v", testCase.name, err)
+		}
+	}
+}
+
 func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	cdp := New(Options{
 		Launch: LaunchConfig{

@@ -785,7 +785,9 @@ export class ModCDPClient extends ModCDPEventEmitter {
       nativemessaging: () => new NativeMessagingUpstreamTransport(),
       nats: () => new NatsUpstreamTransport(),
     } satisfies Record<UpstreamMode, () => UpstreamTransport>;
-    return factories[this.upstream.mode]();
+    const factory = factories[this.upstream.mode as UpstreamMode];
+    if (!factory) throw new Error(`unknown upstream.mode=${this.upstream.mode}`);
+    return factory();
   }
 
   _browserLauncher(): BrowserLauncher {
@@ -795,7 +797,9 @@ export class ModCDPClient extends ModCDPEventEmitter {
       bb: () => new BrowserbaseBrowserLauncher(this.launch.options),
       none: () => new NoopBrowserLauncher(this.launch.options),
     } satisfies Record<LaunchMode, () => BrowserLauncher>;
-    return factories[this.launch.mode]();
+    const factory = factories[this.launch.mode as LaunchMode];
+    if (!factory) throw new Error(`unknown launch.mode=${this.launch.mode}`);
+    return factory();
   }
 
   _launchOptions(): BrowserLaunchOptions {
@@ -833,6 +837,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
     if (this.extension.mode === "auto" || this.extension.mode === "borrow") {
       injectors.push(new BorrowedExtensionInjector());
     }
+    if (injectors.length === 0) throw new Error(`unknown extension.mode=${this.extension.mode}`);
     return injectors;
   }
 

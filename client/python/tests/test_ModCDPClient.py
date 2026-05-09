@@ -126,6 +126,14 @@ class ModCDPClientTests(unittest.TestCase):
             self.assertEqual(attach_only.upstream_endpoint_kind, "modcdp_server")
             self.assertEqual(attach_only.extension["mode"], "none")
 
+    def test_rejects_unknown_component_modes_at_their_owning_factory_boundary(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, r"unknown upstream\.mode=bogus"):
+            ModCDPClient(upstream={"mode": "bogus"})._upstream_transport()
+        with self.assertRaisesRegex(RuntimeError, r"unknown launch\.mode=bogus"):
+            ModCDPClient(launch={"mode": "bogus"})._browser_launcher()
+        with self.assertRaisesRegex(RuntimeError, r"unknown extension\.mode=bogus"):
+            ModCDPClient(extension={"mode": "bogus"})._extension_injectors_for_config()
+
     def test_connects_with_local_launch_and_injector_chain(self) -> None:
         cdp = ModCDPClient(
             launch={"mode": "local", "options": {"headless": True, "sandbox": False}},

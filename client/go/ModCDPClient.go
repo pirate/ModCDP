@@ -580,6 +580,15 @@ func (c *ModCDPClient) connectUpstreamTransport() error {
 	if c.transport != nil {
 		return nil
 	}
+	if !isKnownLaunchMode(c.opts.Launch.Mode) {
+		return fmt.Errorf("unknown launch.mode=%s", c.opts.Launch.Mode)
+	}
+	if !isKnownUpstreamMode(c.opts.Upstream.Mode) {
+		return fmt.Errorf("unknown upstream.mode=%s", c.opts.Upstream.Mode)
+	}
+	if !isKnownExtensionMode(c.opts.Extension.Mode) {
+		return fmt.Errorf("unknown extension.mode=%s", c.opts.Extension.Mode)
+	}
 	launcher := c.browserLauncher()
 	transport := c.upstreamTransport()
 	injectors := c.extensionInjectorsForConfig()
@@ -1062,8 +1071,10 @@ func (c *ModCDPClient) browserLauncher() browserLauncherClient {
 		return NewRemoteBrowserLauncher(c.opts.Launch.Options, c.opts.Upstream.WSURL)
 	case "bb":
 		return NewBrowserbaseBrowserLauncher(c.opts.Launch.Options)
-	default:
+	case "none":
 		return NewNoopBrowserLauncher(c.opts.Launch.Options)
+	default:
+		return nil
 	}
 }
 
@@ -1086,7 +1097,7 @@ func (c *ModCDPClient) upstreamTransport() upstreamTransportClient {
 			SubjectPrefix: c.opts.Upstream.NATSSubjectPrefix,
 		})
 	default:
-		return NewNatsUpstreamTransport(NatsUpstreamTransportOptions{})
+		return nil
 	}
 }
 
@@ -1116,6 +1127,18 @@ func (c *ModCDPClient) extensionInjectorsForConfig() []extensionInjector {
 		injectors = append(injectors, &injector)
 	}
 	return injectors
+}
+
+func isKnownLaunchMode(mode string) bool {
+	return mode == "local" || mode == "remote" || mode == "bb" || mode == "none"
+}
+
+func isKnownUpstreamMode(mode string) bool {
+	return mode == "ws" || mode == "pipe" || mode == "nativemessaging" || mode == "reversews" || mode == "nats"
+}
+
+func isKnownExtensionMode(mode string) bool {
+	return mode == "auto" || mode == "discover" || mode == "inject" || mode == "borrow" || mode == "none"
 }
 
 func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInjectorConfig {

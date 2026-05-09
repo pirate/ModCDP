@@ -200,6 +200,21 @@ test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto",
   }
 });
 
+test("ModCDPClient rejects unknown component modes at their owning factory boundary", () => {
+  assert.throws(
+    () => new ModCDPClient({ upstream: { mode: "bogus" as any } })._upstreamTransport(),
+    /unknown upstream\.mode=bogus/,
+  );
+  assert.throws(
+    () => new ModCDPClient({ launch: { mode: "bogus" as any } })._browserLauncher(),
+    /unknown launch\.mode=bogus/,
+  );
+  assert.throws(
+    () => new ModCDPClient({ extension: { mode: "bogus" as any } })._extensionInjectors(),
+    /unknown extension\.mode=bogus/,
+  );
+});
+
 test("ModCDPClient.close does not close a remote browser it did not launch", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
