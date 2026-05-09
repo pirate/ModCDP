@@ -299,3 +299,34 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     await proxy.close();
   }
 }, 90_000);
+
+test("proxy reversews local launch auto-injects the extension through the real client path", async () => {
+  const proxy_port = await LocalBrowserLauncher.freePort();
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const reverse_bind = `127.0.0.1:${reverse_port}`;
+  const proxy = await startProxy({
+    port: proxy_port,
+    launch: {
+      mode: "local",
+      options: { headless: true, sandbox: process.platform !== "linux" },
+    },
+    upstream: {
+      mode: "reversews",
+      reversews_bind: reverse_bind,
+      reversews_wait_timeout_ms: 10_000,
+    },
+    extension: {
+      mode: "auto",
+      path: EXTENSION_PATH,
+    },
+    server: {
+      routes: { "*.*": "loopback_cdp" },
+    },
+  });
+
+  try {
+    await expect_proxy_cdp_works(proxy.url, "reversews-local-launch");
+  } finally {
+    await proxy.close();
+  }
+}, 90_000);

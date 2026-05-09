@@ -11,7 +11,7 @@
 //   - For pipe, native messaging, and NATS upstreams, let ModCDPClient own the
 //     selected transport and proxy downstream CDP-shaped messages through it.
 //   - Keep mirrored upstream events private by default so vanilla CDP clients
-//     only see native upstream CDP messages. Set forwardMirroredUpstreamEvents to
+//     only see native upstream CDP messages. Set forward_mirrored_upstream_events to
 //     true when debugging the service-worker mirror path itself.
 //
 // Run as a CLI:
@@ -86,9 +86,8 @@ export async function startProxy({
   extension = { mode: "auto", path: DEFAULT_EXTENSION_PATH },
   client: clientOptions = {},
   server: serverOptions = {},
-  forwardMirroredUpstreamEvents = false,
-  upstreamMonitorIntervalMs = DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS,
-  reverseWaitTimeoutMs = null,
+  forward_mirrored_upstream_events = false,
+  upstream_monitor_interval_ms = DEFAULT_UPSTREAM_MONITOR_INTERVAL_MS,
 }: {
   host?: string;
   port?: number;
@@ -105,22 +104,24 @@ export async function startProxy({
   extension?: { mode?: string; path?: string | null };
   client?: Record<string, unknown>;
   server?: Record<string, unknown> | null;
-  forwardMirroredUpstreamEvents?: boolean;
-  upstreamMonitorIntervalMs?: number;
-  reverseWaitTimeoutMs?: number | null;
+  forward_mirrored_upstream_events?: boolean;
+  upstream_monitor_interval_ms?: number;
 } = {}) {
   const { WebSocket, WebSocketServer } = await loadWsForProxy();
   const upstreamMode = upstream.mode ?? "ws";
   const upstreamWsUrl = upstream.ws_url ?? (launch.mode === "local" ? null : DEFAULT_UPSTREAM);
   const clientManagedUpstream = upstreamMode === "nativemessaging" || upstreamMode === "nats" || upstreamMode === "pipe";
-  const reverse_wait_timeout_ms =
-    reverseWaitTimeoutMs ?? upstream.reversews_wait_timeout_ms ?? DEFAULT_REVERSE_WAIT_TIMEOUT_MS;
+  const managed_reverse_upstream =
+    upstreamMode === "reversews" &&
+    (launch.mode === "local" || launch.mode === "bb" || (launch.mode === "remote" && upstream.ws_url != null));
+  const reverse_wait_timeout_ms = upstream.reversews_wait_timeout_ms ?? DEFAULT_REVERSE_WAIT_TIMEOUT_MS;
   const reverseOptions =
-    upstreamMode === "reversews"
+    upstreamMode === "reversews" && !managed_reverse_upstream
       ? parseHostPort(upstream.reversews_bind ?? "127.0.0.1:29292", DEFAULT_HOST, 29292)
       : null;
   const reversePeer = reverseOptions ? createReversePeerState(reverse_wait_timeout_ms) : null;
-  const servesLocalDiscovery = Boolean(reversePeer) || clientManagedUpstream;
+  const servesLocalDiscovery = Boolean(reversePeer) || managed_reverse_upstream || clientManagedUpstream;
+  let managed_reverse_cdp: ModCDPClient | null = null;
   const httpServer = http.createServer(async (req, res) => {
     try {
       const requestUrl = req.url === "/json/version/" ? "/json/version" : req.url;
@@ -192,6 +193,8 @@ export async function startProxy({
           reversePeer.socket.close();
         } catch {}
       }
+      await managed_reverse_cdp?.close().catch(() => {});
+      managed_reverse_cdp = null;
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       if (reverseWss) await new Promise<void>((resolve) => reverseWss?.close(() => resolve()));
       if (httpServer.listening) await new Promise<void>((resolve) => httpServer.close(() => resolve()));
@@ -212,6 +215,10 @@ export async function startProxy({
           client.close(1011, err.message.slice(0, 120));
         } catch {}
       });
+      return;
+    }
+    if (managed_reverse_cdp) {
+      wireClientManagedConnection(client, earlyBuffer, earlyHandler, managed_reverse_cdp, false);
       return;
     }
     if (clientManagedUpstream) {
@@ -235,7 +242,7 @@ export async function startProxy({
       extension,
       client: clientOptions,
       server: serverOptions,
-      forwardMirroredUpstreamEvents,
+      forward_mirrored_upstream_events,
       onUpstreamClosed: () => {
         void close().catch((error) => log("proxy close failed:", errorMessage(error)));
       },
@@ -256,11 +263,42 @@ export async function startProxy({
     reverseWss.on("error", (error) => log("reverse listener error:", errorMessage(error)));
   }
 
+  if (managed_reverse_upstream) {
+    managed_reverse_cdp = new ModCDPClient({
+      launch: {
+        mode: launch.mode as "local" | "remote" | "bb" | "none",
+        executable_path: launch.executable_path,
+        user_data_dir: launch.user_data_dir,
+        options: launch.options as any,
+      },
+      upstream: {
+        mode: "reversews",
+        reversews_bind: upstream.reversews_bind,
+        reversews_wait_timeout_ms: reverse_wait_timeout_ms,
+      },
+      extension: {
+        mode: (extension.mode ?? "auto") as "auto" | "discover" | "inject" | "borrow" | "none",
+        path: extension.path ?? DEFAULT_EXTENSION_PATH,
+        service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+        trust_service_worker_target: true,
+      },
+      client: { hydrate_aliases: false, ...clientOptions },
+      server: serverOptions as any,
+    });
+    try {
+      await managed_reverse_cdp.connect();
+    } catch (error) {
+      await managed_reverse_cdp.close().catch(() => {});
+      managed_reverse_cdp = null;
+      throw error;
+    }
+  }
+
   await new Promise<void>((resolve) => httpServer.listen(port, host, () => resolve()));
-  if (!reversePeer && !clientManagedUpstream && upstreamWsUrl && !isWsUrl(upstreamWsUrl)) {
+  if (!reversePeer && !managed_reverse_upstream && !clientManagedUpstream && upstreamWsUrl && !isWsUrl(upstreamWsUrl)) {
     stopUpstreamMonitor = monitorUpstream(
       upstreamWsUrl,
-      upstreamMonitorIntervalMs,
+      upstream_monitor_interval_ms,
       () => {
         void close().catch((error) => log("proxy close failed:", errorMessage(error)));
       },
@@ -270,7 +308,9 @@ export async function startProxy({
   log(
     reverseOptions
       ? `listening on ws://${host}:${port}/  (reverse: ws://${reverseOptions.host}:${reverseOptions.port})`
-      : clientManagedUpstream
+      : managed_reverse_upstream
+        ? `listening on ws://${host}:${port}/  (upstream: reversews:${upstream.reversews_bind ?? "127.0.0.1:29292"})`
+        : clientManagedUpstream
         ? `listening on ws://${host}:${port}/  (upstream: ${upstreamMode})`
         : `listening on ws://${host}:${port}/  (upstream: ${upstreamMode}:${upstreamWsUrl ?? "local-launch"})`,
   );
@@ -315,7 +355,7 @@ function errorMessage(error: unknown): string {
 
 function monitorUpstream(
   upstream: string,
-  upstreamMonitorIntervalMs: number,
+  upstream_monitor_interval_ms: number,
   onClosed: () => void,
   WebSocketCtor: new (url: string) => WebSocket,
 ) {
@@ -346,7 +386,7 @@ function monitorUpstream(
       upstreamClosed();
     }
   };
-  interval = setInterval(() => void check(), upstreamMonitorIntervalMs);
+  interval = setInterval(() => void check(), upstream_monitor_interval_ms);
   void check();
   return close;
 }
@@ -605,7 +645,7 @@ async function handleConnection(
     extension,
     client: clientOptions,
     server,
-    forwardMirroredUpstreamEvents,
+    forward_mirrored_upstream_events,
     onUpstreamClosed,
   }: {
     launch: { mode?: string; executable_path?: string | null; user_data_dir?: string | null; options?: Record<string, unknown> };
@@ -613,7 +653,7 @@ async function handleConnection(
     extension: { mode?: string; path?: string | null };
     client?: Record<string, unknown>;
     server?: Record<string, unknown> | null;
-    forwardMirroredUpstreamEvents: boolean;
+    forward_mirrored_upstream_events: boolean;
     onUpstreamClosed: () => void;
   },
 ) {
@@ -651,7 +691,7 @@ async function handleConnection(
     hiddenTargetIds: new Set(), // SW target the client must never see
     targetSessionIds: cdp.auto_target_sessions,
     clientSessionIds: new Set(), // session ids the client has attached
-    forwardMirroredUpstreamEvents,
+    forwardMirroredUpstreamEvents: forward_mirrored_upstream_events,
     bootstrapped: false,
     closing: false,
     queuedFromClient: [],
@@ -760,12 +800,22 @@ async function handleClientManagedConnection(
     server: server as any,
   });
   await cdp.connect();
+  wireClientManagedConnection(client, earlyBuffer, earlyHandler, cdp, true);
+}
 
-  cdp.on("*", (eventName, payload, sessionId) => {
+function wireClientManagedConnection(
+  client: WebSocket,
+  earlyBuffer: RawData[],
+  earlyHandler: (buf: RawData) => void,
+  cdp: ModCDPClient,
+  close_cdp_on_client_close: boolean,
+) {
+  const event_listener = (eventName: string | symbol, payload: unknown, sessionId?: string | null) => {
     const event: CdpEventMessage = { method: String(eventName), params: (payload ?? {}) as Record<string, unknown> };
     if (typeof sessionId === "string" && sessionId) event.sessionId = sessionId;
     sendRawClientMessage(client, event);
-  });
+  };
+  cdp.on("*", event_listener);
 
   client.off("message", earlyHandler);
   const handle = (buf: RawData) => {
@@ -801,7 +851,10 @@ async function handleClientManagedConnection(
   };
   client.on("message", handle);
   for (const buf of earlyBuffer) handle(buf);
-  client.on("close", () => void cdp.close().catch(() => {}));
+  client.on("close", () => {
+    cdp.off("*", event_listener);
+    if (close_cdp_on_client_close) void cdp.close().catch(() => {});
+  });
 }
 
 function sendRawClientMessage(client: WebSocket, obj: unknown) {
@@ -1015,7 +1068,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     typeof argv["extension-path"] === "string" && argv["extension-path"] !== "true"
       ? path.resolve(argv["extension-path"])
       : DEFAULT_EXTENSION_PATH;
-  const forwardMirroredUpstreamEvents = argv["forward-mirrored-upstream-events"] === "true";
+  const forward_mirrored_upstream_events = argv["forward-mirrored-upstream-events"] === "true";
   const clientConfig =
     typeof argv.client === "string" && argv.client !== "true"
       ? JSON.parse(argv.client)
@@ -1079,7 +1132,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     extension: { mode: String(argv.extension || "auto"), path: extensionPath },
     client: clientConfig,
     server: serverConfig,
-    forwardMirroredUpstreamEvents,
+    forward_mirrored_upstream_events,
   }).catch((e) => {
     console.error(e);
     process.exitCode = 1;
