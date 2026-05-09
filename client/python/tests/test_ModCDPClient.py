@@ -145,6 +145,29 @@ class ModCDPClientTests(unittest.TestCase):
             cdp.close()
             chrome["close"]()
 
+    def test_close_keeps_injector_files_until_after_launched_browser_shutdown(self) -> None:
+        order: list[str] = []
+        cdp = ModCDPClient()
+
+        class FakeTransport:
+            def close(self) -> None:
+                order.append("transport")
+
+        class FakeInjector:
+            def close(self) -> None:
+                order.append("injector")
+
+        cdp.transport = cast(Any, FakeTransport())
+        cdp._launched_browser = {"close": lambda: order.append("browser")}
+        cdp._extension_injectors = cast(Any, [FakeInjector()])
+
+        cdp.close()
+
+        self.assertEqual(order, ["transport", "browser", "injector"])
+        self.assertIsNone(cdp.transport)
+        self.assertIsNone(cdp._launched_browser)
+        self.assertEqual(cdp._extension_injectors, [])
+
     def test_generated_cdp_surface_exposes_direct_domain_commands(self) -> None:
         sent: list[tuple[str, dict[str, object], str | None, bool]] = []
 

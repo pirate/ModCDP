@@ -20,12 +20,8 @@ type WebSocketUpstreamTransport struct {
 	cancel  context.CancelFunc
 }
 
-func NewWebSocketUpstreamTransport(url ...string) *WebSocketUpstreamTransport {
-	transport := &WebSocketUpstreamTransport{}
-	if len(url) > 0 {
-		transport.URL = url[0]
-	}
-	return transport
+func NewWebSocketUpstreamTransport(url string) *WebSocketUpstreamTransport {
+	return &WebSocketUpstreamTransport{URL: url}
 }
 
 func (t *WebSocketUpstreamTransport) Update(config map[string]any) {
@@ -66,6 +62,9 @@ func (t *WebSocketUpstreamTransport) Connect() error {
 }
 
 func (t *WebSocketUpstreamTransport) Send(message map[string]any) error {
+	if t.Conn == nil {
+		return fmt.Errorf("CDP websocket is not connected")
+	}
 	body, err := json.Marshal(message)
 	if err != nil {
 		return err

@@ -1125,14 +1125,14 @@ func (c *ModCDPClient) Close() {
 			_ = c.conn.Close()
 		}
 	}
-	for _, injector := range c.extensionInjectors {
-		_ = injector.Close()
-	}
-	c.extensionInjectors = nil
 	if c.launchedBrowser != nil {
 		c.launchedBrowser.Close()
 		c.launchedBrowser = nil
 	}
+	for _, injector := range c.extensionInjectors {
+		_ = injector.Close()
+	}
+	c.extensionInjectors = nil
 }
 
 func (c *ModCDPClient) browserLauncher() interface {

@@ -10,6 +10,18 @@ import { ModCDPClient } from "../client/js/ModCDPClient.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
 
+test("ws upstream constructor, update, server config, and unconnected errors match the transport surface", async () => {
+  const transport = new WebSocketUpstreamTransport();
+  assert.equal(transport.url, "");
+  assert.deepEqual(transport.getServerConfig(), {});
+  assert.equal(transport.update({ ws_url: "ws://127.0.0.1:1/devtools/browser/test" }), transport);
+  assert.equal(transport.url, "ws://127.0.0.1:1/devtools/browser/test");
+  assert.deepEqual(transport.getServerConfig(), { loopback_cdp_url: "ws://127.0.0.1:1/devtools/browser/test" });
+  const unconfigured = new WebSocketUpstreamTransport();
+  await assert.rejects(() => unconfigured.connect(), /upstream\.mode=ws requires/);
+  assert.throws(() => unconfigured.send({ id: 1, method: "Browser.getVersion" }), /CDP websocket is not connected/);
+});
+
 test("ws upstream launches a real browser and speaks raw CDP", async () => {
   const cdp = new ModCDPClient({
     launch: {

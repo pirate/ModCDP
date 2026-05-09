@@ -701,12 +701,6 @@ class ModCDPClient(CDPSurfaceMixin):
     def close(self) -> None:
         if self._closed:
             return
-        for injector in self._extension_injectors:
-            try:
-                injector.close()
-            except Exception:
-                pass
-        self._extension_injectors = []
         self._closed = True
         try:
             if self.transport:
@@ -722,6 +716,12 @@ class ModCDPClient(CDPSurfaceMixin):
         if self._launched_browser is not None:
             self._launched_browser["close"]()
             self._launched_browser = None
+        for injector in self._extension_injectors:
+            try:
+                injector.close()
+            except Exception:
+                pass
+        self._extension_injectors = []
 
     def _session_id_for_target(self, target_id: str, timeout: float = 0) -> str | None:
         if timeout <= 0:
@@ -764,7 +764,7 @@ class ModCDPClient(CDPSurfaceMixin):
     def _upstream_transport(self):
         mode = self.upstream.get("mode")
         if mode == "ws":
-            return WebSocketUpstreamTransport(self.cdp_url, timeout_s=self.client["cdp_send_timeout_ms"] / 1000)
+            return WebSocketUpstreamTransport(self.cdp_url)
         if mode == "pipe":
             return PipeUpstreamTransport()
         if mode == "reversews":

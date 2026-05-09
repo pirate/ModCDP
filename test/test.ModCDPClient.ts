@@ -106,3 +106,26 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
     await chrome.close();
   }
 }, 60_000);
+
+test("ModCDPClient.close keeps injector files until after launched browser shutdown", async () => {
+  const order: string[] = [];
+  const cdp = new ModCDPClient();
+  cdp.transport = {
+    close: async () => order.push("transport"),
+  } as any;
+  cdp._launched = {
+    close: async () => order.push("browser"),
+  } as any;
+  cdp._extension_injectors = [
+    {
+      close: async () => order.push("injector"),
+    } as any,
+  ];
+
+  await cdp.close();
+
+  assert.deepEqual(order, ["transport", "browser", "injector"]);
+  assert.equal(cdp.transport, null);
+  assert.equal(cdp._launched, null);
+  assert.deepEqual(cdp._extension_injectors, []);
+});

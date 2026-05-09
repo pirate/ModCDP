@@ -918,11 +918,12 @@ export class ModCDPClient extends ModCDPEventEmitter {
   async close() {
     for (const cleanup of this.event_wait_cleanups) cleanup();
     this.event_wait_cleanups.clear();
-    for (const injector of this._extension_injectors) await injector.close();
-    this._extension_injectors = [];
     await this.transport?.close();
     this.transport = null;
     if (this._launched) await this._launched.close();
+    this._launched = null;
+    for (const injector of this._extension_injectors) await injector.close();
+    this._extension_injectors = [];
   }
 
   on<TEvent extends z.ZodType & ModCDPNamedValue>(

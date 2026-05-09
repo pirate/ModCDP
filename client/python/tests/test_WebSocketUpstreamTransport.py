@@ -16,6 +16,11 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
         self.assertIs(transport.update({"ws_url": "ws://127.0.0.1:1/devtools/browser/test"}), transport)
         self.assertEqual(transport.url, "ws://127.0.0.1:1/devtools/browser/test")
         self.assertEqual(transport.getServerConfig(), {"loopback_cdp_url": "ws://127.0.0.1:1/devtools/browser/test"})
+        unconfigured = WebSocketUpstreamTransport()
+        with self.assertRaisesRegex(RuntimeError, r"upstream\.mode='ws' requires"):
+            unconfigured.connect()
+        with self.assertRaisesRegex(RuntimeError, "CDP websocket is not connected"):
+            unconfigured.send({"id": 1, "method": "Browser.getVersion"})
 
     def test_launches_real_browser_and_speaks_raw_cdp(self) -> None:
         cdp = ModCDPClient(
