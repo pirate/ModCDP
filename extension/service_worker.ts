@@ -10,8 +10,6 @@ const ModCDP = (
 ).ModCDP;
 const bridge = (ModCDP ?? ModCDPServer) as Record<string, any>;
 const started_at = new Date().toISOString();
-const DEFAULT_REVERSE_PROXY_URL = "ws://127.0.0.1:29292";
-const DEFAULT_NATIVE_HOST_NAME = "com.modcdp.bridge";
 type RuntimeConfig = {
   reverse_proxy_url?: string | null;
   native_host_name?: string | null;
@@ -184,8 +182,12 @@ if (bridge) {
 const startConfiguredTransports = () => {
   const config = runtime_config ?? {};
   bridge.startOffscreenKeepAlive?.();
-  bridge.startReverseBridge?.(config.reverse_proxy_url || DEFAULT_REVERSE_PROXY_URL, { reconnect_interval_ms: 2_000 });
-  bridge.startNativeBridge?.(config.native_host_name || DEFAULT_NATIVE_HOST_NAME, { reconnect_interval_ms: 2_000 });
+  if (config.reverse_proxy_url) {
+    bridge.startReverseBridge?.(config.reverse_proxy_url, { reconnect_interval_ms: 2_000 });
+  }
+  if (config.native_host_name) {
+    bridge.startNativeBridge?.(config.native_host_name, { reconnect_interval_ms: 2_000 });
+  }
   if (config.nats_url) {
     bridge.startNatsBridge?.(config.nats_url, {
       subject_prefix: config.nats_subject_prefix,
