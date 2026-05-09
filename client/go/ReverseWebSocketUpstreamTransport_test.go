@@ -1,10 +1,15 @@
 package modcdp
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 )
 
 func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesWaitTimeoutAndInjectorConfig(t *testing.T) {
@@ -28,12 +33,33 @@ func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesWaitTimeoutAndInj
 }
 
 func TestReverseWebSocketUpstreamTransportCloseResetsPeerWaitState(t *testing.T) {
-	transport := NewReverseWebSocketUpstreamTransport("127.0.0.1:29292", 5)
+	port, err := freePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := NewReverseWebSocketUpstreamTransport(fmt.Sprintf("127.0.0.1:%d", port), 5)
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, _, err := ws.Dial(context.Background(), transport.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hello, err := json.Marshal(map[string]any{"type": "modcdp.reverse.hello", "role": "test-peer", "version": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsutil.WriteClientText(conn, hello); err != nil {
+		t.Fatal(err)
+	}
 
-	transport.PeerInfo = map[string]any{"type": "modcdp.reverse.hello"}
-	transport.peerOnce.Do(func() { close(transport.peerCh) })
+	defer conn.Close()
+	defer transport.Close()
 	if err := transport.WaitForPeer(); err != nil {
 		t.Fatalf("WaitForPeer before close = %v", err)
+	}
+	if transport.PeerInfo["role"] != "test-peer" {
+		t.Fatalf("PeerInfo before close = %#v", transport.PeerInfo)
 	}
 	if err := transport.Close(); err != nil {
 		t.Fatalf("Close = %v", err)

@@ -7,7 +7,6 @@ import os
 import socket
 from pathlib import Path
 from queue import Queue
-from typing import cast
 
 from modcdp import ModCDPClient
 from modcdp.NativeMessagingUpstreamTransport import NativeMessagingUpstreamTransport
@@ -59,13 +58,26 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             transport.waitForPeer()
 
     def test_close_resets_peer_wait_state(self) -> None:
-        transport = NativeMessagingUpstreamTransport({"wait_timeout_ms": 5})
+        host_name = f"com.modcdp.close.reset.python.{os.getpid()}"
+        transport = NativeMessagingUpstreamTransport({"host_name": host_name, "wait_timeout_ms": 5})
+        transport.connect()
+        bound_port = transport.bound_port
+        if bound_port is None:
+            self.fail("native messaging transport did not bind a port")
+        peer = socket.create_connection(("127.0.0.1", bound_port), timeout=10)
 
-        transport.socket = cast(socket.socket, _FakeSocket())
-        transport.waitForPeer()
-        transport.close()
-        with self.assertRaisesRegex(RuntimeError, r"Timed out waiting 5ms for native messaging host com\.modcdp\.bridge"):
+        try:
             transport.waitForPeer()
+            transport.close()
+            host_name_pattern = host_name.replace(".", r"\.")
+            with self.assertRaisesRegex(
+                RuntimeError,
+                rf"Timed out waiting 5ms for native messaging host {host_name_pattern}",
+            ):
+                transport.waitForPeer()
+        finally:
+            peer.close()
+            transport.close()
 
     def test_close_rejects_pending_peer_waits(self) -> None:
         transport = NativeMessagingUpstreamTransport(
@@ -122,11 +134,6 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(version["product"], str)
         finally:
             cdp.close()
-
-
-class _FakeSocket:
-    def close(self) -> None:
-        pass
 
 
 if __name__ == "__main__":

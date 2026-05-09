@@ -90,6 +90,7 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
       this.socket?.close();
     } catch {}
     this.socket = null;
+    this.peer_info = null;
     const server = this.server as { close?: (callback: () => void) => void } | null;
     if (server?.close) await new Promise<void>((resolve) => server.close?.(() => resolve()));
     this.server = null;

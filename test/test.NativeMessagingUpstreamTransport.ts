@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { existsSync } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
@@ -72,21 +74,24 @@ test("nativemessaging upstream close rejects pending peer waits", async () => {
 });
 
 test("nativemessaging upstream close resets peer wait state", async () => {
-  const transport = new NativeMessagingUpstreamTransport({ wait_timeout_ms: 5 });
-  (transport as unknown as { socket: { destroyed: boolean; destroy: () => void } | null }).socket = {
-    destroyed: false,
-    destroy() {
-      this.destroyed = true;
-    },
-  };
+  const host_name = nativeHostName("close-reset");
+  const transport = new NativeMessagingUpstreamTransport({ host_name, wait_timeout_ms: 5 });
+  await transport.connect();
+  const port = Number(new URL(transport.url).port);
+  const peer = net.createConnection({ host: "127.0.0.1", port });
+  await once(peer, "connect");
 
-  await transport.waitForPeer();
-  await transport.close();
+  try {
+    await transport.waitForPeer();
+    await transport.close();
 
-  await assert.rejects(
-    () => transport.waitForPeer(),
-    /Timed out waiting 5ms for native messaging host com\.modcdp\.bridge/,
-  );
+    await assert.rejects(() => transport.waitForPeer(), {
+      message: `Timed out waiting 5ms for native messaging host ${host_name}.`,
+    });
+  } finally {
+    peer.destroy();
+    await transport.close();
+  }
 });
 
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {

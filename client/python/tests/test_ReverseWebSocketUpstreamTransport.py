@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import socket
 import threading
 import time
 import unittest
 from queue import Queue
 from typing import cast
+
+from websocket import create_connection
 
 from modcdp import ModCDPClient
 from modcdp.ReverseWebSocketUpstreamTransport import ReverseWebSocketUpstreamTransport
@@ -49,16 +52,29 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
         )
 
     def test_close_resets_peer_wait_state(self) -> None:
-        transport = ReverseWebSocketUpstreamTransport("127.0.0.1:29292", 5)
-        transport.socket = cast(socket.socket, _FakeSocket())
-        transport.peer_info = {"type": "modcdp.reverse.hello"}
+        reverse_port = _free_port()
+        transport = ReverseWebSocketUpstreamTransport(f"127.0.0.1:{reverse_port}", 5)
+        transport.connect()
+        url = transport.url
+        if url is None:
+            self.fail("reverse transport url was not set")
+        peer = create_connection(url, timeout=10)
+        peer.send(json.dumps({"type": "modcdp.reverse.hello", "role": "test-peer", "version": 1}))
 
-        transport.waitForPeer()
-        transport.close()
-
-        with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms"):
+        try:
             transport.waitForPeer()
-        self.assertIsNone(transport.peer_info)
+            self.assertEqual(
+                transport.peer_info,
+                {"type": "modcdp.reverse.hello", "role": "test-peer", "version": 1},
+            )
+            transport.close()
+
+            with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms"):
+                transport.waitForPeer()
+            self.assertIsNone(transport.peer_info)
+        finally:
+            peer.close()
+            transport.close()
 
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         reverse_port = _free_port()
@@ -97,11 +113,6 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
     finally:
         sock.close()
-
-
-class _FakeSocket:
-    def close(self) -> None:
-        pass
 
 
 if __name__ == "__main__":

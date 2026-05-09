@@ -3,6 +3,7 @@ package modcdp
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -74,16 +75,28 @@ func TestNativeMessagingUpstreamTransportConfigOwnsManifestHostWaitTimeoutLoopba
 }
 
 func TestNativeMessagingUpstreamTransportCloseResetsPeerWaitState(t *testing.T) {
-	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{WaitTimeoutMS: 5})
+	hostName := fmt.Sprintf("com.modcdp.close.reset.go.%d", os.Getpid())
+	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
+		HostName:      hostName,
+		WaitTimeoutMS: 5,
+	})
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", transport.BoundPort))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	transport.peerOnce.Do(func() { close(transport.peerCh) })
+	defer conn.Close()
+	defer transport.Close()
 	if err := transport.WaitForPeer(); err != nil {
 		t.Fatalf("WaitForPeer before close = %v", err)
 	}
 	if err := transport.Close(); err != nil {
 		t.Fatalf("Close = %v", err)
 	}
-	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms for native messaging host com.modcdp.bridge") {
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms for native messaging host "+hostName) {
 		t.Fatalf("WaitForPeer after close = %v", err)
 	}
 	if !transport.closed {

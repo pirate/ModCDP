@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import WebSocket from "ws";
 import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../bridge/LocalBrowserLauncher.js";
@@ -34,18 +36,24 @@ test("reversews upstream close rejects pending peer waits", async () => {
 });
 
 test("reversews upstream close resets peer wait state", async () => {
-  const transport = new ReverseWebSocketUpstreamTransport("127.0.0.1:29292", 5);
-  (transport as unknown as { socket: { readyState: number; OPEN: number; close: () => void } | null }).socket = {
-    readyState: 1,
-    OPEN: 1,
-    close: () => {},
-  };
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const transport = new ReverseWebSocketUpstreamTransport(`127.0.0.1:${reverse_port}`, 5);
+  await transport.connect();
+  const peer = new WebSocket(transport.url);
+  await once(peer, "open");
+  peer.send(JSON.stringify({ type: "modcdp.reverse.hello", role: "test-peer", version: 1 }));
 
-  await transport.waitForPeer();
-  await transport.close();
+  try {
+    await transport.waitForPeer();
+    assert.deepEqual(transport.peer_info, { type: "modcdp.reverse.hello", role: "test-peer", version: 1 });
+    await transport.close();
 
-  await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms/);
-  assert.equal(transport.peer_info, null);
+    await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms/);
+    assert.equal(transport.peer_info, null);
+  } finally {
+    peer.close();
+    await transport.close();
+  }
 });
 
 test("reversews upstream accepts a real extension reverse connection and routes CDP through loopback", async () => {
