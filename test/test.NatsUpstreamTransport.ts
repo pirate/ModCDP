@@ -9,10 +9,27 @@ import { getBinaryPath } from "@eplightning/nats-server";
 import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../bridge/LocalBrowserLauncher.js";
+import { NatsUpstreamTransport } from "../bridge/NatsUpstreamTransport.js";
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
+
+test("nats upstream config owns url, subject prefix, and injector config", () => {
+  const transport = new NatsUpstreamTransport({ url: "ws://127.0.0.1:4223", subject_prefix: "modcdp.one" });
+  assert.equal(transport.url, "ws://127.0.0.1:4223/");
+  assert.equal(transport.subject_prefix, "modcdp.one");
+  assert.deepEqual(transport.getInjectorConfig(), {
+    nats_url: "ws://127.0.0.1:4223/",
+    nats_subject_prefix: "modcdp.one",
+  });
+  assert.equal(
+    transport.update({ nats_url: "nats://127.0.0.1:4222", nats_subject_prefix: "modcdp.two" }),
+    transport,
+  );
+  assert.equal(transport.url, "nats://127.0.0.1:4222");
+  assert.equal(transport.subject_prefix, "modcdp.two");
+});
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -4,9 +4,18 @@ import socket
 import unittest
 
 from modcdp import ModCDPClient
+from modcdp.ReverseWebSocketUpstreamTransport import ReverseWebSocketUpstreamTransport
 
 
 class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
+    def test_config_owns_bind_updates_and_injector_config(self) -> None:
+        transport = ReverseWebSocketUpstreamTransport("127.0.0.1:29292")
+        self.assertEqual(transport.url, "ws://127.0.0.1:29292")
+        self.assertEqual(transport.getInjectorConfig(), {"reverse_proxy_url": "ws://127.0.0.1:29292"})
+        self.assertIs(transport.update({"reversews_bind": "127.0.0.1:29293"}), transport)
+        self.assertEqual(transport.url, "ws://127.0.0.1:29293")
+        self.assertEqual(transport.getInjectorConfig(), {"reverse_proxy_url": "ws://127.0.0.1:29293"})
+
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         reverse_port = _free_port()
         reverse_bind = f"127.0.0.1:{reverse_port}"

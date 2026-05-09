@@ -5,11 +5,25 @@ import unittest
 from pathlib import Path
 
 from modcdp import ModCDPClient
-from modcdp.NativeMessagingUpstreamTransport import DEFAULT_NATIVE_MESSAGING_HOST_NAME
+from modcdp.NativeMessagingUpstreamTransport import DEFAULT_NATIVE_MESSAGING_HOST_NAME, NativeMessagingUpstreamTransport
 
 
 @unittest.skipIf(sys.platform.startswith("win"), "native messaging profile manifest path is not implemented on Windows")
 class NativeMessagingUpstreamTransportTests(unittest.TestCase):
+    def test_config_owns_manifest_loopback_and_injector_config(self) -> None:
+        transport = NativeMessagingUpstreamTransport(
+            manifest_path="/tmp/modcdp-native-host.json",
+            host_name="com.modcdp.test",
+            extension_id="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+        self.assertEqual(transport.getInjectorConfig(), {"native_host_name": "com.modcdp.test"})
+        self.assertEqual(transport.getServerConfig(), {})
+        self.assertIs(transport.update({"ws_url": "ws://127.0.0.1:9222/devtools/browser/test"}), transport)
+        self.assertEqual(
+            transport.getServerConfig(),
+            {"loopback_cdp_url": "ws://127.0.0.1:9222/devtools/browser/test"},
+        )
+
     def test_installs_launch_profile_native_host_manifest_and_connects_to_real_extension(self) -> None:
         cdp = ModCDPClient(
             launch={"mode": "local", "options": {"headless": True, "sandbox": False}},

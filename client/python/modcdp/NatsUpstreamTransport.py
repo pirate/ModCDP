@@ -197,7 +197,8 @@ def _normalize_nats_url(url: str, subject_prefix: str | None = None) -> tuple[st
     query.pop("subject", None)
     query.pop("subject_prefix", None)
     normalized_query = urlencode(query, doseq=True)
-    normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", parsed.params, normalized_query, parsed.fragment))
+    normalized_path = parsed.path or ("/" if parsed.scheme in ("ws", "wss") else "")
+    normalized_url = urlunparse((parsed.scheme, parsed.netloc, normalized_path, parsed.params, normalized_query, parsed.fragment))
     return normalized_url, _sanitize_subject_prefix(subject or DEFAULT_NATS_SUBJECT_PREFIX)
 
 

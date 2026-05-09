@@ -4,10 +4,20 @@ import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../bridge/LocalBrowserLauncher.js";
+import { ReverseWebSocketUpstreamTransport } from "../bridge/ReverseWebSocketUpstreamTransport.js";
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
+
+test("reversews upstream config owns bind updates and injector config", () => {
+  const transport = new ReverseWebSocketUpstreamTransport("127.0.0.1:29292");
+  assert.equal(transport.url, "ws://127.0.0.1:29292");
+  assert.deepEqual(transport.getInjectorConfig(), { reverse_proxy_url: "ws://127.0.0.1:29292" });
+  assert.equal(transport.update({ reversews_bind: "127.0.0.1:29293" }), transport);
+  assert.equal(transport.url, "ws://127.0.0.1:29293");
+  assert.deepEqual(transport.getInjectorConfig(), { reverse_proxy_url: "ws://127.0.0.1:29293" });
+});
 
 test("reversews upstream accepts a real extension reverse connection and routes CDP through loopback", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();

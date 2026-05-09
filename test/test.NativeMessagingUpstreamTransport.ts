@@ -4,11 +4,28 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
-import { DEFAULT_NATIVE_MESSAGING_HOST_NAME } from "../bridge/NativeMessagingUpstreamTransport.js";
+import {
+  DEFAULT_NATIVE_MESSAGING_HOST_NAME,
+  NativeMessagingUpstreamTransport,
+} from "../bridge/NativeMessagingUpstreamTransport.js";
 import { ModCDPClient } from "../client/js/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "dist", "extension");
+
+test("nativemessaging upstream config owns manifest, loopback, and injector config", () => {
+  const transport = new NativeMessagingUpstreamTransport({
+    manifest_path: "/tmp/modcdp-native-host.json",
+    host_name: "com.modcdp.test",
+    extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  });
+  assert.deepEqual(transport.getInjectorConfig(), { native_host_name: "com.modcdp.test" });
+  assert.deepEqual(transport.getServerConfig(), {});
+  assert.equal(transport.update({ ws_url: "ws://127.0.0.1:9222/devtools/browser/test" }), transport);
+  assert.deepEqual(transport.getServerConfig(), {
+    loopback_cdp_url: "ws://127.0.0.1:9222/devtools/browser/test",
+  });
+});
 
 test.skipIf(process.platform === "win32")(
   "nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension",

@@ -275,7 +275,7 @@ func normalizeNATSURL(rawURL string, subjectPrefix string) (string, string) {
 	query.Del("subject")
 	query.Del("subject_prefix")
 	parsed.RawQuery = query.Encode()
-	if parsed.Path == "" {
+	if parsed.Path == "" && (parsed.Scheme == "ws" || parsed.Scheme == "wss") {
 		parsed.Path = "/"
 	}
 	return parsed.String(), sanitizeNATSSubjectPrefix(subject)

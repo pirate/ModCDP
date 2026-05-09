@@ -54,6 +54,17 @@ func (t *ReverseWebSocketUpstreamTransport) SetBind(bind string) {
 	t.URL = "ws://" + t.Bind
 }
 
+func (t *ReverseWebSocketUpstreamTransport) Update(config map[string]any) {
+	if config == nil {
+		return
+	}
+	if bind, _ := config["reversews_bind"].(string); bind != "" {
+		t.SetBind(bind)
+	} else if rawURL, _ := config["url"].(string); rawURL != "" {
+		t.SetBind(rawURL)
+	}
+}
+
 func (t *ReverseWebSocketUpstreamTransport) Connect() error {
 	listener, err := net.Listen("tcp", t.Bind)
 	if err != nil {

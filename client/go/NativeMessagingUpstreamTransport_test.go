@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestNativeMessagingUpstreamTransportConfigOwnsManifestLoopbackAndInjectorConfig(t *testing.T) {
+	transport := NewNativeMessagingUpstreamTransport("/tmp/modcdp-native-host.json")
+	transport.Update(map[string]any{
+		"extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"ws_url":       "ws://127.0.0.1:9222/devtools/browser/test",
+	})
+	if transport.GetInjectorConfig().NativeHostName != DefaultNativeMessagingHostName {
+		t.Fatalf("injector config = %#v", transport.GetInjectorConfig())
+	}
+	if transport.GetServerConfig()["loopback_cdp_url"] != "ws://127.0.0.1:9222/devtools/browser/test" {
+		t.Fatalf("server config = %#v", transport.GetServerConfig())
+	}
+	if transport.ManifestPath != "/tmp/modcdp-native-host.json" {
+		t.Fatalf("ManifestPath = %q", transport.ManifestPath)
+	}
+	if transport.ExtensionID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("ExtensionID = %q", transport.ExtensionID)
+	}
+}
+
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("native messaging profile manifest path is not implemented on Windows")

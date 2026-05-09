@@ -13,6 +13,28 @@ import (
 	"github.com/gobwas/ws"
 )
 
+func TestNatsUpstreamTransportConfigOwnsURLSubjectPrefixAndInjectorConfig(t *testing.T) {
+	transport := NewNatsUpstreamTransport("ws://127.0.0.1:4223")
+	transport.Update(map[string]any{"nats_subject_prefix": "modcdp.one"})
+	if transport.URL != "ws://127.0.0.1:4223/" {
+		t.Fatalf("URL = %q", transport.URL)
+	}
+	if transport.SubjectPrefix != "modcdp.one" {
+		t.Fatalf("SubjectPrefix = %q", transport.SubjectPrefix)
+	}
+	injectorConfig := transport.GetInjectorConfig()
+	if injectorConfig.NATSURL != "ws://127.0.0.1:4223/" || injectorConfig.NATSSubjectPrefix != "modcdp.one" {
+		t.Fatalf("injector config = %#v", injectorConfig)
+	}
+	transport.Update(map[string]any{"nats_url": "nats://127.0.0.1:4222", "nats_subject_prefix": "modcdp.two"})
+	if transport.URL != "nats://127.0.0.1:4222" {
+		t.Fatalf("URL after update = %q", transport.URL)
+	}
+	if transport.SubjectPrefix != "modcdp.two" {
+		t.Fatalf("SubjectPrefix after update = %q", transport.SubjectPrefix)
+	}
+}
+
 func TestNatsUpstreamTransportRelaysCDPThroughRealExtensionOverRealNATSServer(t *testing.T) {
 	nats := startNATSServer(t)
 	subjectPrefix := fmt.Sprintf("modcdp.test.%d", time.Now().UnixMilli())
