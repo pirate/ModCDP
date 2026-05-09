@@ -136,21 +136,24 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
         server = self.server
         if server is None:
             return
-        try:
-            conn, _ = server.accept()
-        except Exception as error:
-            self._emit_close(error if isinstance(error, Exception) else Exception(str(error)))
-            return
-        if self.socket is not None:
+        while self.server is server:
             try:
-                self.socket.close()
-            except Exception:
-                pass
-        with self._peer_condition:
-            self.socket = conn
-            self.peer_seen.set()
-            self._peer_condition.notify_all()
-        threading.Thread(target=self._read_loop, args=(conn,), daemon=True).start()
+                conn, _ = server.accept()
+            except OSError:
+                return
+            except Exception as error:
+                self._emit_close(error if isinstance(error, Exception) else Exception(str(error)))
+                return
+            if self.socket is not None:
+                try:
+                    self.socket.close()
+                except Exception:
+                    pass
+            with self._peer_condition:
+                self.socket = conn
+                self.peer_seen.set()
+                self._peer_condition.notify_all()
+            threading.Thread(target=self._read_loop, args=(conn,), daemon=True).start()
 
     def _read_loop(self, conn: socket.socket) -> None:
         try:

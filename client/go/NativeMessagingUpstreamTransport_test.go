@@ -131,6 +131,38 @@ func TestNativeMessagingUpstreamTransportWaitsAgainAfterPeerDisconnects(t *testi
 	}
 }
 
+func TestNativeMessagingUpstreamTransportAcceptsReplacementPeerAfterDisconnect(t *testing.T) {
+	hostName := fmt.Sprintf("com.modcdp.replacement.go.%d", os.Getpid())
+	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
+		HostName:      hostName,
+		WaitTimeoutMS: 500,
+	})
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	firstConn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", transport.BoundPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer transport.Close()
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before peer disconnect = %v", err)
+	}
+	if err := firstConn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForNativePeerDisconnect(t, transport)
+	secondConn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", transport.BoundPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondConn.Close()
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer after replacement peer = %v", err)
+	}
+}
+
 func TestNativeMessagingUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
 	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
 		HostName:      "com.modcdp.close",

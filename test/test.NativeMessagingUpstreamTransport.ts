@@ -116,6 +116,32 @@ test("nativemessaging upstream waits again after a peer disconnects", async () =
   }
 });
 
+test("nativemessaging upstream accepts a replacement peer after disconnect", async () => {
+  const host_name = nativeHostName("replacement");
+  const transport = new NativeMessagingUpstreamTransport({ host_name, wait_timeout_ms: 500 });
+  await transport.connect();
+  const port = Number(new URL(transport.url).port);
+  const first_peer = net.createConnection({ host: "127.0.0.1", port });
+  await once(first_peer, "connect");
+
+  try {
+    await transport.waitForPeer();
+    first_peer.destroy();
+    await waitFor(() => (transport as unknown as { socket: unknown | null }).socket === null);
+
+    const second_peer = net.createConnection({ host: "127.0.0.1", port });
+    await once(second_peer, "connect");
+    try {
+      await transport.waitForPeer();
+    } finally {
+      second_peer.destroy();
+    }
+  } finally {
+    first_peer.destroy();
+    await transport.close();
+  }
+});
+
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
   const host_name = nativeHostName("client");
   const native_client = new ModCDPClient({

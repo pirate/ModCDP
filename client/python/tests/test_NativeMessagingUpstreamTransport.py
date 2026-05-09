@@ -102,6 +102,29 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             peer.close()
             transport.close()
 
+    def test_accepts_replacement_peer_after_disconnect(self) -> None:
+        host_name = f"com.modcdp.replacement.python.{os.getpid()}"
+        transport = NativeMessagingUpstreamTransport({"host_name": host_name, "wait_timeout_ms": 500})
+        transport.connect()
+        bound_port = transport.bound_port
+        if bound_port is None:
+            self.fail("native messaging transport did not bind a port")
+        first_peer = socket.create_connection(("127.0.0.1", bound_port), timeout=10)
+
+        try:
+            transport.waitForPeer()
+            first_peer.close()
+            _wait_until(lambda: transport.socket is None)
+
+            second_peer = socket.create_connection(("127.0.0.1", bound_port), timeout=10)
+            try:
+                transport.waitForPeer()
+            finally:
+                second_peer.close()
+        finally:
+            first_peer.close()
+            transport.close()
+
     def test_close_rejects_pending_peer_waits(self) -> None:
         transport = NativeMessagingUpstreamTransport(
             {
