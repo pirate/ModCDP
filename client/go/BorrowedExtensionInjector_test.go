@@ -1,19 +1,51 @@
 package modcdp
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
-func TestBorrowedExtensionInjectorReturnsNilWhenNoWorkerIsVisible(t *testing.T) {
-	injector := NewBorrowedExtensionInjector(ExtensionInjectorConfig{
-		Send: func(method string, params map[string]any, sessionID string) (map[string]any, error) {
-			return map[string]any{"targetInfos": []any{}}, nil
-		},
-		ServiceWorkerReadyTimeoutMS: 1,
-	})
-	result, err := injector.Inject()
+func TestBorrowedExtensionInjectorBootstrapsModCDPInsideLiveExtensionServiceWorker(t *testing.T) {
+	extensionPath, err := filepath.Abs(filepath.Join("..", "..", "dist", "extension"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result != nil {
-		t.Fatalf("result = %#v", result)
+	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
+		Headless:  boolPtr(true),
+		Sandbox:   boolPtr(false),
+		ExtraArgs: []string{"--load-extension=" + extensionPath},
+	}).Launch(LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chrome.Close()
+
+	cdp := New(Options{
+		Launch:   LaunchConfig{Mode: "remote"},
+		Upstream: UpstreamConfig{Mode: "ws", WSURL: chrome.CDPURL},
+		Extension: ExtensionConfig{
+			Mode:                     "borrow",
+			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			TrustServiceWorkerTarget: true,
+		},
+	})
+	defer cdp.Close()
+
+	if err := cdp.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if cdp.ConnectTiming["extension_source"] != "borrowed" {
+		t.Fatalf("extension_source = %v", cdp.ConnectTiming["extension_source"])
+	}
+	if cdp.ExtensionID != DefaultModCDPExtensionID {
+		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
+	}
+	result, err := cdp.Send("Target.getTargets", map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetInfos, _ := result.(map[string]any)["targetInfos"].([]any)
+	if len(targetInfos) == 0 {
+		t.Fatalf("Target.getTargets = %#v", result)
 	}
 }
