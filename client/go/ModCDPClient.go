@@ -921,8 +921,12 @@ func (c *ModCDPClient) validateEventData(event string, data any) (any, bool) {
 	return data, true
 }
 
-func (c *ModCDPClient) Send(method string, params map[string]any) (any, error) {
-	return c.sendCommand(method, params, "", true)
+func (c *ModCDPClient) Send(method string, params map[string]any, sessionID ...string) (any, error) {
+	targetSessionID := ""
+	if len(sessionID) > 0 {
+		targetSessionID = sessionID[0]
+	}
+	return c.sendCommand(method, params, targetSessionID, true)
 }
 
 func (c *ModCDPClient) sendCommand(method string, params map[string]any, targetSessionID string, validateSchema bool) (any, error) {

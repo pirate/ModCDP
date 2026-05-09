@@ -330,6 +330,12 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			TrustServiceWorkerTarget: true,
 		},
+		Client: ClientConfig{
+			Routes: map[string]string{"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"},
+		},
+		Server: &ServerConfig{
+			Routes: map[string]string{"*.*": "loopback_cdp"},
+		},
 	})
 	defer cdp.Close()
 
@@ -350,6 +356,34 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	}
 	if result != "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js" {
 		t.Fatalf("Mod.evaluate = %#v", result)
+	}
+	directTargetRaw, err := cdp.Send("Target.createTarget", map[string]any{"url": "about:blank#direct-session-routing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	directTarget, _ := directTargetRaw.(map[string]any)
+	directTargetID, _ := directTarget["targetId"].(string)
+	if directTargetID == "" {
+		t.Fatalf("Target.createTarget = %#v", directTargetRaw)
+	}
+	defer cdp.Send("Target.closeTarget", map[string]any{"targetId": directTargetID})
+	directSessionRaw, err := cdp.Send("Target.attachToTarget", map[string]any{"targetId": directTargetID, "flatten": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	directSession, _ := directSessionRaw.(map[string]any)
+	directSessionID, _ := directSession["sessionId"].(string)
+	if directSessionID == "" {
+		t.Fatalf("Target.attachToTarget = %#v", directSessionRaw)
+	}
+	directEvalRaw, err := cdp.Send("Runtime.evaluate", map[string]any{"expression": "1 + 1", "returnByValue": true}, directSessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directEval, _ := directEvalRaw.(map[string]any)
+	directRemoteObject, _ := directEval["result"].(map[string]any)
+	if directRemoteObject["value"] != float64(2) {
+		t.Fatalf("Runtime.evaluate = %#v", directEvalRaw)
 	}
 	sent_at := time.Now().UnixMilli()
 	pong := make(chan map[string]any, 1)
