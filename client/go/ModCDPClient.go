@@ -162,6 +162,7 @@ type UpstreamConfig struct {
 	Mode                    string
 	WSURL                   string
 	NATSURL                 string
+	NATSSubjectPrefix       string
 	ReverseWSBind           string
 	NativeMessagingManifest string
 }
@@ -683,10 +684,10 @@ func (c *ModCDPClient) connectModCDPServerTransport(connectStartedAt int64) erro
 		"ws_url":              c.opts.Upstream.WSURL,
 		"cdp_url":             c.opts.Upstream.WSURL,
 		"nats_url":            c.opts.Upstream.NATSURL,
+		"nats_subject_prefix": c.opts.Upstream.NATSSubjectPrefix,
 		"reversews_bind":      c.opts.Upstream.ReverseWSBind,
 		"manifest_path":       c.opts.Upstream.NativeMessagingManifest,
 		"extension_id":        c.opts.Extension.ExtensionID,
-		"nats_subject_prefix": "",
 		"user_data_dir":       launchOptions.UserDataDir,
 	})
 
@@ -785,10 +786,15 @@ func (c *ModCDPClient) serverConfigureParams(customCommands []map[string]any, cu
 			server[key] = value
 		}
 	}
+	upstream := map[string]any{"mode": c.opts.Upstream.Mode}
+	if c.opts.Upstream.NATSURL != "" {
+		upstream["nats_url"] = c.opts.Upstream.NATSURL
+	}
+	if c.opts.Upstream.NATSSubjectPrefix != "" {
+		upstream["nats_subject_prefix"] = c.opts.Upstream.NATSSubjectPrefix
+	}
 	return map[string]any{
-		"upstream": map[string]any{
-			"mode": c.opts.Upstream.Mode,
-		},
+		"upstream": upstream,
 		"client": map[string]any{
 			"routes": c.opts.Client.Routes,
 		},
