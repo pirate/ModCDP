@@ -56,6 +56,26 @@ test("reversews upstream close resets peer wait state", async () => {
   }
 });
 
+test("reversews upstream waits again after a peer disconnects", async () => {
+  const reverse_port = await LocalBrowserLauncher.freePort();
+  const transport = new ReverseWebSocketUpstreamTransport(`127.0.0.1:${reverse_port}`, 5);
+  await transport.connect();
+  const peer = new WebSocket(transport.url);
+  await once(peer, "open");
+  peer.send(JSON.stringify({ type: "modcdp.reverse.hello", role: "test-peer", version: 1 }));
+
+  try {
+    await transport.waitForPeer();
+    peer.close();
+    await waitFor(() => (transport as unknown as { socket: unknown | null }).socket === null);
+
+    await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms/);
+  } finally {
+    peer.close();
+    await transport.close();
+  }
+});
+
 test("reversews upstream accepts a real extension reverse connection and routes CDP through loopback", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
   const reverse_bind = `127.0.0.1:${reverse_port}`;
@@ -92,3 +112,12 @@ test("reversews upstream accepts a real extension reverse connection and routes 
     await reverse.close();
   }
 }, 60_000);
+
+async function waitFor(predicate: () => boolean, timeout_ms = 2_000) {
+  const deadline = Date.now() + timeout_ms;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Timed out waiting for condition");
+}

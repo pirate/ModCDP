@@ -188,6 +188,7 @@ func (t *ReverseWebSocketUpstreamTransport) accept(conn net.Conn) {
 			if t.Conn == conn {
 				t.Conn = nil
 				t.PeerInfo = nil
+				t.resetPeerWait()
 			}
 			t.emitClose(err)
 			return
@@ -197,4 +198,11 @@ func (t *ReverseWebSocketUpstreamTransport) accept(conn net.Conn) {
 			t.emitRecv(message)
 		}
 	}
+}
+
+func (t *ReverseWebSocketUpstreamTransport) resetPeerWait() {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 }

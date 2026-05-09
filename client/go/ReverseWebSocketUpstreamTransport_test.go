@@ -72,6 +72,40 @@ func TestReverseWebSocketUpstreamTransportCloseResetsPeerWaitState(t *testing.T)
 	}
 }
 
+func TestReverseWebSocketUpstreamTransportWaitsAgainAfterPeerDisconnects(t *testing.T) {
+	port, err := freePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := NewReverseWebSocketUpstreamTransport(fmt.Sprintf("127.0.0.1:%d", port), 5)
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, _, err := ws.Dial(context.Background(), transport.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hello, err := json.Marshal(map[string]any{"type": "modcdp.reverse.hello", "role": "test-peer", "version": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wsutil.WriteClientText(conn, hello); err != nil {
+		t.Fatal(err)
+	}
+
+	defer transport.Close()
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before peer disconnect = %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForReversePeerDisconnect(t, transport)
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms") {
+		t.Fatalf("WaitForPeer after peer disconnect = %v", err)
+	}
+}
+
 func TestReverseWebSocketUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
 	port, err := freePort()
 	if err != nil {
@@ -95,6 +129,18 @@ func TestReverseWebSocketUpstreamTransportCloseRejectsPendingPeerWaits(t *testin
 	case <-time.After(time.Second):
 		t.Fatal("WaitForPeer did not return after Close")
 	}
+}
+
+func waitForReversePeerDisconnect(t *testing.T, transport *ReverseWebSocketUpstreamTransport) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if transport.Conn == nil && transport.PeerInfo == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for reverse peer disconnect")
 }
 
 func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionAndRoutesCDPThroughLoopback(t *testing.T) {

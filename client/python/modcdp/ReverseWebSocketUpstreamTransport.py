@@ -166,6 +166,11 @@ class ReverseWebSocketUpstreamTransport(UpstreamTransport):
                         self.socket = None
                         self.peer_info = None
                         self.peer_event.clear()
+                        self._peer_condition.notify_all()
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
 def _perform_server_handshake(sock: socket.socket) -> None:

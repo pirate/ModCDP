@@ -79,6 +79,29 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             peer.close()
             transport.close()
 
+    def test_waits_again_after_peer_disconnects(self) -> None:
+        host_name = f"com.modcdp.disconnect.reset.python.{os.getpid()}"
+        transport = NativeMessagingUpstreamTransport({"host_name": host_name, "wait_timeout_ms": 5})
+        transport.connect()
+        bound_port = transport.bound_port
+        if bound_port is None:
+            self.fail("native messaging transport did not bind a port")
+        peer = socket.create_connection(("127.0.0.1", bound_port), timeout=10)
+
+        try:
+            transport.waitForPeer()
+            peer.close()
+            _wait_until(lambda: transport.socket is None)
+            host_name_pattern = host_name.replace(".", r"\.")
+            with self.assertRaisesRegex(
+                RuntimeError,
+                rf"Timed out waiting 5ms for native messaging host {host_name_pattern}",
+            ):
+                transport.waitForPeer()
+        finally:
+            peer.close()
+            transport.close()
+
     def test_close_rejects_pending_peer_waits(self) -> None:
         transport = NativeMessagingUpstreamTransport(
             {
@@ -134,6 +157,15 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(version["product"], str)
         finally:
             cdp.close()
+
+
+def _wait_until(predicate, timeout_s: float = 2.0) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError("timed out waiting for condition")
 
 
 if __name__ == "__main__":

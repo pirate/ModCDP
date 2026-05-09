@@ -163,7 +163,14 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
                 with self._peer_condition:
                     if self.socket is conn:
                         self.socket = None
+                        self.peer_seen.clear()
+                        self._peer_condition.notify_all()
                 self._emit_close(error if isinstance(error, Exception) else Exception(str(error)))
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _install_native_host(self, port: int) -> None:
         host_dir = Path.home() / ".modcdp" / "native-messaging"

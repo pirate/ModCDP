@@ -76,6 +76,27 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
             peer.close()
             transport.close()
 
+    def test_waits_again_after_peer_disconnects(self) -> None:
+        reverse_port = _free_port()
+        transport = ReverseWebSocketUpstreamTransport(f"127.0.0.1:{reverse_port}", 5)
+        transport.connect()
+        url = transport.url
+        if url is None:
+            self.fail("reverse transport url was not set")
+        peer = create_connection(url, timeout=10)
+        peer.send(json.dumps({"type": "modcdp.reverse.hello", "role": "test-peer", "version": 1}))
+
+        try:
+            transport.waitForPeer()
+            peer.close()
+            _wait_until(lambda: transport.socket is None)
+
+            with self.assertRaisesRegex(RuntimeError, "Timed out waiting 5ms"):
+                transport.waitForPeer()
+        finally:
+            peer.close()
+            transport.close()
+
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         reverse_port = _free_port()
         reverse_bind = f"127.0.0.1:{reverse_port}"
@@ -113,6 +134,15 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
     finally:
         sock.close()
+
+
+def _wait_until(predicate, timeout_s: float = 2.0) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError("timed out waiting for condition")
 
 
 if __name__ == "__main__":

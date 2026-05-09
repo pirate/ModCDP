@@ -94,6 +94,28 @@ test("nativemessaging upstream close resets peer wait state", async () => {
   }
 });
 
+test("nativemessaging upstream waits again after a peer disconnects", async () => {
+  const host_name = nativeHostName("disconnect-reset");
+  const transport = new NativeMessagingUpstreamTransport({ host_name, wait_timeout_ms: 5 });
+  await transport.connect();
+  const port = Number(new URL(transport.url).port);
+  const peer = net.createConnection({ host: "127.0.0.1", port });
+  await once(peer, "connect");
+
+  try {
+    await transport.waitForPeer();
+    peer.destroy();
+    await waitFor(() => (transport as unknown as { socket: unknown | null }).socket === null);
+
+    await assert.rejects(() => transport.waitForPeer(), {
+      message: `Timed out waiting 5ms for native messaging host ${host_name}.`,
+    });
+  } finally {
+    peer.destroy();
+    await transport.close();
+  }
+});
+
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
   const host_name = nativeHostName("client");
   const native_client = new ModCDPClient({
@@ -129,3 +151,12 @@ test("nativemessaging upstream installs the launch-profile native host manifest 
     await native_client.close();
   }
 }, 90_000);
+
+async function waitFor(predicate: () => boolean, timeout_ms = 2_000) {
+  const deadline = Date.now() + timeout_ms;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Timed out waiting for condition");
+}

@@ -104,6 +104,33 @@ func TestNativeMessagingUpstreamTransportCloseResetsPeerWaitState(t *testing.T) 
 	}
 }
 
+func TestNativeMessagingUpstreamTransportWaitsAgainAfterPeerDisconnects(t *testing.T) {
+	hostName := fmt.Sprintf("com.modcdp.disconnect.reset.go.%d", os.Getpid())
+	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
+		HostName:      hostName,
+		WaitTimeoutMS: 5,
+	})
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", transport.BoundPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer transport.Close()
+	if err := transport.WaitForPeer(); err != nil {
+		t.Fatalf("WaitForPeer before peer disconnect = %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForNativePeerDisconnect(t, transport)
+	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms for native messaging host "+hostName) {
+		t.Fatalf("WaitForPeer after peer disconnect = %v", err)
+	}
+}
+
 func TestNativeMessagingUpstreamTransportCloseRejectsPendingPeerWaits(t *testing.T) {
 	transport := NewNativeMessagingUpstreamTransport(NativeMessagingUpstreamTransportOptions{
 		HostName:      "com.modcdp.close",
@@ -125,6 +152,18 @@ func TestNativeMessagingUpstreamTransportCloseRejectsPendingPeerWaits(t *testing
 	case <-time.After(time.Second):
 		t.Fatal("WaitForPeer did not return after Close")
 	}
+}
+
+func waitForNativePeerDisconnect(t *testing.T, transport *NativeMessagingUpstreamTransport) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if transport.Conn == nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for native peer disconnect")
 }
 
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {

@@ -237,6 +237,7 @@ func (t *NativeMessagingUpstreamTransport) accept(conn net.Conn) {
 		if err != nil {
 			if t.Conn == conn {
 				t.Conn = nil
+				t.resetPeerWait()
 			}
 			if !t.closed {
 				t.emitClose(err)
@@ -248,6 +249,13 @@ func (t *NativeMessagingUpstreamTransport) accept(conn net.Conn) {
 		}
 		t.emitRecv(message)
 	}
+}
+
+func (t *NativeMessagingUpstreamTransport) resetPeerWait() {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 }
 
 func (t *NativeMessagingUpstreamTransport) installNativeHost(port int) error {
