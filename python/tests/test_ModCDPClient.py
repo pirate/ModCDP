@@ -26,69 +26,69 @@ EXTENSION_PATH = HERE.parents[1] / "dist" / "extension"
 class ModCDPClientTests(unittest.TestCase):
     def test_constructor_normalizes_nested_config_owners(self) -> None:
         cdp = ModCDPClient(
-            launch={
-                "mode": "local",
-                "executable_path": "/tmp/chrome",
-                "user_data_dir": "/tmp/profile",
-                "options": {"headless": True},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_executable_path": "/tmp/chrome",
+                "launcher_user_data_dir": "/tmp/profile",
+                "launcher_options": {"headless": True},
             },
             upstream={
-                "mode": "ws",
-                "cdp_url": "http://127.0.0.1:9222",
+                "upstream_mode": "ws",
+                "upstream_cdp_url": "http://127.0.0.1:9222",
                 "upstream_nats_wait_timeout_ms": 345,
                 "upstream_reversews_wait_timeout_ms": 456,
                 "upstream_nativemessaging_host_name": "com.modcdp.custom",
                 "upstream_nativemessaging_wait_timeout_ms": 567,
-                "ws_connect_error_settle_timeout_ms": 321,
+                "upstream_ws_connect_error_settle_timeout_ms": 321,
             },
-            extension={
-                "mode": "discover",
-                "path": "/tmp/ext",
-                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "service_worker_url_includes": ["modcdp"],
-                "service_worker_url_suffixes": ["/custom/service_worker.js"],
-                "trust_service_worker_target": True,
-                "require_service_worker_target": True,
-                "execution_context_timeout_ms": 4321,
-                "service_worker_probe_timeout_ms": 5432,
-                "service_worker_ready_timeout_ms": 6543,
-                "service_worker_poll_interval_ms": 76,
-                "target_session_poll_interval_ms": 87,
+            injector={
+                "injector_mode": "discover",
+                "injector_extension_path": "/tmp/ext",
+                "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "injector_service_worker_url_includes": ["modcdp"],
+                "injector_service_worker_url_suffixes": ["/custom/service_worker.js"],
+                "injector_trust_service_worker_target": True,
+                "injector_require_service_worker_target": True,
+                "injector_execution_context_timeout_ms": 4321,
+                "injector_service_worker_probe_timeout_ms": 5432,
+                "injector_service_worker_ready_timeout_ms": 6543,
+                "injector_service_worker_poll_interval_ms": 76,
+                "injector_target_session_poll_interval_ms": 87,
             },
             client={
-                "routes": {"*.*": "direct_cdp"},
-                "hydrate_aliases": False,
-                "mirror_upstream_events": False,
-                "cdp_send_timeout_ms": 1234,
-                "event_wait_timeout_ms": 2345,
+                "client_routes": {"*.*": "direct_cdp"},
+                "client_hydrate_aliases": False,
+                "client_mirror_upstream_events": False,
+                "client_cdp_send_timeout_ms": 1234,
+                "client_event_wait_timeout_ms": 2345,
             },
             server={
-                "routes": {"*.*": "loopback_cdp"},
-                "browser_token": "token-1",
-                "cdp_send_timeout_ms": 9876,
-                "loopback_execution_context_timeout_ms": 8765,
-                "ws_connect_error_settle_timeout_ms": 7654,
+                "server_routes": {"*.*": "loopback_cdp"},
+                "server_browser_token": "token-1",
+                "server_cdp_send_timeout_ms": 9876,
+                "server_loopback_execution_context_timeout_ms": 8765,
+                "server_ws_connect_error_settle_timeout_ms": 7654,
             },
         )
 
-        self.assertEqual(cdp.launch["options"], {"headless": True})
+        self.assertEqual(cdp.launcher["launcher_options"], {"headless": True})
         self.assertEqual(cdp._launch_options().get("executable_path"), "/tmp/chrome")
         self.assertEqual(cdp._launch_options().get("user_data_dir"), "/tmp/profile")
         self.assertEqual(cdp.upstream["upstream_nats_wait_timeout_ms"], 345)
         self.assertEqual(cdp.upstream["upstream_reversews_wait_timeout_ms"], 456)
         self.assertEqual(cdp.upstream["upstream_nativemessaging_host_name"], "com.modcdp.custom")
         self.assertEqual(cdp.upstream["upstream_nativemessaging_wait_timeout_ms"], 567)
-        self.assertEqual(cdp.upstream["ws_connect_error_settle_timeout_ms"], 321)
-        self.assertEqual(cdp.extension["execution_context_timeout_ms"], 4321)
-        self.assertEqual(cdp.extension["service_worker_probe_timeout_ms"], 5432)
-        self.assertEqual(cdp.extension["service_worker_ready_timeout_ms"], 6543)
-        self.assertEqual(cdp.extension["service_worker_poll_interval_ms"], 76)
-        self.assertEqual(cdp.extension["target_session_poll_interval_ms"], 87)
-        self.assertEqual(cdp.client["routes"]["*.*"], "direct_cdp")
-        self.assertEqual(cdp.client["hydrate_aliases"], False)
-        self.assertEqual(cdp.client["mirror_upstream_events"], False)
-        self.assertEqual(cdp.client["cdp_send_timeout_ms"], 1234)
-        self.assertEqual(cdp.client["event_wait_timeout_ms"], 2345)
+        self.assertEqual(cdp.upstream["upstream_ws_connect_error_settle_timeout_ms"], 321)
+        self.assertEqual(cdp.injector["injector_execution_context_timeout_ms"], 4321)
+        self.assertEqual(cdp.injector["injector_service_worker_probe_timeout_ms"], 5432)
+        self.assertEqual(cdp.injector["injector_service_worker_ready_timeout_ms"], 6543)
+        self.assertEqual(cdp.injector["injector_service_worker_poll_interval_ms"], 76)
+        self.assertEqual(cdp.injector["injector_target_session_poll_interval_ms"], 87)
+        self.assertEqual(cdp.client["client_routes"]["*.*"], "direct_cdp")
+        self.assertEqual(cdp.client["client_hydrate_aliases"], False)
+        self.assertEqual(cdp.client["client_mirror_upstream_events"], False)
+        self.assertEqual(cdp.client["client_cdp_send_timeout_ms"], 1234)
+        self.assertEqual(cdp.client["client_event_wait_timeout_ms"], 2345)
         self.assertNotIn("Browser", cdp.__dict__)
         with self.assertRaises(AttributeError):
             _ = cdp.Browser
@@ -104,17 +104,17 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertEqual(params["server"]["server_ws_connect_error_settle_timeout_ms"], 7654)
 
     def test_preserves_explicit_empty_service_worker_suffix_config(self) -> None:
-        cdp = ModCDPClient(extension={"mode": "borrow", "service_worker_url_suffixes": []})
+        cdp = ModCDPClient(injector={"injector_mode": "borrow", "injector_service_worker_url_suffixes": []})
 
-        self.assertEqual(cdp.extension["service_worker_url_suffixes"], [])
-        self.assertEqual(cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"), [])
+        self.assertEqual(cdp.injector["injector_service_worker_url_suffixes"], [])
+        self.assertEqual(cdp._base_extension_injector_config(None).get("injector_service_worker_url_suffixes"), [])
 
     def test_defaults_service_worker_suffix_config_to_modcdp_worker(self) -> None:
         cdp = ModCDPClient()
 
-        self.assertEqual(cdp.extension["service_worker_url_suffixes"], ["/modcdp/service_worker.js"])
+        self.assertEqual(cdp.injector["injector_service_worker_url_suffixes"], ["/modcdp/service_worker.js"])
         self.assertEqual(
-            cdp._base_extension_injector_config(None).get("service_worker_url_suffixes"),
+            cdp._base_extension_injector_config(None).get("injector_service_worker_url_suffixes"),
             ["/modcdp/service_worker.js"],
         )
 
@@ -135,32 +135,32 @@ class ModCDPClientTests(unittest.TestCase):
 
     def test_defaults_launched_modcdp_server_upstreams_to_extension_auto(self) -> None:
         for mode in ("nativemessaging", "reversews", "nats"):
-            launched = ModCDPClient(launch={"mode": "local"}, upstream={"mode": mode})
-            self.assertEqual(launched.launch["mode"], "local")
+            launched = ModCDPClient(launcher={"launcher_mode": "local"}, upstream={"upstream_mode": mode})
+            self.assertEqual(launched.launcher["launcher_mode"], "local")
             self.assertEqual(launched.upstream_endpoint_kind, "modcdp_server")
-            self.assertEqual(launched.extension["mode"], "auto")
+            self.assertEqual(launched.injector["injector_mode"], "auto")
 
-            attach_only = ModCDPClient(upstream={"mode": mode})
-            self.assertEqual(attach_only.launch["mode"], "none")
+            attach_only = ModCDPClient(upstream={"upstream_mode": mode})
+            self.assertEqual(attach_only.launcher["launcher_mode"], "none")
             self.assertEqual(attach_only.upstream_endpoint_kind, "modcdp_server")
-            self.assertEqual(attach_only.extension["mode"], "none")
+            self.assertEqual(attach_only.injector["injector_mode"], "none")
 
     def test_rejects_unknown_component_modes_at_their_owning_factory_boundary(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, r"unknown upstream\.mode=bogus"):
-            ModCDPClient(upstream={"mode": "bogus"})._upstream_transport()
-        with self.assertRaisesRegex(RuntimeError, r"unknown launch\.mode=bogus"):
-            ModCDPClient(launch={"mode": "bogus"})._browser_launcher()
-        with self.assertRaisesRegex(RuntimeError, r"unknown extension\.mode=bogus"):
-            ModCDPClient(extension={"mode": "bogus"})._extension_injectors_for_config()
+        with self.assertRaisesRegex(RuntimeError, r"unknown upstream\.upstream_mode=bogus"):
+            ModCDPClient(upstream={"upstream_mode": "bogus"})._upstream_transport()
+        with self.assertRaisesRegex(RuntimeError, r"unknown launcher\.launcher_mode=bogus"):
+            ModCDPClient(launcher={"launcher_mode": "bogus"})._browser_launcher()
+        with self.assertRaisesRegex(RuntimeError, r"unknown injector\.injector_mode=bogus"):
+            ModCDPClient(injector={"injector_mode": "bogus"})._extension_injectors_for_config()
 
     def test_connects_with_local_launch_and_injector_chain(self) -> None:
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "inject",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "inject",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 
@@ -212,12 +212,12 @@ class ModCDPClientTests(unittest.TestCase):
         ).launch()
         raw_ws = create_connection(cast(str, chrome["cdp_url"]), timeout=5)
         cdp = ModCDPClient(
-            launch={"mode": "remote"},
-            upstream={"mode": "ws", "cdp_url": chrome["cdp_url"]},
-            extension={
-                "mode": "discover",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "remote"},
+            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+            injector={
+                "injector_mode": "discover",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 
@@ -235,17 +235,20 @@ class ModCDPClientTests(unittest.TestCase):
             chrome["close"]()
 
     def test_close_keeps_injector_files_until_after_launched_browser_shutdown(self) -> None:
-        reverse_port = LocalBrowserLauncher.freePort()
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "reversews", "upstream_reversews_bind": f"127.0.0.1:{reverse_port}"},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={
+                "upstream_mode": "reversews",
+                "upstream_reversews_bind": "127.0.0.1:29292",
+                "upstream_reversews_wait_timeout_ms": 30_000,
             },
-            server={"routes": {"*.*": "loopback_cdp"}},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
+            },
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
 
         try:
@@ -257,8 +260,7 @@ class ModCDPClientTests(unittest.TestCase):
             )
             unpacked_extension_path = getattr(injector, "unpacked_extension_path")
             self.assertIsInstance(unpacked_extension_path, str)
-            self.assertNotEqual(unpacked_extension_path, str(EXTENSION_PATH))
-            self.assertTrue((Path(unpacked_extension_path) / "config.js").exists())
+            self.assertEqual(unpacked_extension_path, str(EXTENSION_PATH))
 
             launched = cdp._launched_browser
             if launched is None:
@@ -276,7 +278,7 @@ class ModCDPClientTests(unittest.TestCase):
             cdp.close()
 
             self.assertTrue(browser_close_saw_extension)
-            self.assertFalse(Path(unpacked_extension_path).exists())
+            self.assertTrue(Path(unpacked_extension_path).exists())
         finally:
             cdp.close()
 
@@ -286,12 +288,12 @@ class ModCDPClientTests(unittest.TestCase):
 
     def test_close_clears_top_level_connection_state(self) -> None:
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "auto",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 
@@ -305,16 +307,16 @@ class ModCDPClientTests(unittest.TestCase):
 
     def test_generated_cdp_surface_exposes_direct_domain_commands(self) -> None:
         client = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
-            server={"routes": {"*.*": "loopback_cdp"}},
+            client={"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
         target_ids: list[str] = []
 
@@ -358,16 +360,16 @@ class ModCDPClientTests(unittest.TestCase):
             self.assertRegex(str(awaited_raw_result["targetId"]), r"^[A-F0-9]+$")
 
         client = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
-            server={"routes": {"*.*": "loopback_cdp"}},
+            client={"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
         target_ids = []
         client.connect()

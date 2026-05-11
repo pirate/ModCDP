@@ -20,14 +20,13 @@ class BrowserLaunchOptions(TypedDict, total=False):
     chrome_ready_poll_interval_ms: int
     cdp_url: str | None
     browserbase_api_key: str | None
-    browserbase_project_id: str | None
     browserbase_base_url: str | None
     browserbase_session_id: str | None
     browserbase_keep_alive: bool
     browserbase_close_session_on_close: bool
     region: str | None
     timeout: int | None
-    extension_id: str | None
+    injector_extension_id: str | None
     browserbase_browser_settings: dict[str, Any] | None
     browserbase_user_metadata: dict[str, Any] | None
     browserbase_session_create_params: dict[str, Any] | None
@@ -85,7 +84,7 @@ class BrowserLauncher:
         return {
             "browserbase_api_key": self.options.get("browserbase_api_key"),
             "browserbase_base_url": self.options.get("browserbase_base_url"),
-            "extension_id": self.options.get("extension_id"),
+            "injector_extension_id": self.options.get("injector_extension_id"),
         }
 
     def launch(self, options: BrowserLaunchOptions | None = None) -> LaunchedBrowser:

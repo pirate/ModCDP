@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -20,18 +19,12 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
         self.cleanup_dir: tempfile.TemporaryDirectory[str] | None = None
 
     def prepare(self) -> None:
-        extension_path = self.options.get("extension_path")
+        extension_path = self.options.get("injector_extension_path")
         if not extension_path or self.unpacked_extension_path:
             super().prepare()
             return
         if not extension_path.endswith(".zip"):
-            if self._extensionRuntimeConfig():
-                self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
-                shutil.copytree(extension_path, self.cleanup_dir.name, dirs_exist_ok=True)
-                self.unpacked_extension_path = self.cleanup_dir.name
-            else:
-                self.unpacked_extension_path = extension_path
-            self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
+            self.unpacked_extension_path = extension_path
             self._resolveExtensionId()
             super().prepare()
             return
@@ -39,7 +32,6 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
         with zipfile.ZipFile(extension_path) as archive:
             archive.extractall(self.cleanup_dir.name)
         self.unpacked_extension_path = _extension_root(self.cleanup_dir.name)
-        self._writeExtensionRuntimeConfig(self.unpacked_extension_path)
         self._resolveExtensionId()
         super().prepare()
 
@@ -50,10 +42,10 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
 
     def inject(self) -> ExtensionInjectionResult | None:
         self._wakeConfiguredExtension()
-        timeout_ms = min(self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, 3_000)
+        timeout_ms = min(self.options.get("injector_service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, 3_000)
         discovered = self._waitForReadyServiceWorker(
             timeout_ms,
-            matched_only=bool(self.options.get("trust_service_worker_target")),
+            matched_only=bool(self.options.get("injector_trust_service_worker_target")),
         )
         return {**discovered, "source": "local_launch"} if discovered else None
 
@@ -66,13 +58,13 @@ class LocalBrowserLaunchExtensionInjector(ExtensionInjector):
     def _resolveExtensionId(self) -> str | None:
         if self.extension_id:
             return self.extension_id
-        configured_extension_id = self.options.get("extension_id")
+        configured_extension_id = self.options.get("injector_extension_id")
         if configured_extension_id:
             self.extension_id = configured_extension_id
         elif self.unpacked_extension_path:
             self.extension_id = extensionIdFromManifestKey(self.unpacked_extension_path)
         if self.extension_id:
-            self.options["extension_id"] = self.extension_id
+            self.options["injector_extension_id"] = self.extension_id
         return self.extension_id
 
 

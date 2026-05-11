@@ -6,7 +6,6 @@ import (
 	"fmt"
 	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
 	. "github.com/pirate/ModCDP/go/modcdp/injector"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -262,15 +261,11 @@ func TestExtensionInjectorKeepsModCDPServiceWorkerAliveThroughOffscreenKeepalive
 	}
 }
 
-func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T) {
+func TestExtensionInjectorOwnsSharedConfig(t *testing.T) {
 	injector := NewExtensionInjector(ExtensionInjectorConfig{
-		ExtensionID:               "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		ServiceWorkerURLSuffixes:  []string{"/modcdp/service_worker.js"},
-		UpstreamReverseWSURL:      "ws://127.0.0.1:29292",
-		UpstreamNATSURL:           "ws://127.0.0.1:4223",
-		UpstreamNATSSubjectPrefix: "modcdp.test",
+		ExtensionID:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 	})
-	injector.Update(ExtensionInjectorConfig{UpstreamNativeMessagingHostName: "com.modcdp.bridge"})
 
 	transportConfig := injector.GetTransportConfig()
 	if transportConfig["extension_id"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
@@ -285,19 +280,6 @@ func TestExtensionInjectorOwnsSharedConfigAndRuntimeTransportConfig(t *testing.T
 		"url":      "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/modcdp/service_worker.js",
 	}) {
 		t.Fatalf("expected service worker target to match")
-	}
-
-	extensionPath := t.TempDir()
-	if err := injector.WriteExtensionRuntimeConfig(extensionPath); err != nil {
-		t.Fatal(err)
-	}
-	config, err := os.ReadFile(filepath.Join(extensionPath, "modcdp", "config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := "{\n  \"upstream_nativemessaging_host_name\": \"com.modcdp.bridge\",\n  \"upstream_nats_subject_prefix\": \"modcdp.test\",\n  \"upstream_nats_url\": \"ws://127.0.0.1:4223\",\n  \"upstream_reversews_url\": \"ws://127.0.0.1:29292\"\n}\n"
-	if string(config) != expected {
-		t.Fatalf("config.json = %s", config)
 	}
 	if _, err := injector.Inject(); err == nil {
 		t.Fatalf("expected base Inject to fail")

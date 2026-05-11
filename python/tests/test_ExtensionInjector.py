@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -21,7 +20,7 @@ EXTENSION_PATH = ROOT / "dist" / "extension"
 class ProbeExtensionInjector(ExtensionInjector):
     def inject(self):
         return self._waitForReadyServiceWorker(
-            self.options.get("service_worker_ready_timeout_ms") or 60_000,
+            self.options.get("injector_service_worker_ready_timeout_ms") or 60_000,
             matched_only=True,
         )
 
@@ -72,15 +71,15 @@ class ExtensionInjectorTests(unittest.TestCase):
             cast(ExtensionInjectorConfig, {
                 "send": send,
                 "attachToTarget": attach_to_target,
-                "extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+                "injector_extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             })
         )
 
         try:
             self.assertEqual(injector.getLauncherConfig(), {})
-            self.assertEqual(injector.getTransportConfig(), {"extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf"})
+            self.assertEqual(injector.getTransportConfig(), {"injector_extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf"})
             result = injector.inject()
             self.assertEqual(result["extension_id"] if result else None, "mdedooklbnfejodmnhmkdpkaedafkehf")
             self.assertTrue(str(result["url"] if result else "").endswith("/modcdp/service_worker.js"))
@@ -125,9 +124,9 @@ class ExtensionInjectorTests(unittest.TestCase):
             cast(ExtensionInjectorConfig, {
                 "send": send,
                 "attachToTarget": attach_to_target,
-                "extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+                "injector_extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             })
         )
 
@@ -200,16 +199,12 @@ class ExtensionInjectorTests(unittest.TestCase):
     def test_owns_shared_injector_config_and_runtime_transport_config(self) -> None:
         injector = ExtensionInjector(
             {
-                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "upstream_reversews_url": "ws://127.0.0.1:29292",
-                "upstream_nats_url": "ws://127.0.0.1:4223",
-                "upstream_nats_subject_prefix": "modcdp.test",
+                "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
             }
         )
-        injector.update({"upstream_nativemessaging_host_name": "com.modcdp.bridge"})
 
-        self.assertEqual(injector.getTransportConfig(), {"extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+        self.assertEqual(injector.getTransportConfig(), {"injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
         self.assertEqual(injector.getLauncherConfig(), {})
         self.assertTrue(
             injector._serviceWorkerTargetMatches(
@@ -220,17 +215,6 @@ class ExtensionInjectorTests(unittest.TestCase):
                 }
             )
         )
-        with tempfile.TemporaryDirectory() as extension_path:
-            injector._writeExtensionRuntimeConfig(extension_path)
-            self.assertEqual(
-                json.loads((Path(extension_path) / "modcdp" / "config.json").read_text()),
-                {
-                    "upstream_reversews_url": "ws://127.0.0.1:29292",
-                    "upstream_nativemessaging_host_name": "com.modcdp.bridge",
-                    "upstream_nats_url": "ws://127.0.0.1:4223",
-                    "upstream_nats_subject_prefix": "modcdp.test",
-                },
-            )
 
         with self.assertRaisesRegex(NotImplementedError, "ExtensionInjector.inject is not implemented"):
             injector.inject()
@@ -309,7 +293,7 @@ class ExtensionInjectorTests(unittest.TestCase):
 
         injector = ProbeExtensionInjector(
             cast(ExtensionInjectorConfig, {
-                "extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
+                "injector_extension_id": "mdedooklbnfejodmnhmkdpkaedafkehf",
                 "send": send,
             })
         )

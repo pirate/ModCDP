@@ -33,15 +33,12 @@ func (i *LocalBrowserLaunchExtensionInjector) Prepare() error {
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
-	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.extensionRuntimeConfig()) > 0)
+	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, false)
 	if err != nil {
 		return err
 	}
 	i.UnpackedExtensionPath = unpackedPath
 	i.CleanupPath = cleanupPath
-	if err := i.writeExtensionRuntimeConfig(i.UnpackedExtensionPath); err != nil {
-		return err
-	}
 	_, err = i.resolveExtensionID()
 	return err
 }

@@ -1,10 +1,7 @@
 import net from "node:net";
 import tls from "node:tls";
 import type { CdpCommandMessage } from "../types/modcdp.js";
-import {
-  UpstreamTransport,
-  type UpstreamTransportConfig,
-} from "./UpstreamTransport.js";
+import { UpstreamTransport, type UpstreamTransportConfig } from "./UpstreamTransport.js";
 
 export const DEFAULT_UPSTREAM_NATS_URL = "ws://127.0.0.1:4223";
 export const DEFAULT_UPSTREAM_NATS_SUBJECT_PREFIX = "modcdp.default";
@@ -48,26 +45,19 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     this.url = url;
     this.upstream_nats_subject_prefix = upstream_nats_subject_prefix;
     this.upstream_nats_role = options.upstream_nats_role ?? "client";
-    this.wait_timeout_ms =
-      options.upstream_nats_wait_timeout_ms ??
-      DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS;
+    this.wait_timeout_ms = options.upstream_nats_wait_timeout_ms ?? DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS;
   }
 
   update(config: UpstreamTransportConfig = {}) {
     if (config.upstream_nats_url || config.upstream_nats_subject_prefix) {
       const normalized = normalizeNatsUrl(
         config.upstream_nats_url ?? this.url,
-        config.upstream_nats_subject_prefix ??
-          this.upstream_nats_subject_prefix,
+        config.upstream_nats_subject_prefix ?? this.upstream_nats_subject_prefix,
       );
       this.url = normalized.url;
-      this.upstream_nats_subject_prefix =
-        normalized.upstream_nats_subject_prefix;
+      this.upstream_nats_subject_prefix = normalized.upstream_nats_subject_prefix;
     }
-    if (
-      config.upstream_nats_role === "client" ||
-      config.upstream_nats_role === "browser"
-    )
+    if (config.upstream_nats_role === "client" || config.upstream_nats_role === "browser")
       this.upstream_nats_role = config.upstream_nats_role;
     if (typeof config.upstream_nats_wait_timeout_ms === "number")
       this.wait_timeout_ms = config.upstream_nats_wait_timeout_ms;
@@ -84,14 +74,10 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   async connect() {
     if (this.connected) return;
     const parsed = new URL(this.url);
-    if (parsed.protocol === "ws:" || parsed.protocol === "wss:")
-      await this.connectWebSocket(parsed);
-    else if (parsed.protocol === "nats:" || parsed.protocol === "tls:")
-      await this.connectTcp(parsed);
+    if (parsed.protocol === "ws:" || parsed.protocol === "wss:") await this.connectWebSocket(parsed);
+    else if (parsed.protocol === "nats:" || parsed.protocol === "tls:") await this.connectTcp(parsed);
     else
-      throw new Error(
-        `upstream.upstream_mode=nats requires ws://, wss://, nats://, or tls:// URL, got ${this.url}.`,
-      );
+      throw new Error(`upstream.upstream_mode=nats requires ws://, wss://, nats://, or tls:// URL, got ${this.url}.`);
     this.connected = true;
     this.subscribe();
     this.publish(this.outgoingSubject(), {
@@ -102,8 +88,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   }
 
   send(message: CdpCommandMessage) {
-    if (!this.connected || !this.socket)
-      throw new Error("NATS transport is not connected.");
+    if (!this.connected || !this.socket) throw new Error("NATS transport is not connected.");
     this.publish(this.outgoingSubject(), {
       type: "modcdp.nats.message",
       message,
@@ -120,11 +105,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
       };
       const timeout = setTimeout(() => {
         this.peer_waiters.delete(waiter);
-        reject(
-          new Error(
-            `Timed out waiting ${this.wait_timeout_ms}ms for NATS ModCDP peer.`,
-          ),
-        );
+        reject(new Error(`Timed out waiting ${this.wait_timeout_ms}ms for NATS ModCDP peer.`));
       }, this.wait_timeout_ms);
       waiter = { resolve, reject, timeout };
       this.peer_waiters.add(waiter);
@@ -142,9 +123,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     for (const waiter of this.peer_waiters) {
       clearTimeout(waiter.timeout);
       waiter.reject(
-        new Error(
-          `NATS transport for ${this.upstream_nats_subject_prefix} closed before a peer connected.`,
-        ),
+        new Error(`NATS transport for ${this.upstream_nats_subject_prefix} closed before a peer connected.`),
       );
     }
     this.peer_waiters.clear();
@@ -156,12 +135,8 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     ws.addEventListener("message", (event) => {
       void this.readWebSocket(event.data);
     });
-    ws.addEventListener("close", () =>
-      this.emitClose(new Error("NATS websocket closed")),
-    );
-    ws.addEventListener("error", () =>
-      this.emitClose(new Error("NATS websocket error")),
-    );
+    ws.addEventListener("close", () => this.emitClose(new Error("NATS websocket closed")));
+    ws.addEventListener("error", () => this.emitClose(new Error("NATS websocket error")));
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         ws.removeEventListener("open", onOpen);
@@ -169,16 +144,12 @@ export class NatsUpstreamTransport extends UpstreamTransport {
       };
       const onOpen = () => {
         cleanup();
-        this.writeProtocol(
-          `CONNECT ${JSON.stringify(connectOptions())}\r\nPING\r\n`,
-        );
+        this.writeProtocol(`CONNECT ${JSON.stringify(connectOptions())}\r\nPING\r\n`);
         resolve();
       };
       const onError = () => {
         cleanup();
-        reject(
-          new Error(`NATS websocket connection failed for ${url.toString()}`),
-        );
+        reject(new Error(`NATS websocket connection failed for ${url.toString()}`));
       };
       ws.addEventListener("open", onOpen);
       ws.addEventListener("error", onError);
@@ -188,21 +159,14 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   private async connectTcp(url: URL) {
     const port = Number(url.port || (url.protocol === "tls:" ? 4222 : 4222));
     const host = url.hostname || "127.0.0.1";
-    const socket =
-      url.protocol === "tls:"
-        ? tls.connect({ host, port })
-        : net.connect({ host, port });
+    const socket = url.protocol === "tls:" ? tls.connect({ host, port }) : net.connect({ host, port });
     this.socket = socket;
-    socket.on("data", (chunk) =>
-      this.readTcp(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)),
-    );
+    socket.on("data", (chunk) => this.readTcp(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
     socket.on("close", () => this.emitClose(new Error("NATS socket closed")));
     socket.on("error", () => this.emitClose(new Error("NATS socket error")));
     await new Promise<void>((resolve, reject) => {
       socket.once("connect", () => {
-        this.writeProtocol(
-          `CONNECT ${JSON.stringify(connectOptions())}\r\nPING\r\n`,
-        );
+        this.writeProtocol(`CONNECT ${JSON.stringify(connectOptions())}\r\nPING\r\n`);
         resolve();
       });
       socket.once("error", reject);
@@ -215,9 +179,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
 
   private publish(subject: string, message: unknown) {
     const body = JSON.stringify(message);
-    this.writeProtocol(
-      `PUB ${subject} ${Buffer.byteLength(body)}\r\n${body}\r\n`,
-    );
+    this.writeProtocol(`PUB ${subject} ${Buffer.byteLength(body)}\r\n${body}\r\n`);
   }
 
   private writeProtocol(data: string) {
@@ -236,16 +198,10 @@ export class NatsUpstreamTransport extends UpstreamTransport {
   }
 
   private async readWebSocket(data: unknown) {
-    if (data instanceof ArrayBuffer)
-      this.ws_buffer += Buffer.from(data).toString("utf8");
+    if (data instanceof ArrayBuffer) this.ws_buffer += Buffer.from(data).toString("utf8");
     else if (ArrayBuffer.isView(data))
-      this.ws_buffer += Buffer.from(
-        data.buffer,
-        data.byteOffset,
-        data.byteLength,
-      ).toString("utf8");
-    else if (typeof Blob !== "undefined" && data instanceof Blob)
-      this.ws_buffer += await data.text();
+      this.ws_buffer += Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString("utf8");
+    else if (typeof Blob !== "undefined" && data instanceof Blob) this.ws_buffer += await data.text();
     else this.ws_buffer += String(data);
     this.ws_buffer = this.consumeProtocol(this.ws_buffer);
   }
@@ -267,8 +223,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
         const size = Number(parts[parts.length - 1]);
         const payloadStart = lineEnd + 2;
         const payloadEnd = payloadStart + size;
-        if (!Number.isInteger(size) || buffer.length < payloadEnd + 2)
-          return buffer;
+        if (!Number.isInteger(size) || buffer.length < payloadEnd + 2) return buffer;
         const payload = buffer.slice(payloadStart, payloadEnd);
         buffer = buffer.slice(payloadEnd + 2);
         this.handlePayload(payload);
@@ -276,8 +231,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
       }
       buffer = buffer.slice(lineEnd + 2);
       if (upper === "PING") this.writeProtocol("PONG\r\n");
-      else if (upper.startsWith("-ERR"))
-        this.emitClose(new Error(`NATS error: ${line}`));
+      else if (upper.startsWith("-ERR")) this.emitClose(new Error(`NATS error: ${line}`));
     }
   }
 
@@ -288,10 +242,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
     } catch {
       return;
     }
-    const record =
-      parsed && typeof parsed === "object"
-        ? (parsed as Record<string, unknown>)
-        : null;
+    const record = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
     if (record?.type === "modcdp.nats.hello") {
       this.peer_seen = true;
       for (const waiter of this.peer_waiters) {
@@ -301,8 +252,7 @@ export class NatsUpstreamTransport extends UpstreamTransport {
       this.peer_waiters.clear();
       return;
     }
-    const message =
-      record?.type === "modcdp.nats.message" ? record.message : parsed;
+    const message = record?.type === "modcdp.nats.message" ? record.message : parsed;
     this.parseAndEmitRecv(JSON.stringify(message));
   }
 }
@@ -317,26 +267,18 @@ function connectOptions() {
   };
 }
 
-function normalizeNatsUrl(
-  url: string,
-  upstream_nats_subject_prefix?: string | null,
-) {
+function normalizeNatsUrl(url: string, upstream_nats_subject_prefix?: string | null) {
   const parsed = new URL(url);
-  const subject =
-    upstream_nats_subject_prefix ||
-    parsed.searchParams.get("upstream_nats_subject_prefix");
+  const subject = upstream_nats_subject_prefix || parsed.searchParams.get("upstream_nats_subject_prefix");
   parsed.searchParams.delete("upstream_nats_subject_prefix");
   return {
     url: parsed.toString(),
-    upstream_nats_subject_prefix: sanitizeSubjectPrefix(
-      subject || DEFAULT_UPSTREAM_NATS_SUBJECT_PREFIX,
-    ),
+    upstream_nats_subject_prefix: sanitizeSubjectPrefix(subject || DEFAULT_UPSTREAM_NATS_SUBJECT_PREFIX),
   };
 }
 
 function sanitizeSubjectPrefix(value: string) {
   const subject = value.trim();
-  if (!subject || /[\s*>]/.test(subject))
-    throw new Error(`Invalid NATS subject prefix ${value}`);
+  if (!subject || /[\s*>]/.test(subject)) throw new Error(`Invalid NATS subject prefix ${value}`);
   return subject;
 }

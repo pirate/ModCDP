@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
@@ -34,23 +33,3 @@ test("ExtensionsLoadUnpackedInjector exercises the real CDP loadUnpacked path", 
     await chrome.close();
   }
 }, 60_000);
-
-test("ExtensionsLoadUnpackedInjector prepares a runtime config copy", async () => {
-  const injector = new ExtensionsLoadUnpackedInjector({
-    injector_extension_path: EXTENSION_PATH,
-    upstream_reversews_url: "ws://127.0.0.1:29292",
-  });
-
-  try {
-    await injector.prepare();
-    const unpacked_extension_path = (injector as unknown as { unpacked_extension_path: string | null })
-      .unpacked_extension_path;
-    assert.notEqual(unpacked_extension_path, EXTENSION_PATH);
-    assert.equal(
-      await readFile(path.join(unpacked_extension_path ?? "", "modcdp", "config.json"), "utf8"),
-      '{\n  "upstream_reversews_url": "ws://127.0.0.1:29292"\n}\n',
-    );
-  } finally {
-    await injector.close();
-  }
-});

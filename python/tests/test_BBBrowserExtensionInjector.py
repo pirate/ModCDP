@@ -5,52 +5,29 @@ from pathlib import Path
 import unittest
 
 from modcdp import ModCDPClient
-from modcdp.injector.BBBrowserExtensionInjector import BBBrowserExtensionInjector
 
 HERE = Path(__file__).resolve().parent
 EXTENSION_PATH = HERE.parents[1] / "dist" / "extension"
 
 
 class BBBrowserExtensionInjectorTests(unittest.TestCase):
-    def test_uses_configured_extension_id(self) -> None:
-        injector = BBBrowserExtensionInjector({"extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
-        injector.prepare()
-        self.assertEqual(injector.getLauncherConfig().get("extension_id"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-
-    def test_does_not_upload_when_no_extension_path_or_id_is_configured(self) -> None:
-        injector = BBBrowserExtensionInjector()
-        injector.prepare()
-        self.assertEqual(injector.getLauncherConfig(), {})
-        self.assertIsNone(injector.zip_path)
-
-    @unittest.skipIf(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is set")
-    def test_requires_browserbase_api_key_when_extension_upload_is_needed(self) -> None:
-        injector = BBBrowserExtensionInjector({"extension_path": str(EXTENSION_PATH)})
-
-        try:
-            with self.assertRaisesRegex(RuntimeError, "BROWSERBASE_API_KEY"):
-                injector.prepare()
-            self.assertIsNone(injector.cleanup_dir)
-        finally:
-            injector.close()
-
-    @unittest.skipUnless(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is required for live Browserbase tests")
     def test_uploads_real_extension_and_launches_browserbase_browser_with_it_installed(self) -> None:
+        if not os.environ.get("BROWSERBASE_API_KEY", "").strip():
+            self.fail("BROWSERBASE_API_KEY is required for live Browserbase tests")
         cdp = ModCDPClient(
-            launch={
-                "mode": "bb",
-                "options": {
-                    "browserbase_project_id": os.environ.get("BROWSERBASE_PROJECT_ID"),
+            launcher={
+                "launcher_mode": "bb",
+                "launcher_options": {
                     "timeout": 120,
                     **({"region": os.environ["BROWSERBASE_REGION"]} if os.environ.get("BROWSERBASE_REGION") else {}),
                 },
             },
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "inject",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "inject",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 

@@ -18,24 +18,10 @@ export const ProxyUpstreamStateSchema = z
   .object({
     url: z.string(),
     launched: z
-      .custom<
-        Awaited<
-          ReturnType<
-            import("../launcher/BrowserLauncher.js").BrowserLauncher["launch"]
-          >
-        >
-      >()
+      .custom<Awaited<ReturnType<import("../launcher/BrowserLauncher.js").BrowserLauncher["launch"]>>>()
       .nullable(),
     launch_promise: z
-      .promise(
-        z.custom<
-          Awaited<
-            ReturnType<
-              import("../launcher/BrowserLauncher.js").BrowserLauncher["launch"]
-            >
-          >
-        >(),
-      )
+      .promise(z.custom<Awaited<ReturnType<import("../launcher/BrowserLauncher.js").BrowserLauncher["launch"]>>>())
       .nullable()
       .optional(),
   })

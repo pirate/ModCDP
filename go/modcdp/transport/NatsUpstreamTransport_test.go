@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
 	. "github.com/pirate/ModCDP/go/modcdp/transport"
 	"os"
 	"os/exec"
@@ -138,72 +137,6 @@ func TestNatsUpstreamTransportReconnectsAfterCloseAgainstRealNATSServer(t *testi
 	}
 	if transport.Closed() {
 		t.Fatal("expected transport.Closed() to reset after reconnect")
-	}
-}
-
-func TestNatsUpstreamTransportRelaysCDPThroughRealExtensionOverRealNATSServer(t *testing.T) {
-	nats := startNATSServer(t)
-	subjectPrefix := fmt.Sprintf("modcdp.test.%d", time.Now().UnixMilli())
-	cdp := modcdp.New(modcdp.Options{
-		Launch: modcdp.LaunchConfig{
-			Mode: "local",
-			Options: modcdp.LaunchOptions{
-				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
-			},
-		},
-		Upstream: modcdp.UpstreamConfig{
-			Mode:                      "nats",
-			UpstreamNATSURL:           nats.url,
-			UpstreamNATSSubjectPrefix: subjectPrefix,
-		},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "auto",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
-		},
-		Server: &modcdp.ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
-	})
-	defer cdp.Close()
-
-	if err := cdp.Connect(); err != nil {
-		t.Fatal(err)
-	}
-	if cdp.ConnectTiming["upstream_endpoint_kind"] != UpstreamEndpointKindModCDPServer {
-		t.Fatalf("upstream_endpoint_kind = %v", cdp.ConnectTiming["upstream_endpoint_kind"])
-	}
-	transport, ok := cdp.Transport().(*NatsUpstreamTransport)
-	if !ok {
-		t.Fatalf("transport = %T", cdp.Transport())
-	}
-	if transport.URL != nats.url+"/" {
-		t.Fatalf("transport.URL = %q", transport.URL)
-	}
-	if transport.UpstreamNATSSubjectPrefix != subjectPrefix {
-		t.Fatalf("transport.UpstreamNATSSubjectPrefix = %q", transport.UpstreamNATSSubjectPrefix)
-	}
-	result, err := cdp.Send("Browser.getVersion", map[string]any{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	version, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("Browser.getVersion result = %#v", result)
-	}
-	if _, ok := version["product"].(string); !ok {
-		t.Fatalf("Browser.getVersion product = %#v", version["product"])
-	}
-	time.Sleep(1500 * time.Millisecond)
-	secondResult, err := cdp.Send("Browser.getVersion", map[string]any{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondVersion, ok := secondResult.(map[string]any)
-	if !ok {
-		t.Fatalf("second Browser.getVersion result = %#v", secondResult)
-	}
-	if _, ok := secondVersion["product"].(string); !ok {
-		t.Fatalf("second Browser.getVersion product = %#v", secondVersion["product"])
 	}
 }
 

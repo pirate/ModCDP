@@ -3,7 +3,6 @@ package launcher
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -19,11 +18,10 @@ const liveBrowserbaseTimeout = 120 * time.Second
 
 func TestBrowserbaseBrowserLauncherCreatesVerifiesResumesAndReleasesRealSession(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) == "" {
-		t.Skip("BROWSERBASE_API_KEY is required for live Browserbase tests")
+		t.Fatal("BROWSERBASE_API_KEY is required for live Browserbase tests")
 	}
 	options := LaunchOptions{
-		BrowserbaseProjectID: os.Getenv("BROWSERBASE_PROJECT_ID"),
-		Timeout:              120,
+		Timeout: 120,
 		BrowserbaseBrowserSettings: map[string]any{
 			"viewport":      map[string]any{"width": 900, "height": 700},
 			"recordSession": false,
@@ -78,9 +76,6 @@ func TestBrowserbaseBrowserLauncherCreatesVerifiesResumesAndReleasesRealSession(
 	}
 	if retrieved["status"] != "RUNNING" {
 		t.Fatalf("retrieved status = %v", retrieved["status"])
-	}
-	if projectID := os.Getenv("BROWSERBASE_PROJECT_ID"); projectID != "" && retrieved["projectId"] != projectID {
-		t.Fatalf("retrieved projectId = %v", retrieved["projectId"])
 	}
 
 	closeSessionOnClose := false
@@ -172,26 +167,4 @@ func retrieveBrowserbaseSession(t *testing.T, sessionID string) map[string]any {
 func browserbaseAPIURL(pathname string) string {
 	baseURL := firstString(os.Getenv("BROWSERBASE_BASE_URL"), DefaultBrowserbaseLauncherBaseURL)
 	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(pathname, "/")
-}
-
-func TestBrowserbaseBrowserLauncherRequiresAPIKey(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) != "" {
-		t.Skip("BROWSERBASE_API_KEY is set")
-	}
-	_, err := NewBrowserbaseBrowserLauncher(LaunchOptions{}).Launch(LaunchOptions{})
-	if err == nil || !strings.Contains(err.Error(), "BROWSERBASE_API_KEY") {
-		t.Fatalf("expected missing key error, got %v", err)
-	}
-}
-
-func ExampleBrowserbaseBrowserLauncher_options() {
-	_ = LaunchOptions{
-		BrowserbaseProjectID: "project-id",
-		BrowserbaseBrowserSettings: map[string]any{
-			"viewport": map[string]any{"width": 900, "height": 700},
-		},
-		BrowserbaseUserMetadata: map[string]any{"modcdp_launcher_test": "BrowserbaseBrowserLauncher"},
-	}
-	fmt.Println("ok")
-	// Output: ok
 }

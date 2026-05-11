@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const generated_dir = path.join(here, "generated");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "modcdp-protocol-"));
-const existing_cdp = fs.existsSync(path.join(generated_dir, "cdp.ts")) ? fs.readFileSync(path.join(generated_dir, "cdp.ts"), "utf8") : "";
+const existing_cdp = fs.existsSync(path.join(generated_dir, "cdp.ts"))
+  ? fs.readFileSync(path.join(generated_dir, "cdp.ts"), "utf8")
+  : "";
 const protocol_version = existing_cdp.match(/devtools-protocol@([^.\s]+(?:\.[^.\s]+)*)/)?.[1] || "latest";
 const meta = await fetch(`https://registry.npmjs.org/devtools-protocol/${protocol_version}`).then((r) => r.json());
 const tgz = path.join(tmp, "devtools-protocol.tgz");

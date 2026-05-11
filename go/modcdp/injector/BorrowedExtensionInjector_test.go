@@ -23,12 +23,12 @@ func TestBorrowedExtensionInjectorBootstrapsModCDPInsideLiveExtensionServiceWork
 	defer chrome.Close()
 
 	cdp := modcdp.New(modcdp.Options{
-		Launch:   modcdp.LaunchConfig{Mode: "remote"},
-		Upstream: modcdp.UpstreamConfig{Mode: "ws", CDPURL: chrome.CDPURL},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "borrow",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Launcher: modcdp.LauncherConfig{LauncherMode: "remote"},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "borrow",
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
 	})
 	defer cdp.Close()

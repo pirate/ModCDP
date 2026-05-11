@@ -6,7 +6,6 @@ import (
 	"fmt"
 	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
 	. "github.com/pirate/ModCDP/go/modcdp/injector"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,31 +99,5 @@ func TestExtensionsLoadUnpackedInjectorExercisesRealCDPLoadUnpackedPath(t *testi
 		!strings.Contains(message, "Method not found") &&
 		!strings.Contains(message, "wasn't found") {
 		t.Fatalf("LastError = %v", injector.LastError)
-	}
-}
-
-func TestExtensionsLoadUnpackedInjectorPreparesRuntimeConfigCopy(t *testing.T) {
-	extensionPath, err := filepath.Abs(filepath.Join("..", "..", "..", "dist", "extension"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	injector := NewExtensionsLoadUnpackedInjector(ExtensionInjectorConfig{
-		ExtensionPath:        extensionPath,
-		UpstreamReverseWSURL: "ws://127.0.0.1:29292",
-	})
-	if err := injector.Prepare(); err != nil {
-		t.Fatal(err)
-	}
-	defer injector.Close()
-
-	if injector.UnpackedExtensionPath == extensionPath {
-		t.Fatalf("expected runtime config to use a copied extension path")
-	}
-	config, err := os.ReadFile(filepath.Join(injector.UnpackedExtensionPath, "modcdp", "config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(config) != "{\n  \"upstream_reversews_url\": \"ws://127.0.0.1:29292\"\n}\n" {
-		t.Fatalf("config.json = %s", config)
 	}
 }

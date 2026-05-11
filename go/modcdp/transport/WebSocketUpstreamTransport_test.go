@@ -33,18 +33,17 @@ func TestWebSocketUpstreamTransportConstructorUpdateAndServerConfigMatchTSShape(
 
 func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing.T) {
 	cdp := modcdp.New(modcdp.Options{
-		Launch: modcdp.LaunchConfig{
-			Mode: "local",
-			Options: modcdp.LaunchOptions{
+		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
+			LauncherOptions: modcdp.LaunchOptions{
 				Headless: boolPtr(true),
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: modcdp.UpstreamConfig{Mode: "ws"},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "auto",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
 	})
 	defer cdp.Close()

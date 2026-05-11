@@ -15,13 +15,13 @@ EXTENSION_PATH = ROOT / "dist" / "extension"
 class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
     def test_loads_real_extension_during_local_launch(self) -> None:
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "inject",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "inject",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 
@@ -38,13 +38,13 @@ class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
             cdp.close()
 
     def test_prepares_launcher_config(self) -> None:
-        injector = LocalBrowserLaunchExtensionInjector({"extension_path": str(EXTENSION_PATH)})
+        injector = LocalBrowserLaunchExtensionInjector({"injector_extension_path": str(EXTENSION_PATH)})
         try:
             injector.prepare()
             extra_args = injector.getLauncherConfig().get("extra_args") or []
             self.assertEqual(len(extra_args), 1)
             self.assertTrue(extra_args[0].startswith("--load-extension="))
-            self.assertEqual(injector.options.get("extension_id"), DEFAULT_MODCDP_EXTENSION_ID)
+            self.assertEqual(injector.options.get("injector_extension_id"), DEFAULT_MODCDP_EXTENSION_ID)
         finally:
             injector.close()
 

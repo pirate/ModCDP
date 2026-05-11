@@ -78,8 +78,10 @@ test(
       sandbox: process.platform !== "linux",
       extra_args: [`--load-extension=${EXTENSION_PATH}`],
     });
-    const cdp = new ModCDPClient({ launcher: { launcher_mode: "remote" },
-      upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url }, injector: {
+    const cdp = new ModCDPClient({
+      launcher: { launcher_mode: "remote" },
+      upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
+      injector: {
         injector_mode: "auto",
         injector_extension_path: EXTENSION_PATH,
         injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

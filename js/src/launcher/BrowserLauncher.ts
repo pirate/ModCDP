@@ -15,7 +15,6 @@ export type BrowserLaunchOptions = {
   chrome_ready_poll_interval_ms?: number;
   cdp_url?: string | null;
   browserbase_api_key?: string | null;
-  browserbase_project_id?: string | null;
   browserbase_base_url?: string | null;
   browserbase_session_id?: string | null;
   browserbase_keep_alive?: boolean;
@@ -54,11 +53,8 @@ function mergeChromeArgs(existing: string[] = [], incoming: string[] = []) {
       merged.push(arg);
       continue;
     }
-    for (const extension_path of arg
-      .slice("--load-extension=".length)
-      .split(",")) {
-      if (extension_path && !load_extension_paths.includes(extension_path))
-        load_extension_paths.push(extension_path);
+    for (const extension_path of arg.slice("--load-extension=".length).split(",")) {
+      if (extension_path && !load_extension_paths.includes(extension_path)) load_extension_paths.push(extension_path);
     }
   }
   if (load_extension_paths.length > 0) {
@@ -82,15 +78,10 @@ export class BrowserLauncher {
     this.options = {
       ...this.options,
       ...config,
-      ...(config.args
-        ? { args: mergeChromeArgs(this.options.args, config.args) }
-        : {}),
+      ...(config.args ? { args: mergeChromeArgs(this.options.args, config.args) } : {}),
       ...(config.extra_args
         ? {
-            extra_args: mergeChromeArgs(
-              this.options.extra_args,
-              config.extra_args,
-            ),
+            extra_args: mergeChromeArgs(this.options.extra_args, config.extra_args),
           }
         : {}),
     };
@@ -100,8 +91,7 @@ export class BrowserLauncher {
   getTransportConfig(): UpstreamTransportConfig {
     return {
       cdp_url: this.launched?.cdp_url ?? this.options.cdp_url ?? null,
-      user_data_dir:
-        this.launched?.profile_dir ?? this.options.user_data_dir ?? null,
+      user_data_dir: this.launched?.profile_dir ?? this.options.user_data_dir ?? null,
       pipe_read: this.launched?.pipe_read ?? null,
       pipe_write: this.launched?.pipe_write ?? null,
     };
@@ -120,21 +110,12 @@ export class BrowserLauncher {
   }
 }
 
-export async function resolveCdpWebSocketUrl(
-  endpoint: string,
-  name = "cdp_url",
-) {
+export async function resolveCdpWebSocketUrl(endpoint: string, name = "cdp_url") {
   if (/^wss?:\/\//i.test(endpoint)) return endpoint;
-  const httpEndpoint = /^[a-z][a-z\d+\-.]*:\/\//i.test(endpoint)
-    ? endpoint
-    : `http://${endpoint}`;
-  const response = await fetch(
-    `${httpEndpoint.replace(/\/$/, "")}/json/version`,
-  );
-  if (!response.ok)
-    throw new Error(`GET ${httpEndpoint}/json/version -> ${response.status}`);
+  const httpEndpoint = /^[a-z][a-z\d+\-.]*:\/\//i.test(endpoint) ? endpoint : `http://${endpoint}`;
+  const response = await fetch(`${httpEndpoint.replace(/\/$/, "")}/json/version`);
+  if (!response.ok) throw new Error(`GET ${httpEndpoint}/json/version -> ${response.status}`);
   const version = await response.json();
-  if (!version.webSocketDebuggerUrl)
-    throw new Error(`${name} HTTP discovery returned no webSocketDebuggerUrl`);
+  if (!version.webSocketDebuggerUrl) throw new Error(`${name} HTTP discovery returned no webSocketDebuggerUrl`);
   return version.webSocketDebuggerUrl as string;
 }

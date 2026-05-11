@@ -22,12 +22,12 @@ class PipeUpstreamTransportTests(unittest.TestCase):
 
     def test_launches_real_browser_and_uses_pid_scoped_pipe_url(self) -> None:
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "pipe"},
-            extension={
-                "mode": "auto",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "pipe"},
+            injector={
+                "injector_mode": "auto",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 

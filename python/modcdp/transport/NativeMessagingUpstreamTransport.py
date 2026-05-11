@@ -33,7 +33,7 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
         self.upstream_nativemessaging_manifests = list(cast(list[str], normalized_options.get("upstream_nativemessaging_manifests") or []))
         self.include_default_manifest_paths = self.upstream_nativemessaging_manifest is None and not self.upstream_nativemessaging_manifests
         self.upstream_nativemessaging_host_name = str(normalized_options.get("upstream_nativemessaging_host_name") or DEFAULT_UPSTREAM_NATIVEMESSAGING_HOST_NAME)
-        self.extension_id = str(normalized_options.get("extension_id") or DEFAULT_MODCDP_EXTENSION_ID)
+        self.extension_id = str(normalized_options.get("injector_extension_id") or DEFAULT_MODCDP_EXTENSION_ID)
         self.wait_timeout_ms = int(normalized_options.get("upstream_nativemessaging_wait_timeout_ms") or DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS)
         self.socket: socket.socket | None = None
         self.server: socket.socket | None = None
@@ -62,7 +62,7 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
         wait_timeout_ms = config.get("upstream_nativemessaging_wait_timeout_ms")
         if isinstance(wait_timeout_ms, int | float):
             self.wait_timeout_ms = int(wait_timeout_ms)
-        extension_id = config.get("extension_id")
+        extension_id = config.get("injector_extension_id")
         if isinstance(extension_id, str) and extension_id:
             self.extension_id = extension_id
             should_install_native_host = True

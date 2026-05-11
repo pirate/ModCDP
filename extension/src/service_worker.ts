@@ -1,26 +1,13 @@
 // Extension service worker entry point.
 
-import "./config.js";
 import { ModCDPServer } from "../../js/src/server/ModCDPServer.js";
 
-const ModCDP = (
-  globalThis as typeof globalThis & {
-    ModCDP?: Record<string, any>;
-  }
-).ModCDP;
-const bridge = (ModCDP ?? ModCDPServer) as Record<string, any>;
+const bridge = ModCDPServer as Record<string, any>;
 const started_at = new Date().toISOString();
-type RuntimeConfig = {
-  upstream_reversews_url?: string | null;
-  upstream_nativemessaging_host_name?: string | null;
-  upstream_nats_url?: string | null;
-  upstream_nats_subject_prefix?: string | null;
-};
-const runtime_config = (
-  globalThis as typeof globalThis & {
-    __MODCDP_RUNTIME_CONFIG__?: RuntimeConfig;
-  }
-).__MODCDP_RUNTIME_CONFIG__;
+const DEFAULT_REVERSEWS_URL = "ws://127.0.0.1:29292";
+const DEFAULT_REVERSEWS_RECONNECT_INTERVAL_MS = 2_000;
+const DEFAULT_NATIVE_HOST_NAME = "com.modcdp.bridge";
+const DEFAULT_NATIVE_RECONNECT_INTERVAL_MS = 2_000;
 const downstream_clients: Record<string, any> = {};
 const upstream_servers: Record<string, any> = {};
 const client_id_by_config_session = new Map<string, string>();
@@ -69,8 +56,7 @@ const configuredClient = (params: unknown, session_id?: string | null) => {
   });
   client.updated_at = at;
   client.configure = configure;
-  client.downstream_transport =
-    configure?.upstream?.upstream_mode ?? "unknown";
+  client.downstream_transport = configure?.upstream?.upstream_mode ?? "unknown";
   client.route_config = {
     upstream: configure?.upstream ?? {},
     client: configure?.client ?? {},
@@ -181,20 +167,13 @@ if (bridge) {
 }
 
 const startConfiguredTransports = () => {
-  const config = runtime_config ?? {};
   bridge.startOffscreenKeepAlive?.();
-  if (config.upstream_reversews_url) {
-    bridge.startReverseBridge?.(config.upstream_reversews_url, { reconnect_interval_ms: 2_000 });
-  }
-  if (config.upstream_nativemessaging_host_name) {
-    bridge.startNativeBridge?.(config.upstream_nativemessaging_host_name, { reconnect_interval_ms: 2_000 });
-  }
-  if (config.upstream_nats_url) {
-    bridge.startNatsBridge?.(config.upstream_nats_url, {
-      upstream_nats_subject_prefix: config.upstream_nats_subject_prefix,
-      reconnect_interval_ms: 2_000,
-    });
-  }
+  bridge.startReverseBridge?.(DEFAULT_REVERSEWS_URL, {
+    reconnect_interval_ms: DEFAULT_REVERSEWS_RECONNECT_INTERVAL_MS,
+  });
+  bridge.startNativeBridge?.(DEFAULT_NATIVE_HOST_NAME, {
+    reconnect_interval_ms: DEFAULT_NATIVE_RECONNECT_INTERVAL_MS,
+  });
 };
 
 startConfiguredTransports();

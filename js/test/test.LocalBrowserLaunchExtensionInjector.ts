@@ -11,11 +11,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
 
 test("LocalBrowserLaunchExtensionInjector loads the real extension during local launch", async () => {
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "inject",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

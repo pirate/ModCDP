@@ -42,10 +42,6 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 		return nil, fmt.Errorf("launch.mode=bb requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key")
 	}
 
-	projectID := firstString(
-		merged.BrowserbaseProjectID,
-		os.Getenv("BROWSERBASE_PROJECT_ID"),
-	)
 	baseURL := firstString(merged.BrowserbaseBaseURL, os.Getenv("BROWSERBASE_BASE_URL"), DefaultBrowserbaseLauncherBaseURL)
 	resumeSessionID := firstString(merged.BrowserbaseSessionID)
 	keepAlive := boolValue(merged.BrowserbaseKeepAlive, false)
@@ -66,9 +62,6 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 			stringValue(objectValue(sessionCreateParams["browserSettings"])["extensionId"]),
 		)
 		body := mergeMap(map[string]any{}, sessionCreateParams)
-		if projectID != "" {
-			body["projectId"] = projectID
-		}
 		if keepAlive {
 			body["keepAlive"] = true
 		}
@@ -109,9 +102,6 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 		}
 		closeBrowserCDP(session.ConnectURL)
 		body := map[string]any{"status": "REQUEST_RELEASE"}
-		if projectID != "" {
-			body["projectId"] = projectID
-		}
 		var ignored map[string]any
 		_ = browserbaseRequest(baseURL, browserbaseAPIKey, http.MethodPost, "/v1/sessions/"+session.ID, body, &ignored)
 	}

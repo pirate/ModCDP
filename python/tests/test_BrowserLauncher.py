@@ -12,7 +12,7 @@ class BrowserLauncherTests(unittest.TestCase):
                 "cdp_url": "ws://127.0.0.1:9222/devtools/browser/initial",
                 "user_data_dir": "/tmp/modcdp-browser-launcher",
                 "browserbase_api_key": "test-key",
-                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "args": ["--load-extension=/tmp/args-one"],
                 "extra_args": ["--load-extension=/tmp/one"],
             }
@@ -46,11 +46,11 @@ class BrowserLauncherTests(unittest.TestCase):
         self.assertEqual(
             {
                 "browserbase_api_key": launcher.getInjectorConfig()["browserbase_api_key"],
-                "extension_id": launcher.getInjectorConfig()["extension_id"],
+                "injector_extension_id": launcher.getInjectorConfig()["injector_extension_id"],
             },
             {
                 "browserbase_api_key": "test-key",
-                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             },
         )
         with self.assertRaisesRegex(NotImplementedError, "BrowserLauncher.launch is not implemented"):

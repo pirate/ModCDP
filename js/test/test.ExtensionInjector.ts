@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
@@ -22,10 +19,6 @@ class ProbeExtensionInjector extends ExtensionInjector {
 
   matches(target: { type?: string; url?: string }) {
     return this.serviceWorkerTargetMatches(target);
-  }
-
-  writeRuntimeConfig(injector_extension_path: string) {
-    this.writeExtensionRuntimeConfig(injector_extension_path);
   }
 
   async sendTimed(method: string, params: Record<string, unknown>, session_id: string | null, timeout_ms: number) {
@@ -150,16 +143,12 @@ test("ExtensionInjector keeps the ModCDP service worker alive through offscreen 
   }
 }, 60_000);
 
-test("ExtensionInjector owns shared injector config and runtime transport config", async () => {
+test("ExtensionInjector owns shared injector config", async () => {
   const injector = new ProbeExtensionInjector({
     injector_extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
-    upstream_reversews_url: "ws://127.0.0.1:29292",
-    upstream_nats_url: "ws://127.0.0.1:4223",
   });
-  injector.update({ upstream_nativemessaging_host_name: "com.modcdp.bridge" });
 
-  const runtime_config_dir = await mkdtemp(path.join(os.tmpdir(), "modcdp-extension-"));
   try {
     assert.deepEqual(injector.getTransportConfig(), { injector_extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
     assert.deepEqual(injector.getLauncherConfig(), {});
@@ -178,19 +167,8 @@ test("ExtensionInjector owns shared injector config and runtime transport config
       false,
     );
 
-    injector.writeRuntimeConfig(runtime_config_dir);
-    assert.deepEqual(JSON.parse(readFileSync(path.join(runtime_config_dir, "modcdp", "config.json"), "utf8")), {
-      upstream_reversews_url: "ws://127.0.0.1:29292",
-      upstream_nativemessaging_host_name: "com.modcdp.bridge",
-      upstream_nats_url: "ws://127.0.0.1:4223",
-    });
-    assert.match(
-      readFileSync(path.join(runtime_config_dir, "config.js"), "utf8"),
-      /globalThis\.__MODCDP_RUNTIME_CONFIG__/,
-    );
   } finally {
     await injector.close();
-    await rm(runtime_config_dir, { recursive: true, force: true });
   }
 });
 

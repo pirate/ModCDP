@@ -22,13 +22,13 @@ func (i *ExtensionsLoadUnpackedInjector) Prepare() error {
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
-	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, len(i.extensionRuntimeConfig()) > 0)
+	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, false)
 	if err != nil {
 		return err
 	}
 	i.UnpackedExtensionPath = unpackedPath
 	i.CleanupPath = cleanupPath
-	return i.writeExtensionRuntimeConfig(i.UnpackedExtensionPath)
+	return nil
 }
 
 func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, error) {

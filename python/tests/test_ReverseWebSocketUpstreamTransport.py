@@ -124,17 +124,16 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
             transport.close()
 
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
-        reverse_port = _free_port()
-        reverse_bind = f"127.0.0.1:{reverse_port}"
+        reverse_bind = "127.0.0.1:29292"
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "reversews", "upstream_reversews_bind": reverse_bind},
-            extension={
-                "mode": "auto",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "reversews", "upstream_reversews_bind": reverse_bind},
+            injector={
+                "injector_mode": "auto",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            server={"routes": {"*.*": "loopback_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
 
         try:

@@ -21,12 +21,12 @@ class BorrowedExtensionInjectorTests(unittest.TestCase):
             }
         ).launch()
         cdp = ModCDPClient(
-            launch={"mode": "remote"},
-            upstream={"mode": "ws", "cdp_url": chrome["cdp_url"]},
-            extension={
-                "mode": "borrow",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "remote"},
+            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+            injector={
+                "injector_mode": "borrow",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 

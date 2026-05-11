@@ -1,9 +1,5 @@
 import type { CdpCommandMessage } from "../types/modcdp.js";
-import {
-  parseHostPort,
-  UpstreamTransport,
-  type UpstreamTransportConfig,
-} from "./UpstreamTransport.js";
+import { parseHostPort, UpstreamTransport, type UpstreamTransportConfig } from "./UpstreamTransport.js";
 
 export const DEFAULT_UPSTREAM_REVERSEWS_BIND = "127.0.0.1:29292";
 export const DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS = 10_000;
@@ -43,15 +39,12 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
     upstream_reversews_wait_timeout_ms?: number | null;
   } = {}) {
     super();
-    this.wait_timeout_ms =
-      upstream_reversews_wait_timeout_ms ??
-      DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS;
+    this.wait_timeout_ms = upstream_reversews_wait_timeout_ms ?? DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS;
     this.setBind(upstream_reversews_bind ?? DEFAULT_UPSTREAM_REVERSEWS_BIND);
   }
 
   update(config: UpstreamTransportConfig = {}) {
-    if (config.upstream_reversews_bind)
-      this.setBind(config.upstream_reversews_bind);
+    if (config.upstream_reversews_bind) this.setBind(config.upstream_reversews_bind);
     if (typeof config.upstream_reversews_wait_timeout_ms === "number")
       this.wait_timeout_ms = config.upstream_reversews_wait_timeout_ms;
     return this;
@@ -80,9 +73,7 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
 
   send(message: CdpCommandMessage) {
     if (!this.socket || this.socket.readyState !== this.socket.OPEN) {
-      throw new Error(
-        `No reverse ModCDP extension peer is connected at ${this.url}.`,
-      );
+      throw new Error(`No reverse ModCDP extension peer is connected at ${this.url}.`);
     }
     this.socket.send(JSON.stringify(message));
   }
@@ -97,11 +88,7 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
       };
       const timeout = setTimeout(() => {
         this.peer_waiters.delete(waiter);
-        reject(
-          new Error(
-            `Timed out waiting ${this.wait_timeout_ms}ms for reverse ModCDP extension connection.`,
-          ),
-        );
+        reject(new Error(`Timed out waiting ${this.wait_timeout_ms}ms for reverse ModCDP extension connection.`));
       }, this.wait_timeout_ms);
       waiter = { resolve, reject, timeout };
       this.peer_waiters.add(waiter);
@@ -117,16 +104,11 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
     const server = this.server as {
       close?: (callback: () => void) => void;
     } | null;
-    if (server?.close)
-      await new Promise<void>((resolve) => server.close?.(() => resolve()));
+    if (server?.close) await new Promise<void>((resolve) => server.close?.(() => resolve()));
     this.server = null;
     for (const waiter of this.peer_waiters) {
       clearTimeout(waiter.timeout);
-      waiter.reject(
-        new Error(
-          `Reverse websocket transport at ${this.url} closed before a peer connected.`,
-        ),
-      );
+      waiter.reject(new Error(`Reverse websocket transport at ${this.url} closed before a peer connected.`));
     }
     this.peer_waiters.clear();
   }
@@ -137,22 +119,16 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
         socket.close(1008, message.slice(0, 120));
       } catch {}
     };
-    const timeout = setTimeout(
-      () => fail("reverse hello timeout"),
-      this.wait_timeout_ms,
-    );
+    const timeout = setTimeout(() => fail("reverse hello timeout"), this.wait_timeout_ms);
     socket.once("message", (buf: unknown) => {
       clearTimeout(timeout);
       let hello: ReverseHello;
       try {
         const parsed = JSON.parse(String(buf));
-        if (parsed?.type !== "modcdp.reverse.hello")
-          throw new Error("missing hello type");
+        if (parsed?.type !== "modcdp.reverse.hello") throw new Error("missing hello type");
         hello = parsed;
       } catch (error) {
-        fail(
-          `invalid reverse hello: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        fail(`invalid reverse hello: ${error instanceof Error ? error.message : String(error)}`);
         return;
       }
       if (this.socket && this.socket !== socket) {
@@ -163,11 +139,12 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
       this.socket = socket;
       this.peer_info = hello;
       socket.on("message", (data: unknown) => this.parseAndEmitRecv(data));
-      socket.on("close", () => {
+      socket.on("close", (code, reason) => {
         if (this.socket !== socket) return;
         this.socket = null;
         this.peer_info = null;
-        this.emitClose(new Error("Reverse ModCDP websocket closed"));
+        const suffix = code || reason.length ? ` (code=${code}, reason=${reason.toString()})` : "";
+        this.emitClose(new Error(`Reverse ModCDP websocket closed${suffix}`));
       });
       socket.on("error", () => {
         if (this.socket !== socket) return;

@@ -13,11 +13,13 @@ test("custom commands install flat namespace methods through a real service work
   type CustomClient = ModCDPClientInstance<{
     "Custom.doSomething": { params: { id: string }; result: boolean };
   }>;
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
@@ -51,11 +53,13 @@ test("custom events validate raw string handlers through a real service worker",
   const EventSchema = z.object({ data: z.string() });
   type Event = z.infer<typeof EventSchema>;
   type CustomClient = ModCDPClientInstance<Record<never, never>, { "Custom.someEvent": Event }>;
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

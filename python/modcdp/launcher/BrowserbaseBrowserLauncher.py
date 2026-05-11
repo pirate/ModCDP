@@ -21,10 +21,6 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
         if not browserbase_api_key:
             raise RuntimeError("launch.mode=bb requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.")
 
-        project_id = _first_string(
-            merged.get("browserbase_project_id"),
-            os.environ.get("BROWSERBASE_PROJECT_ID"),
-        )
         base_url = _first_string(
             merged.get("browserbase_base_url"),
             os.environ.get("BROWSERBASE_BASE_URL"),
@@ -54,7 +50,7 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
                 **_object_value(merged.get("browserbase_user_metadata")),
             }
             extension_id = _first_string(
-                merged.get("extension_id"),
+                merged.get("injector_extension_id"),
                 session_create_params.get("extensionId"),
                 _object_value(session_create_params.get("browserSettings")).get("extensionId"),
             )
@@ -62,7 +58,6 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
             viewport = _object_value(browser_settings.get("viewport"))
             body: dict[str, Any] = {
                 **session_create_params,
-                **({"projectId": project_id} if project_id else {}),
                 **({"keepAlive": True} if keep_alive else {}),
                 **({"region": region} if region else {}),
                 **({"timeout": merged.get("timeout")} if isinstance(merged.get("timeout"), int) else {}),
@@ -107,10 +102,7 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
                     browserbase_api_key=browserbase_api_key,
                     method="POST",
                     pathname=f"/v1/sessions/{session_id}",
-                    body={
-                        "status": "REQUEST_RELEASE",
-                        **({"projectId": project_id} if project_id else {}),
-                    },
+                    body={"status": "REQUEST_RELEASE"},
                 )
             except Exception:
                 pass

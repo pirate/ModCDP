@@ -166,6 +166,9 @@ repo/
         client/
           ModCDPClient.go
           ModCDPClient_test.go
+          // generated CDP surface stays in client package because it defines methods on ModCDPClient
+          generated.go
+          generated_domains.go
 
         launcher/
           BrowserLauncher.go
@@ -218,10 +221,6 @@ repo/
         types/
           codegen.go
           types.go
-          jsonschema.go
-          generated/
-            cdp.go
-
 
       examples/
         demo/

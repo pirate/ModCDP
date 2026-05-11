@@ -47,18 +47,16 @@ try {
   console.log("Mod.evaluate ->", worker_info);
 
   await cdp.send("Mod.addCustomEvent", { name: "Custom.proxyEvent" });
-  const event_received = new Promise<Record<string, unknown>>(
-    (resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("Timed out waiting for Custom.proxyEvent")),
-        DEFAULT_CUSTOM_PROXY_EVENT_TIMEOUT_MS,
-      );
-      cdp.on("Custom.proxyEvent", (payload) => {
-        clearTimeout(timeout);
-        resolve(payload);
-      });
-    },
-  );
+  const event_received = new Promise<Record<string, unknown>>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Timed out waiting for Custom.proxyEvent")),
+      DEFAULT_CUSTOM_PROXY_EVENT_TIMEOUT_MS,
+    );
+    cdp.on("Custom.proxyEvent", (payload) => {
+      clearTimeout(timeout);
+      resolve(payload);
+    });
+  });
 
   await cdp.send("Mod.addCustomCommand", {
     name: "Custom.proxyEcho",

@@ -20,8 +20,10 @@ test("DiscoveredExtensionInjector attaches to an already-loaded real ModCDP exte
     sandbox: process.platform !== "linux",
     extra_args: [`--load-extension=${EXTENSION_PATH}`],
   }).launch();
-  const cdp = new ModCDPClient({ launcher: { launcher_mode: "remote" },
-    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url }, injector: {
+  const cdp = new ModCDPClient({
+    launcher: { launcher_mode: "remote" },
+    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
+    injector: {
       injector_mode: "discover",
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       injector_trust_service_worker_target: true,
@@ -59,8 +61,10 @@ test("DiscoveredExtensionInjector selects the configured extension when multiple
     sandbox: process.platform !== "linux",
     extra_args: [`--load-extension=${EXTENSION_PATH},${custom_extension_path}`],
   }).launch();
-  const cdp = new ModCDPClient({ launcher: { launcher_mode: "remote" },
-    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url }, injector: {
+  const cdp = new ModCDPClient({
+    launcher: { launcher_mode: "remote" },
+    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
+    injector: {
       injector_mode: "discover",
       injector_extension_id: CUSTOM_EXTENSION_ID,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

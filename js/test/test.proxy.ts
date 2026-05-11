@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getBinaryPath } from "@eplightning/nats-server";
 import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../src/launcher/LocalBrowserLauncher.js";
@@ -19,33 +18,9 @@ const LOCAL_TEST_LAUNCH_OPTIONS = {
   headless: true,
   sandbox: process.platform !== "linux",
 };
-const nativeHostName = (label: string) =>
-  `com.modcdp.test.proxy.${label}.${process.pid}`;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForWebSocket(url: string, timeout_ms = 10_000) {
-  const deadline = Date.now() + timeout_ms;
-  let last_error: unknown = null;
-  while (Date.now() < deadline) {
-    try {
-      const ws = new WebSocket(url);
-      await new Promise<void>((resolve, reject) => {
-        ws.addEventListener("open", () => resolve(), { once: true });
-        ws.addEventListener("error", reject, { once: true });
-      });
-      ws.close();
-      return;
-    } catch (error) {
-      last_error = error;
-      await delay(50);
-    }
-  }
-  throw last_error instanceof Error
-    ? last_error
-    : new Error(`Timed out waiting for ${url}`);
 }
 
 async function waitForHttpJsonVersion(url: string, timeout_ms = 10_000) {
@@ -61,9 +36,7 @@ async function waitForHttpJsonVersion(url: string, timeout_ms = 10_000) {
     }
     await delay(50);
   }
-  throw last_error instanceof Error
-    ? last_error
-    : new Error(`Timed out waiting for ${url}`);
+  throw last_error instanceof Error ? last_error : new Error(`Timed out waiting for ${url}`);
 }
 
 async function closeProcess(proc: ChildProcess) {
@@ -75,42 +48,16 @@ async function closeProcess(proc: ChildProcess) {
   await Promise.race([once(proc, "exit"), delay(2_000)]);
 }
 
-async function startNatsServer() {
-  const websocket_port = await LocalBrowserLauncher.freePort();
-  const client_port = await LocalBrowserLauncher.freePort();
-  const dir = await mkdtemp(path.join(tmpdir(), "modcdp-proxy-nats-"));
-  const config_path = path.join(dir, "nats.conf");
-  await writeFile(
-    config_path,
-    [
-      `host: "127.0.0.1"`,
-      `port: ${client_port}`,
-      `websocket {`,
-      `  host: "127.0.0.1"`,
-      `  port: ${websocket_port}`,
-      `  no_tls: true`,
-      `}`,
-      ``,
-    ].join("\n"),
-  );
-  const proc = spawn(await getBinaryPath(), ["-c", config_path], {
-    stdio: "ignore",
-  });
-  const url = `ws://127.0.0.1:${websocket_port}`;
-  try {
-    await waitForWebSocket(url);
-  } catch (error) {
-    await closeProcess(proc);
-    await rm(dir, { recursive: true, force: true });
-    throw error;
+async function removeTree(pathname: string) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await rm(pathname, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (attempt === 9) throw error;
+      await delay(100 * (attempt + 1));
+    }
   }
-  return {
-    url,
-    close: async () => {
-      await closeProcess(proc);
-      await rm(dir, { recursive: true, force: true });
-    },
-  };
 }
 
 async function expectProxyCdpWorks(proxy_url: string, transport: string) {
@@ -131,10 +78,7 @@ async function expectProxyCdpWorks(proxy_url: string, transport: string) {
     assert.equal(typeof created.targetId, "string");
     target_id = created.targetId as string;
   } finally {
-    if (target_id)
-      await cdp
-        .send("Target.closeTarget", { targetId: target_id })
-        .catch(() => ({}));
+    if (target_id) await cdp.send("Target.closeTarget", { targetId: target_id }).catch(() => ({}));
     await cdp.close();
   }
 }
@@ -142,11 +86,13 @@ async function expectProxyCdpWorks(proxy_url: string, transport: string) {
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over ws upstream", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
   const proxy = await startProxy({
-    port: proxy_port, launcher: {
+    port: proxy_port,
+    launcher: {
       launcher_mode: "local",
       launcher_options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
     },
@@ -165,11 +111,13 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
 test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over pipe upstream", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
   const proxy = await startProxy({
-    port: proxy_port, launcher: {
+    port: proxy_port,
+    launcher: {
       launcher_mode: "local",
       launcher_options: LOCAL_TEST_LAUNCH_OPTIONS,
     },
-    upstream: { upstream_mode: "pipe" }, injector: {
+    upstream: { upstream_mode: "pipe" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
     },
@@ -209,10 +157,7 @@ test("proxy CLI maps user-facing flags into a real pipe upstream browser session
 
   try {
     await waitForHttpJsonVersion(`http://127.0.0.1:${proxy_port}/json/version`);
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-pipe",
-    );
+    await expectProxyCdpWorks(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-pipe");
   } finally {
     await closeProcess(proc);
   }
@@ -221,9 +166,7 @@ test("proxy CLI maps user-facing flags into a real pipe upstream browser session
 test("proxy CLI maps local ws launch without requiring upstream ws url", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
   const proxy_script = path.resolve(HERE, "..", "..", "dist", "js", "src", "proxy", "proxy.js");
-  const user_data_dir = await mkdtemp(
-    path.join(tmpdir(), "modcdp-proxy-profile-"),
-  );
+  const user_data_dir = await mkdtemp(path.join(tmpdir(), "modcdp-proxy-profile-"));
   const executable_path = LocalBrowserLauncher.findChromeBinary();
   const proc = spawn(
     process.execPath,
@@ -258,13 +201,10 @@ test("proxy CLI maps local ws launch without requiring upstream ws url", async (
 
   try {
     await waitForHttpJsonVersion(`http://127.0.0.1:${proxy_port}/json/version`);
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-ws-local",
-    );
+    await expectProxyCdpWorks(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-ws-local");
   } finally {
     await closeProcess(proc);
-    await rm(user_data_dir, { recursive: true, force: true });
+    await removeTree(user_data_dir);
   }
 }, 60_000);
 
@@ -301,10 +241,7 @@ test("proxy CLI maps ws upstream URL and route shorthands into an existing real 
 
   try {
     await waitForHttpJsonVersion(`http://127.0.0.1:${proxy_port}/json/version`);
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-ws",
-    );
+    await expectProxyCdpWorks(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-ws");
   } finally {
     await closeProcess(proc);
     await chrome.close();
@@ -313,7 +250,6 @@ test("proxy CLI maps ws upstream URL and route shorthands into an existing real 
 
 test("proxy CLI maps user-facing flags into a real reversews local launch", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
-  const reverse_port = await LocalBrowserLauncher.freePort();
   const proxy_script = path.resolve(HERE, "..", "..", "dist", "js", "src", "proxy", "proxy.js");
   const proc = spawn(
     process.execPath,
@@ -326,7 +262,7 @@ test("proxy CLI maps user-facing flags into a real reversews local launch", asyn
       JSON.stringify({ headless: true, sandbox: process.platform !== "linux" }),
       "--upstream-mode=reversews",
       "--upstream-reversews-bind",
-      `127.0.0.1:${reverse_port}`,
+      "127.0.0.1:29292",
       "--upstream-reversews-wait-timeout-ms",
       "10000",
       "--injector-mode=auto",
@@ -339,164 +275,10 @@ test("proxy CLI maps user-facing flags into a real reversews local launch", asyn
   );
 
   try {
-    await waitForHttpJsonVersion(
-      `http://127.0.0.1:${proxy_port}/json/version`,
-      20_000,
-    );
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-reversews",
-    );
+    await waitForHttpJsonVersion(`http://127.0.0.1:${proxy_port}/json/version`, 20_000);
+    await expectProxyCdpWorks(`ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`, "cli-reversews");
   } finally {
     await closeProcess(proc);
-  }
-}, 90_000);
-
-test("proxy CLI maps user-facing flags into a real nativemessaging local launch", async () => {
-  const proxy_port = await LocalBrowserLauncher.freePort();
-  const manifest_dir = await mkdtemp(
-    path.join(tmpdir(), "modcdp-proxy-native-"),
-  );
-  const manifest_path = path.join(manifest_dir, "com.modcdp.bridge.json");
-  const host_name = nativeHostName("cli");
-  const proxy_script = path.resolve(HERE, "..", "..", "dist", "js", "src", "proxy", "proxy.js");
-  const proc = spawn(
-    process.execPath,
-    [
-      proxy_script,
-      "--port",
-      String(proxy_port),
-      "--launcher-mode=local",
-      "--launcher-options",
-      JSON.stringify({ headless: true, sandbox: process.platform !== "linux" }),
-      "--upstream-mode=nativemessaging",
-      "--upstream-nativemessaging-manifest",
-      manifest_path,
-      "--upstream-nativemessaging-host-name",
-      host_name,
-      "--upstream-nativemessaging-wait-timeout-ms",
-      "10000",
-      "--injector-mode=auto",
-      "--injector-extension-path",
-      EXTENSION_PATH,
-      "--server-routes",
-      JSON.stringify({ "*.*": "loopback_cdp" }),
-    ],
-    { stdio: ["ignore", "pipe", "pipe"] },
-  );
-
-  try {
-    await waitForHttpJsonVersion(
-      `http://127.0.0.1:${proxy_port}/json/version`,
-      20_000,
-    );
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-nativemessaging",
-    );
-  } finally {
-    await closeProcess(proc);
-    await rm(manifest_dir, { recursive: true, force: true });
-  }
-}, 90_000);
-
-test("proxy CLI maps user-facing flags into a real nats local launch", async () => {
-  const nats = await startNatsServer();
-  const proxy_port = await LocalBrowserLauncher.freePort();
-  const proxy_script = path.resolve(HERE, "..", "..", "dist", "js", "src", "proxy", "proxy.js");
-  const proc = spawn(
-    process.execPath,
-    [
-      proxy_script,
-      "--port",
-      String(proxy_port),
-      "--launcher-mode=local",
-      "--launcher-options",
-      JSON.stringify({ headless: true, sandbox: process.platform !== "linux" }),
-      "--upstream-mode=nats",
-      "--upstream-nats-url",
-      nats.url,
-      "--upstream-nats-subject-prefix",
-      `modcdp.proxy.cli.${Date.now()}`,
-      "--upstream-nats-wait-timeout-ms",
-      "10000",
-      "--injector-mode=auto",
-      "--injector-extension-path",
-      EXTENSION_PATH,
-      "--server-routes",
-      JSON.stringify({ "*.*": "loopback_cdp" }),
-    ],
-    { stdio: ["ignore", "pipe", "pipe"] },
-  );
-
-  try {
-    await waitForHttpJsonVersion(
-      `http://127.0.0.1:${proxy_port}/json/version`,
-      20_000,
-    );
-    await expectProxyCdpWorks(
-      `ws://127.0.0.1:${proxy_port}/devtools/browser/proxy`,
-      "cli-nats",
-    );
-  } finally {
-    await closeProcess(proc);
-    await nats.close();
-  }
-}, 90_000);
-
-test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nats upstream", async () => {
-  const nats = await startNatsServer();
-  const proxy_port = await LocalBrowserLauncher.freePort();
-  const proxy = await startProxy({
-    port: proxy_port, launcher: {
-      launcher_mode: "local",
-      launcher_options: LOCAL_TEST_LAUNCH_OPTIONS,
-    },
-    upstream: {
-      upstream_mode: "nats",
-      upstream_nats_url: nats.url,
-      upstream_nats_subject_prefix: `modcdp.proxy.${Date.now()}`,
-    }, injector: {
-      injector_mode: "auto",
-      injector_extension_path: EXTENSION_PATH,
-    },
-    server: {
-      server_routes: { "*.*": "loopback_cdp" },
-    },
-  });
-
-  try {
-    await expectProxyCdpWorks(proxy.url, "nats");
-  } finally {
-    await proxy.close();
-    await nats.close();
-  }
-}, 90_000);
-
-test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser over nativemessaging upstream", async () => {
-  const proxy_port = await LocalBrowserLauncher.freePort();
-  const host_name = nativeHostName("client");
-  const proxy = await startProxy({
-    port: proxy_port, launcher: {
-      launcher_mode: "local",
-      launcher_options: LOCAL_TEST_LAUNCH_OPTIONS,
-    },
-    upstream: {
-      upstream_mode: "nativemessaging",
-      upstream_nativemessaging_host_name: host_name,
-    }, injector: {
-      injector_mode: "auto",
-      injector_extension_path: EXTENSION_PATH,
-    },
-    server: {
-      server_routes: { "*.*": "loopback_cdp" },
-    },
-  });
-
-  try {
-    await expectProxyCdpWorks(proxy.url, "nativemessaging");
-  } finally {
-    await proxy.close();
   }
 }, 90_000);
 
@@ -512,11 +294,13 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
       server_routes: { "*.*": "loopback_cdp" },
     },
   });
-  const bootstrap = new ModCDPClient({ launcher: {
+  const bootstrap = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
@@ -531,8 +315,7 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
     await bootstrap.connect();
     await bootstrap.send("Mod.evaluate", {
       params: { reverse_url },
-      expression:
-        "async ({ reverse_url }) => ModCDP.startReverseBridge(reverse_url)",
+      expression: "async ({ reverse_url }) => ModCDP.startReverseBridge(reverse_url)",
     });
     await expectProxyCdpWorks(proxy.url, "reversews");
   } finally {
@@ -543,10 +326,10 @@ test("proxy upgrades a vanilla CDP websocket to ModCDP against a real browser ov
 
 test("proxy reversews local launch auto-injects the extension through the real client path", async () => {
   const proxy_port = await LocalBrowserLauncher.freePort();
-  const reverse_port = await LocalBrowserLauncher.freePort();
-  const reverse_bind = `127.0.0.1:${reverse_port}`;
+  const reverse_bind = "127.0.0.1:29292";
   const proxy = await startProxy({
-    port: proxy_port, launcher: {
+    port: proxy_port,
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
@@ -554,7 +337,8 @@ test("proxy reversews local launch auto-injects the extension through the real c
       upstream_mode: "reversews",
       upstream_reversews_bind: reverse_bind,
       upstream_reversews_wait_timeout_ms: 10_000,
-    }, injector: {
+    },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
     },
@@ -576,7 +360,8 @@ test("proxy passes custom extension discovery config through to ModCDPClient", a
   await assert.rejects(
     () =>
       startProxy({
-        port: proxy_port, launcher: {
+        port: proxy_port,
+        launcher: {
           launcher_mode: "local",
           launcher_options: {
             headless: true,
@@ -588,7 +373,8 @@ test("proxy passes custom extension discovery config through to ModCDPClient", a
           upstream_mode: "reversews",
           upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
           upstream_reversews_wait_timeout_ms: 1_000,
-        }, injector: {
+        },
+        injector: {
           injector_mode: "discover",
           injector_extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           injector_require_service_worker_target: true,

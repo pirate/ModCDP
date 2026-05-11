@@ -42,9 +42,12 @@ export class BBBrowserExtensionInjector extends ExtensionInjector {
     const extension_id = this.options.injector_extension_id;
     this.options.injector_extension_id = null;
     try {
-      const discovered = await this.waitForReadyServiceWorker(this.options.injector_service_worker_ready_timeout_ms ?? 60_000, {
-        matched_only: this.options.injector_trust_service_worker_target,
-      });
+      const discovered = await this.waitForReadyServiceWorker(
+        this.options.injector_service_worker_ready_timeout_ms ?? 60_000,
+        {
+          matched_only: this.options.injector_trust_service_worker_target,
+        },
+      );
       return discovered ? { ...discovered, source: "bb" } : null;
     } finally {
       this.options.injector_extension_id = extension_id;
@@ -72,7 +75,9 @@ export class BBBrowserExtensionInjector extends ExtensionInjector {
   private async uploadExtension(zip_path: string) {
     const browserbase_api_key = firstString(this.options.injector_browserbase_api_key, process.env.BROWSERBASE_API_KEY);
     if (!browserbase_api_key) {
-      throw new Error("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key.");
+      throw new Error(
+        "BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key.",
+      );
     }
     const base_url =
       firstString(this.options.injector_browserbase_base_url, process.env.BROWSERBASE_BASE_URL) ??

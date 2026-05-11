@@ -23,13 +23,13 @@ class BBBrowserExtensionInjector(ExtensionInjector):
         self.cleanup_dir: tempfile.TemporaryDirectory[str] | None = None
 
     def prepare(self) -> None:
-        configured_extension_id = _first_string(self.options.get("extension_id"))
+        configured_extension_id = _first_string(self.options.get("injector_extension_id"))
         if configured_extension_id:
             self.extension_id = configured_extension_id
             return
         if self.extension_id:
             return
-        extension_path = self.options.get("extension_path")
+        extension_path = self.options.get("injector_extension_path")
         if not extension_path:
             return
         self.zip_path = extension_path if extension_path.endswith(".zip") else self._zipExtensionDir(extension_path)
@@ -42,19 +42,19 @@ class BBBrowserExtensionInjector(ExtensionInjector):
     def getLauncherConfig(self) -> BrowserLaunchOptions:
         if not self.extension_id:
             return {}
-        return {"extension_id": self.extension_id}
+        return {"injector_extension_id": self.extension_id}
 
     def inject(self) -> ExtensionInjectionResult | None:
-        extension_id = self.options.get("extension_id")
-        self.options["extension_id"] = None
+        extension_id = self.options.get("injector_extension_id")
+        self.options["injector_extension_id"] = None
         try:
             discovered = self._waitForReadyServiceWorker(
-                self.options.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
-                matched_only=bool(self.options.get("trust_service_worker_target")),
+                self.options.get("injector_service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS,
+                matched_only=bool(self.options.get("injector_trust_service_worker_target")),
             )
             return {**discovered, "source": "bb"} if discovered else None
         finally:
-            self.options["extension_id"] = extension_id
+            self.options["injector_extension_id"] = extension_id
 
     def close(self) -> None:
         if self.cleanup_dir:
@@ -71,11 +71,11 @@ class BBBrowserExtensionInjector(ExtensionInjector):
         return zip_path
 
     def _uploadExtension(self, zip_path: str) -> str:
-        browserbase_api_key = _first_string(self.options.get("browserbase_api_key"), os.environ.get("BROWSERBASE_API_KEY"))
+        browserbase_api_key = _first_string(self.options.get("injector_browserbase_api_key"), os.environ.get("BROWSERBASE_API_KEY"))
         if not browserbase_api_key:
             raise RuntimeError("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.")
         base_url = _first_string(
-            self.options.get("browserbase_base_url"),
+            self.options.get("injector_browserbase_base_url"),
             os.environ.get("BROWSERBASE_BASE_URL"),
         ) or DEFAULT_BROWSERBASE_BASE_URL
         boundary = f"----modcdp-{uuid.uuid4().hex}"

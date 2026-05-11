@@ -8,13 +8,14 @@
   "files": [
     "js/src/**/*.ts",
     "js/examples/**/*.ts",
+    "js/scripts/**/*.mjs",
     "dist/**/*",
     "dist/extension.zip",
     "extension/src/**/*.ts",
     "extension/src/pages/**/*",
     "extension/manifest.json",
     "python/modcdp/extension.zip",
-    "go/modcdp/extension.zip"
+    "go/modcdp/injector/extension.zip"
   ],
   "type": "module",
   "exports": {
@@ -112,6 +113,10 @@
       "types": "./js/src/proxy/proxy.ts",
       "import": "./dist/js/src/proxy/proxy.js"
     },
+    "./proxy/cli.js": {
+      "types": "./js/src/proxy/cli.ts",
+      "import": "./dist/js/src/proxy/cli.js"
+    },
     "./translate/translate.js": "./dist/js/src/translate/translate.js",
     "./types/*": "./dist/js/src/types/*",
     "./types/generated/*": "./dist/js/src/types/generated/*"
@@ -121,7 +126,7 @@
     "build": "pnpm run build:package && pnpm run build:extension-assets && pnpm run build:python-readme",
     "build:clean": "pnpm run clean && pnpm run build",
     "build:package": "tsc -p tsconfig.json && rm -rf dist/js/test",
-    "build:extension-assets": "node -e \"const fs = require('node:fs'); fs.mkdirSync('dist/extension/offscreen', { recursive: true }); fs.mkdirSync('dist/extension/modcdp', { recursive: true }); fs.mkdirSync('dist/extension/js/src/server', { recursive: true }); fs.copyFileSync('extension/manifest.json', 'dist/extension/manifest.json'); fs.copyFileSync('extension/src/pages/options.html', 'dist/extension/options.html'); fs.copyFileSync('dist/extension/src/pages/options.js', 'dist/extension/options.js'); fs.copyFileSync('extension/src/pages/wake.html', 'dist/extension/modcdp/wake.html'); fs.copyFileSync('dist/extension/src/pages/wake.js', 'dist/extension/modcdp/wake.js'); fs.copyFileSync('dist/js/src/server/ModCDPServer.js', 'dist/extension/js/src/server/ModCDPServer.js'); if (fs.existsSync('dist/js/src/server/ModCDPServer.js.map')) fs.copyFileSync('dist/js/src/server/ModCDPServer.js.map', 'dist/extension/js/src/server/ModCDPServer.js.map'); fs.copyFileSync('dist/extension/src/config.js', 'dist/extension/config.js'); fs.writeFileSync('dist/extension/modcdp/service_worker.js', fs.readFileSync('dist/extension/src/service_worker.js', 'utf8').replace('./config.js', '../config.js')); fs.copyFileSync('dist/extension/src/service_worker.js.map', 'dist/extension/modcdp/service_worker.js.map'); fs.copyFileSync('extension/src/pages/offscreen_keepalive.html', 'dist/extension/offscreen/keepalive.html'); fs.copyFileSync('dist/extension/src/pages/offscreen_keepalive.js', 'dist/extension/offscreen/keepalive.js');\" && find dist/extension -exec touch -t 200001010000 {} + && cd dist && rm -f extension.zip && zip -X -qr extension.zip extension && cd .. && mkdir -p python/modcdp go/modcdp/injector && cp dist/extension.zip python/modcdp/extension.zip && cp dist/extension.zip go/modcdp/injector/extension.zip",
+    "build:extension-assets": "node js/scripts/build-extension-assets.mjs",
     "build:python-readme": "mkdir -p python && if [ README.md -ef python/README.md ]; then :; else cp README.md python/README.md; fi",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "pnpm exec prek run --all-files",
@@ -132,9 +137,9 @@
     "demo:go": "pnpm run build && cd go && go run ./examples/demo",
     "demo:proxy:playwright": "pnpm run build && node dist/js/examples/playwright.js",
     "demo:proxy:puppeteer": "pnpm run build && node dist/js/examples/puppeteer.js",
-    "proxy": "pnpm run build && node dist/js/src/proxy/proxy.js",
+    "proxy": "pnpm run build && node dist/js/src/proxy/cli.js",
     "test": "pnpm run build && vitest run --fileParallelism=false",
-    "test:launchers": "vitest run js/test/test.LocalBrowserLauncher.ts js/test/test.RemoteBrowserLauncher.ts js/test/test.BrowserbaseBrowserLauncher.ts js/test/test.NoopBrowserLauncher.ts",
+    "test:launchers": "vitest run js/test/test.LocalBrowserLauncher.ts js/test/test.RemoteBrowserLauncher.ts js/test/test.BrowserbaseBrowserLauncher.ts",
     "pack:npm": "pnpm run build && npm pack --ignore-scripts",
     "prepare": "pnpm run build"
   },

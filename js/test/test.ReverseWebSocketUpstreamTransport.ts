@@ -13,10 +13,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
 
 test("reversews upstream config owns bind updates, wait timeout, and injector config", async () => {
-  const transport = new ReverseWebSocketUpstreamTransport({ upstream_reversews_bind: "127.0.0.1:29292", upstream_reversews_wait_timeout_ms: 10 });
+  const transport = new ReverseWebSocketUpstreamTransport({
+    upstream_reversews_bind: "127.0.0.1:29292",
+    upstream_reversews_wait_timeout_ms: 10,
+  });
   assert.equal(transport.url, "ws://127.0.0.1:29292");
   assert.deepEqual(transport.getInjectorConfig(), { upstream_reversews_url: "ws://127.0.0.1:29292" });
-  assert.equal(transport.update({ upstream_reversews_bind: "127.0.0.1:29293", upstream_reversews_wait_timeout_ms: 5 }), transport);
+  assert.equal(
+    transport.update({ upstream_reversews_bind: "127.0.0.1:29293", upstream_reversews_wait_timeout_ms: 5 }),
+    transport,
+  );
   assert.equal(transport.url, "ws://127.0.0.1:29293");
   assert.deepEqual(transport.getInjectorConfig(), { upstream_reversews_url: "ws://127.0.0.1:29293" });
   await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms/);
@@ -24,7 +30,10 @@ test("reversews upstream config owns bind updates, wait timeout, and injector co
 
 test("reversews upstream close rejects pending peer waits", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
-  const transport = new ReverseWebSocketUpstreamTransport({ upstream_reversews_bind: `127.0.0.1:${reverse_port}`, upstream_reversews_wait_timeout_ms: 5_000 });
+  const transport = new ReverseWebSocketUpstreamTransport({
+    upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
+    upstream_reversews_wait_timeout_ms: 5_000,
+  });
   const pending = transport.waitForPeer();
 
   await transport.close();
@@ -37,7 +46,10 @@ test("reversews upstream close rejects pending peer waits", async () => {
 
 test("reversews upstream close resets peer wait state", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
-  const transport = new ReverseWebSocketUpstreamTransport({ upstream_reversews_bind: `127.0.0.1:${reverse_port}`, upstream_reversews_wait_timeout_ms: 5 });
+  const transport = new ReverseWebSocketUpstreamTransport({
+    upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
+    upstream_reversews_wait_timeout_ms: 5,
+  });
   await transport.connect();
   const peer = new WebSocket(transport.url);
   await once(peer, "open");
@@ -58,7 +70,10 @@ test("reversews upstream close resets peer wait state", async () => {
 
 test("reversews upstream waits again after a peer disconnects", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
-  const transport = new ReverseWebSocketUpstreamTransport({ upstream_reversews_bind: `127.0.0.1:${reverse_port}`, upstream_reversews_wait_timeout_ms: 5 });
+  const transport = new ReverseWebSocketUpstreamTransport({
+    upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
+    upstream_reversews_wait_timeout_ms: 5,
+  });
   await transport.connect();
   const peer = new WebSocket(transport.url);
   await once(peer, "open");
@@ -78,7 +93,10 @@ test("reversews upstream waits again after a peer disconnects", async () => {
 
 test("reversews upstream accepts a replacement peer after disconnect", async () => {
   const reverse_port = await LocalBrowserLauncher.freePort();
-  const transport = new ReverseWebSocketUpstreamTransport({ upstream_reversews_bind: `127.0.0.1:${reverse_port}`, upstream_reversews_wait_timeout_ms: 500 });
+  const transport = new ReverseWebSocketUpstreamTransport({
+    upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
+    upstream_reversews_wait_timeout_ms: 500,
+  });
   await transport.connect();
   const first_peer = new WebSocket(transport.url);
   await once(first_peer, "open");
@@ -105,14 +123,15 @@ test("reversews upstream accepts a replacement peer after disconnect", async () 
 });
 
 test("reversews upstream accepts a real extension reverse connection and routes CDP through loopback", async () => {
-  const reverse_port = await LocalBrowserLauncher.freePort();
-  const reverse_bind = `127.0.0.1:${reverse_port}`;
+  const reverse_bind = "127.0.0.1:29292";
   const reverse_url = `ws://${reverse_bind}`;
-  const reverse = new ModCDPClient({ launcher: {
+  const reverse = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "reversews", upstream_reversews_bind: reverse_bind }, injector: {
+    upstream: { upstream_mode: "reversews", upstream_reversews_bind: reverse_bind },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

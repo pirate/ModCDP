@@ -3,86 +3,36 @@ package injector_test
 import (
 	"fmt"
 	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
-	. "github.com/pirate/ModCDP/go/modcdp/injector"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"testing"
 )
 
-func TestBBBrowserExtensionInjectorUsesConfiguredExtensionID(t *testing.T) {
-	injector := NewBBBrowserExtensionInjector(ExtensionInjectorConfig{
-		ExtensionID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	})
-	if err := injector.Prepare(); err != nil {
-		t.Fatal(err)
-	}
-	launchConfig := injector.GetLauncherConfig()
-	if launchConfig.ExtensionID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Fatalf("ExtensionID = %q", launchConfig.ExtensionID)
-	}
-}
-
-func TestBBBrowserExtensionInjectorDoesNotUploadWhenNoExtensionPathOrIDIsConfigured(t *testing.T) {
-	injector := NewBBBrowserExtensionInjector(ExtensionInjectorConfig{})
-	if err := injector.Prepare(); err != nil {
-		t.Fatal(err)
-	}
-	launchConfig := injector.GetLauncherConfig()
-	if launchConfig.ExtensionID != "" {
-		t.Fatalf("ExtensionID = %q", launchConfig.ExtensionID)
-	}
-	if injector.ZipPath != "" {
-		t.Fatalf("ZipPath = %q", injector.ZipPath)
-	}
-}
-
-func TestBBBrowserExtensionInjectorRequiresAPIKeyWhenExtensionUploadIsNeeded(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) != "" {
-		t.Skip("BROWSERBASE_API_KEY is set")
-	}
-	extensionPath, err := filepath.Abs("../../../dist/extension")
-	if err != nil {
-		t.Fatal(err)
-	}
-	injector := NewBBBrowserExtensionInjector(ExtensionInjectorConfig{
-		ExtensionPath: extensionPath,
-	})
-	if err := injector.Prepare(); err == nil || !strings.Contains(err.Error(), "BROWSERBASE_API_KEY") {
-		t.Fatalf("expected missing key error, got %v", err)
-	}
-	if injector.CleanupPath != "" {
-		t.Fatalf("CleanupPath = %q", injector.CleanupPath)
-	}
-}
-
 func TestBBBrowserExtensionInjectorUploadsRealExtensionAndLaunchesBrowserbaseBrowserWithItInstalled(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("BROWSERBASE_API_KEY")) == "" {
-		t.Skip("BROWSERBASE_API_KEY is required for live Browserbase tests")
+	if os.Getenv("BROWSERBASE_API_KEY") == "" {
+		t.Fatal("BROWSERBASE_API_KEY is required for live Browserbase tests")
 	}
 	extensionPath, err := filepath.Abs("../../../dist/extension")
 	if err != nil {
 		t.Fatal(err)
 	}
 	launchOptions := modcdp.LaunchOptions{
-		BrowserbaseProjectID: os.Getenv("BROWSERBASE_PROJECT_ID"),
-		Timeout:              120,
+		Timeout: 120,
 	}
 	if region := os.Getenv("BROWSERBASE_REGION"); region != "" {
 		launchOptions.Region = region
 	}
 	cdp := modcdp.New(modcdp.Options{
-		Launch: modcdp.LaunchConfig{
-			Mode:    "bb",
-			Options: launchOptions,
+		Launcher: modcdp.LauncherConfig{LauncherMode:    "bb",
+			LauncherOptions: launchOptions,
 		},
-		Upstream: modcdp.UpstreamConfig{Mode: "ws"},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "inject",
-			Path:                     extensionPath,
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "inject",
+			InjectorExtensionPath:                     extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
 	})
 	defer cdp.Close()

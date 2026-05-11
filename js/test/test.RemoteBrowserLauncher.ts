@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { LocalBrowserLauncher } from "../src/launcher/LocalBrowserLauncher.js";
 import { RemoteBrowserLauncher } from "../src/launcher/RemoteBrowserLauncher.js";
-import {
-  CdpSocket,
-  expectCdpBrowserSurface,
-} from "./helpers.BrowserLauncher.js";
+import { CdpSocket, expectCdpBrowserSurface } from "./helpers.BrowserLauncher.js";
 
 const LIVE_BROWSER_TIMEOUT_MS = 60_000;
 
@@ -30,10 +27,7 @@ describe("RemoteBrowserLauncher", () => {
 
       try {
         const http_endpoint = `http://127.0.0.1:${local.port}`;
-        const fromHttp = await new RemoteBrowserLauncher(
-          {},
-          http_endpoint,
-        ).launch();
+        const fromHttp = await new RemoteBrowserLauncher({}, http_endpoint).launch();
         expect(fromHttp.cdp_url).toBe(local.cdp_url);
         cdp = await CdpSocket.connect(fromHttp.cdp_url!);
         await expectCdpBrowserSurface(cdp);

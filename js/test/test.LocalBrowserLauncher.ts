@@ -23,9 +23,7 @@ describe("LocalBrowserLauncher", () => {
     "launches a real browser over a chosen CDP port and honors launch options",
     { timeout: LIVE_BROWSER_TIMEOUT_MS },
     async () => {
-      const userDataDir = await mkdtemp(
-        path.join(tmpdir(), "modcdp-local-profile-"),
-      );
+      const userDataDir = await mkdtemp(path.join(tmpdir(), "modcdp-local-profile-"));
       const port = await LocalBrowserLauncher.freePort();
       const chrome = await new LocalBrowserLauncher({
         headless: true,
@@ -41,13 +39,9 @@ describe("LocalBrowserLauncher", () => {
 
       try {
         expect(chrome.port).toBe(port);
-        expect(chrome.cdp_url).toEqual(
-          expect.stringMatching(new RegExp(`^ws://127\\.0\\.0\\.1:${port}/`)),
-        );
+        expect(chrome.cdp_url).toEqual(expect.stringMatching(new RegExp(`^ws://127\\.0\\.0\\.1:${port}/`)));
         expect(chrome.profile_dir).toBe(userDataDir);
-        expect(
-          (chrome.proc as { spawnargs?: string[] }).spawnargs ?? [],
-        ).toEqual(
+        expect((chrome.proc as { spawnargs?: string[] }).spawnargs ?? []).toEqual(
           expect.arrayContaining([
             "--enable-unsafe-extension-debugging",
             "--remote-allow-origins=*",
@@ -62,7 +56,6 @@ describe("LocalBrowserLauncher", () => {
             "--disable-sync",
             "--disable-features=DisableLoadExtensionCommandLineSwitch",
             "--password-store=basic",
-            "--use-mock-keychain",
             "--window-size=900,700",
           ]),
         );
@@ -97,10 +90,7 @@ describe("LocalBrowserLauncher", () => {
         expect(chrome.cdp_url).toEqual(expect.stringMatching(/^pipe:\/\/\d+/));
         expect(chrome.pipe_read).toBeTruthy();
         expect(chrome.pipe_write).toBeTruthy();
-        const pipeCdp = new PipeCdpSocket(
-          chrome.pipe_read!,
-          chrome.pipe_write!,
-        );
+        const pipeCdp = new PipeCdpSocket(chrome.pipe_read!, chrome.pipe_write!);
         await expectCdpBrowserSurface(pipeCdp);
       } finally {
         await chrome.close();
@@ -119,9 +109,7 @@ describe("LocalBrowserLauncher", () => {
     "removes an explicit user data dir when cleanup_user_data_dir is set",
     { timeout: LIVE_BROWSER_TIMEOUT_MS },
     async () => {
-      const userDataDir = await mkdtemp(
-        path.join(tmpdir(), "modcdp-local-profile-"),
-      );
+      const userDataDir = await mkdtemp(path.join(tmpdir(), "modcdp-local-profile-"));
       const chrome = await new LocalBrowserLauncher({
         headless: true,
         sandbox: process.platform !== "linux",

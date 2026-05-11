@@ -110,7 +110,12 @@ class LocalBrowserLauncher(BrowserLauncher):
             }
             return self.launched
 
-        process = subprocess.Popen([executable_path, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen(
+            [executable_path, *args],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=not sys.platform.startswith("win"),
+        )
         cdp_url = f"http://127.0.0.1:{port}"
         timeout_s = int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS) / 1000
         poll_s = int(merged.get("chrome_ready_poll_interval_ms") or DEFAULT_CHROME_READY_POLL_INTERVAL_MS) / 1000
@@ -310,16 +315,40 @@ def _close(
                 pipe.close()
         except Exception:
             pass
-    process.terminate()
+    _signal_process(process, signal.SIGTERM)
     try:
         process.wait(timeout=2)
     except subprocess.TimeoutExpired:
-        process.kill()
+        _signal_process(process, signal.SIGKILL)
         process.wait(timeout=2)
     if temp_profile_dir:
         temp_profile_dir.cleanup()
     if cleanup_profile_dir:
-        shutil.rmtree(cleanup_profile_dir, ignore_errors=True)
+        _remove_profile_dir(cleanup_profile_dir)
+
+
+def _signal_process(process: _ChromeProcess, sig: signal.Signals) -> None:
+    if not sys.platform.startswith("win"):
+        try:
+            os.killpg(process.pid, sig)
+            return
+        except ProcessLookupError:
+            return
+        except Exception:
+            pass
+    if sig == signal.SIGKILL:
+        process.kill()
+    else:
+        process.terminate()
+
+
+def _remove_profile_dir(profile_dir: str) -> None:
+    for attempt in range(5):
+        shutil.rmtree(profile_dir, ignore_errors=True)
+        if not Path(profile_dir).exists():
+            return
+        time.sleep(0.1 * (attempt + 1))
+    shutil.rmtree(profile_dir, ignore_errors=True)
 
 
 def _free_port() -> int:

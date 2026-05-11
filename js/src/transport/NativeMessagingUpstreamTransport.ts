@@ -4,10 +4,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import type { CdpCommandMessage } from "../types/modcdp.js";
 import { DEFAULT_MODCDP_EXTENSION_ID } from "../injector/ExtensionInjector.js";
-import {
-  UpstreamTransport,
-  type UpstreamTransportConfig,
-} from "./UpstreamTransport.js";
+import { UpstreamTransport, type UpstreamTransportConfig } from "./UpstreamTransport.js";
 
 export const DEFAULT_UPSTREAM_NATIVEMESSAGING_HOST_NAME = "com.modcdp.bridge";
 export const DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS = 10_000;
@@ -50,14 +47,11 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
   }: NativeMessagingOptions = {}) {
     super();
     this.upstream_nativemessaging_manifest = upstream_nativemessaging_manifest;
-    this.upstream_nativemessaging_manifests =
-      upstream_nativemessaging_manifests ?? [];
+    this.upstream_nativemessaging_manifests = upstream_nativemessaging_manifests ?? [];
     this.include_default_manifest_paths =
-      !upstream_nativemessaging_manifest &&
-      !upstream_nativemessaging_manifests?.length;
+      !upstream_nativemessaging_manifest && !upstream_nativemessaging_manifests?.length;
     this.upstream_nativemessaging_host_name =
-      upstream_nativemessaging_host_name ||
-      DEFAULT_UPSTREAM_NATIVEMESSAGING_HOST_NAME;
+      upstream_nativemessaging_host_name || DEFAULT_UPSTREAM_NATIVEMESSAGING_HOST_NAME;
     this.extension_id = injector_extension_id || DEFAULT_MODCDP_EXTENSION_ID;
     this.wait_timeout_ms = upstream_nativemessaging_wait_timeout_ms;
   }
@@ -65,21 +59,17 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
   update(config: UpstreamTransportConfig = {}) {
     let should_install_native_host = false;
     if (config.upstream_nativemessaging_manifest !== undefined) {
-      this.upstream_nativemessaging_manifest =
-        config.upstream_nativemessaging_manifest;
+      this.upstream_nativemessaging_manifest = config.upstream_nativemessaging_manifest;
       should_install_native_host = true;
     }
     if (config.upstream_nativemessaging_manifests !== undefined) {
-      this.upstream_nativemessaging_manifests =
-        config.upstream_nativemessaging_manifests ?? [];
+      this.upstream_nativemessaging_manifests = config.upstream_nativemessaging_manifests ?? [];
       should_install_native_host = true;
     }
     this.include_default_manifest_paths =
-      !this.upstream_nativemessaging_manifest &&
-      this.upstream_nativemessaging_manifests.length === 0;
+      !this.upstream_nativemessaging_manifest && this.upstream_nativemessaging_manifests.length === 0;
     if (config.upstream_nativemessaging_host_name) {
-      this.upstream_nativemessaging_host_name =
-        config.upstream_nativemessaging_host_name;
+      this.upstream_nativemessaging_host_name = config.upstream_nativemessaging_host_name;
       should_install_native_host = true;
     }
     if (typeof config.upstream_nativemessaging_wait_timeout_ms === "number")
@@ -93,8 +83,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
       this.user_data_dir = config.user_data_dir;
       should_install_native_host = true;
     }
-    if (should_install_native_host && this.bound_port != null)
-      this.installNativeHost(this.bound_port);
+    if (should_install_native_host && this.bound_port != null) this.installNativeHost(this.bound_port);
     this.cdp_url = config.cdp_url ?? this.cdp_url;
     return this;
   }
@@ -105,8 +94,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
 
   getInjectorConfig() {
     return {
-      upstream_nativemessaging_host_name:
-        this.upstream_nativemessaging_host_name,
+      upstream_nativemessaging_host_name: this.upstream_nativemessaging_host_name,
     };
   }
 
@@ -122,8 +110,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
       server.listen(0, "127.0.0.1", () => resolve());
     });
     const address = server.address();
-    if (!address || typeof address === "string")
-      throw new Error("Native messaging bridge did not bind a TCP port.");
+    if (!address || typeof address === "string") throw new Error("Native messaging bridge did not bind a TCP port.");
     this.url = `native://${this.upstream_nativemessaging_host_name}@127.0.0.1:${address.port}`;
     this.bound_port = address.port;
     this.installNativeHost(address.port);
@@ -131,9 +118,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
 
   send(message: CdpCommandMessage) {
     if (!this.socket || this.socket.destroyed)
-      throw new Error(
-        `No native messaging peer is connected for ${this.upstream_nativemessaging_host_name}.`,
-      );
+      throw new Error(`No native messaging peer is connected for ${this.upstream_nativemessaging_host_name}.`);
     writeLengthPrefixedJSON(this.socket, message);
   }
 
@@ -163,8 +148,7 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
       this.socket?.destroy();
     } catch {}
     this.socket = null;
-    if (this.server)
-      await new Promise<void>((resolve) => this.server.close(() => resolve()));
+    if (this.server) await new Promise<void>((resolve) => this.server.close(() => resolve()));
     this.server = null;
     for (const waiter of this.peer_waiters) {
       clearTimeout(waiter.timeout);
@@ -210,48 +194,27 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
     const hostDir = path.join(os.homedir(), ".modcdp", "native-messaging");
     fs.mkdirSync(hostDir, { recursive: true });
 
-    const configPath = path.join(
-      hostDir,
-      `${this.upstream_nativemessaging_host_name}.config.json`,
-    );
-    const hostScriptPath = path.join(
-      hostDir,
-      `${this.upstream_nativemessaging_host_name}.mjs`,
-    );
+    const configPath = path.join(hostDir, `${this.upstream_nativemessaging_host_name}.config.json`);
+    const hostScriptPath = path.join(hostDir, `${this.upstream_nativemessaging_host_name}.mjs`);
     const hostExecutablePath = path.join(
       hostDir,
       `${this.upstream_nativemessaging_host_name}${process.platform === "win32" ? ".cmd" : ".sh"}`,
     );
-    fs.writeFileSync(
-      configPath,
-      JSON.stringify({ host: "127.0.0.1", port }, null, 2),
-    );
+    fs.writeFileSync(configPath, JSON.stringify({ host: "127.0.0.1", port }, null, 2));
     fs.writeFileSync(hostScriptPath, nativeHostScript(configPath));
-    fs.writeFileSync(
-      hostExecutablePath,
-      nativeHostWrapper(process.execPath, hostScriptPath),
-    );
+    fs.writeFileSync(hostExecutablePath, nativeHostWrapper(process.execPath, hostScriptPath));
     fs.chmodSync(hostExecutablePath, 0o755);
 
     const manifestPaths =
-      this.upstream_nativemessaging_manifest ||
-      this.upstream_nativemessaging_manifests.length > 0
+      this.upstream_nativemessaging_manifest || this.upstream_nativemessaging_manifests.length > 0
         ? [
-            ...(this.upstream_nativemessaging_manifest
-              ? [this.upstream_nativemessaging_manifest]
-              : []),
+            ...(this.upstream_nativemessaging_manifest ? [this.upstream_nativemessaging_manifest] : []),
             ...this.upstream_nativemessaging_manifests,
             ...(this.include_default_manifest_paths
-              ? defaultNativeMessagingManifestPaths(
-                  this.upstream_nativemessaging_host_name,
-                  os.homedir(),
-                )
+              ? defaultNativeMessagingManifestPaths(this.upstream_nativemessaging_host_name, os.homedir())
               : []),
           ]
-        : defaultNativeMessagingManifestPaths(
-            this.upstream_nativemessaging_host_name,
-            os.homedir(),
-          );
+        : defaultNativeMessagingManifestPaths(this.upstream_nativemessaging_host_name, os.homedir());
     const manifest = JSON.stringify(
       {
         name: this.upstream_nativemessaging_host_name,
@@ -268,21 +231,14 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
       fs.writeFileSync(manifestPath, manifest);
     }
     if (process.platform === "win32" && manifestPaths[0]) {
-      registerWindowsNativeMessagingHost(
-        this.upstream_nativemessaging_host_name,
-        manifestPaths[0],
-      );
+      registerWindowsNativeMessagingHost(this.upstream_nativemessaging_host_name, manifestPaths[0]);
     }
   }
 
   private setProfileManifestPaths(user_data_dir: string) {
     const previous_profile_manifest_paths = this.user_data_dir
       ? [
-          path.join(
-            this.user_data_dir,
-            "NativeMessagingHosts",
-            `${this.upstream_nativemessaging_host_name}.json`,
-          ),
+          path.join(this.user_data_dir, "NativeMessagingHosts", `${this.upstream_nativemessaging_host_name}.json`),
           path.join(
             this.user_data_dir,
             "Default",
@@ -292,35 +248,21 @@ export class NativeMessagingUpstreamTransport extends UpstreamTransport {
         ]
       : [];
     const profile_manifest_paths = [
-      path.join(
-        user_data_dir,
-        "NativeMessagingHosts",
-        `${this.upstream_nativemessaging_host_name}.json`,
-      ),
-      path.join(
-        user_data_dir,
-        "Default",
-        "NativeMessagingHosts",
-        `${this.upstream_nativemessaging_host_name}.json`,
-      ),
+      path.join(user_data_dir, "NativeMessagingHosts", `${this.upstream_nativemessaging_host_name}.json`),
+      path.join(user_data_dir, "Default", "NativeMessagingHosts", `${this.upstream_nativemessaging_host_name}.json`),
     ];
     this.upstream_nativemessaging_manifests = [
       ...profile_manifest_paths,
       ...this.upstream_nativemessaging_manifests.filter(
         (upstream_nativemessaging_manifest) =>
-          !previous_profile_manifest_paths.includes(
-            upstream_nativemessaging_manifest,
-          ) &&
+          !previous_profile_manifest_paths.includes(upstream_nativemessaging_manifest) &&
           !profile_manifest_paths.includes(upstream_nativemessaging_manifest),
       ),
     ];
   }
 }
 
-function defaultNativeMessagingManifestPaths(
-  upstream_nativemessaging_host_name: string,
-  home: string,
-) {
+function defaultNativeMessagingManifestPaths(upstream_nativemessaging_host_name: string, home: string) {
   if (process.platform === "darwin") {
     return [
       `${home}/Library/Application Support/Google/Chrome/NativeMessagingHosts/${upstream_nativemessaging_host_name}.json`,
@@ -340,18 +282,9 @@ function defaultNativeMessagingManifestPaths(
     ];
   }
   if (process.platform === "win32") {
-    return [
-      path.join(
-        home,
-        ".modcdp",
-        "native-messaging",
-        `${upstream_nativemessaging_host_name}.json`,
-      ),
-    ];
+    return [path.join(home, ".modcdp", "native-messaging", `${upstream_nativemessaging_host_name}.json`)];
   }
-  throw new Error(
-    "upstream_nativemessaging_manifest is required on this platform.",
-  );
+  throw new Error("upstream_nativemessaging_manifest is required on this platform.");
 }
 
 function nativeHostWrapper(node_path: string, host_script_path: string) {
@@ -385,10 +318,7 @@ function registerWindowsNativeMessagingHost(
   );
 }
 
-function writeLengthPrefixedJSON(
-  stream: { write: (chunk: Buffer) => void },
-  message: unknown,
-) {
+function writeLengthPrefixedJSON(stream: { write: (chunk: Buffer) => void }, message: unknown) {
   const body = Buffer.from(JSON.stringify(message), "utf8");
   const header = Buffer.alloc(4);
   header.writeUInt32LE(body.length, 0);

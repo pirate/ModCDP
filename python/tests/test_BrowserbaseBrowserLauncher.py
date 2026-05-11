@@ -15,12 +15,12 @@ from modcdp.launcher.BrowserbaseBrowserLauncher import BrowserbaseBrowserLaunche
 LIVE_BROWSERBASE_TIMEOUT_S = 120
 
 
-@unittest.skipUnless(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is required for live Browserbase tests")
 class BrowserbaseBrowserLauncherTests(unittest.TestCase):
     def test_creates_verifies_resumes_and_releases_real_browserbase_session(self) -> None:
+        if not os.environ.get("BROWSERBASE_API_KEY", "").strip():
+            self.fail("BROWSERBASE_API_KEY is required for live Browserbase tests")
         launcher = BrowserbaseBrowserLauncher(
             cast(Any, {
-                "browserbase_project_id": os.environ.get("BROWSERBASE_PROJECT_ID"),
                 "timeout": 120,
                 **({"region": os.environ["BROWSERBASE_REGION"]} if os.environ.get("BROWSERBASE_REGION") else {}),
                 "browserbase_browser_settings": {
@@ -50,8 +50,6 @@ class BrowserbaseBrowserLauncherTests(unittest.TestCase):
             retrieved = _retrieve_browserbase_session(session_id)
             self.assertEqual(retrieved.get("id"), session_id)
             self.assertEqual(retrieved.get("status"), "RUNNING")
-            if os.environ.get("BROWSERBASE_PROJECT_ID"):
-                self.assertEqual(retrieved.get("projectId"), os.environ["BROWSERBASE_PROJECT_ID"])
 
             resumed = BrowserbaseBrowserLauncher(
                 {
@@ -76,13 +74,6 @@ class BrowserbaseBrowserLauncherTests(unittest.TestCase):
                 return
             time.sleep(1)
         self.fail("Browserbase session did not leave RUNNING status after release")
-
-
-@unittest.skipIf(os.environ.get("BROWSERBASE_API_KEY", "").strip(), "BROWSERBASE_API_KEY is set")
-class BrowserbaseBrowserLauncherWithoutCredentialsTests(unittest.TestCase):
-    def test_requires_browserbase_api_key(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "BROWSERBASE_API_KEY"):
-            BrowserbaseBrowserLauncher().launch()
 
 
 def _retrieve_browserbase_session(session_id: str) -> dict:

@@ -58,21 +58,21 @@ def client_options_for(mode, cdp_url, launch_options=None):
     }
     if mode == "direct":
         return {
-            "launch": {"mode": "remote" if cdp_url else "local", "options": launch_options or {}},
-            "upstream": {"mode": "ws", "cdp_url": cdp_url},
-            "extension": {"mode": "auto", "path": str(EXTENSION_PATH)},
-            "client": {"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp", **direct_normal_event_routes}},
+            "launcher": {"launcher_mode": "remote" if cdp_url else "local", "launcher_options": launch_options or {}},
+            "upstream": {"upstream_mode": "ws", "upstream_cdp_url": cdp_url},
+            "injector": {"injector_mode": "auto", "injector_extension_path": str(EXTENSION_PATH)},
+            "client": {"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp", **direct_normal_event_routes}},
         }
     server = {
-        "routes": server_routes_for(mode),
+        "server_routes": server_routes_for(mode),
     }
     if cdp_url and mode == "loopback":
-        server["loopback_cdp_url"] = cdp_url
+        server["server_loopback_cdp_url"] = cdp_url
     return {
-        "launch": {"mode": "remote" if cdp_url else "local", "options": launch_options or {}},
-        "upstream": {"mode": "ws", "cdp_url": cdp_url},
-        "extension": {"mode": "auto", "path": str(EXTENSION_PATH)},
-        "client": {"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "service_worker", **direct_normal_event_routes}},
+        "launcher": {"launcher_mode": "remote" if cdp_url else "local", "launcher_options": launch_options or {}},
+        "upstream": {"upstream_mode": "ws", "upstream_cdp_url": cdp_url},
+        "injector": {"injector_mode": "auto", "injector_extension_path": str(EXTENSION_PATH)},
+        "client": {"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "service_worker", **direct_normal_event_routes}},
         "server": server,
     }
 

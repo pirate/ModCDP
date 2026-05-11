@@ -19,7 +19,7 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
                 "upstream_nativemessaging_manifest": "/tmp/modcdp-native-host.json",
                 "upstream_nativemessaging_manifests": ["/tmp/modcdp-native-host-extra.json"],
                 "upstream_nativemessaging_host_name": "com.modcdp.test",
-                "extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "upstream_nativemessaging_wait_timeout_ms": 10,
             }
         )
@@ -156,16 +156,16 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
         )
 
     def test_installs_launch_profile_native_host_manifest_and_connects_to_real_extension(self) -> None:
-        upstream_nativemessaging_host_name = f"com.modcdp.test.python.{os.getpid()}"
+        upstream_nativemessaging_host_name = "com.modcdp.bridge"
         cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "nativemessaging", "upstream_nativemessaging_host_name": upstream_nativemessaging_host_name},
-            extension={
-                "mode": "auto",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            upstream={"upstream_mode": "nativemessaging", "upstream_nativemessaging_host_name": upstream_nativemessaging_host_name},
+            injector={
+                "injector_mode": "auto",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            server={"routes": {"*.*": "loopback_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
 
         try:

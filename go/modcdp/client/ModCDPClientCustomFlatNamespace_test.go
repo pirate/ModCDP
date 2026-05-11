@@ -21,26 +21,25 @@ func TestCustomCommandsInstallFlatNamespaceThroughRealServiceWorker(t *testing.T
 		t.Fatal(err)
 	}
 	cdp := New(Options{
-		Launch: LaunchConfig{
-			Mode: "local",
-			Options: LaunchOptions{
+		Launcher: LauncherConfig{LauncherMode: "local",
+			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: UpstreamConfig{Mode: "ws"},
-		Extension: ExtensionConfig{
-			Mode:                     "auto",
-			Path:                     extensionPath,
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: UpstreamConfig{UpstreamMode: "ws"},
+		Injector: InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorExtensionPath:                     extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
-		Client: ClientConfig{Routes: map[string]string{
+		Client: ClientConfig{ClientRoutes: map[string]string{
 			"Mod.*":    "service_worker",
 			"Custom.*": "service_worker",
 			"*.*":      "direct_cdp",
 		}},
-		Server: &ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
+		Server: &ServerConfig{ServerRoutes: map[string]string{"*.*": "loopback_cdp"}},
 	})
 	defer cdp.Close()
 
@@ -82,26 +81,25 @@ func TestCustomEventsValidateRawStringHandlersThroughRealServiceWorker(t *testin
 		t.Fatal(err)
 	}
 	cdp := New(Options{
-		Launch: LaunchConfig{
-			Mode: "local",
-			Options: LaunchOptions{
+		Launcher: LauncherConfig{LauncherMode: "local",
+			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: UpstreamConfig{Mode: "ws"},
-		Extension: ExtensionConfig{
-			Mode:                     "auto",
-			Path:                     extensionPath,
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: UpstreamConfig{UpstreamMode: "ws"},
+		Injector: InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorExtensionPath:                     extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
-		Client: ClientConfig{Routes: map[string]string{
+		Client: ClientConfig{ClientRoutes: map[string]string{
 			"Mod.*":    "service_worker",
 			"Custom.*": "service_worker",
 			"*.*":      "direct_cdp",
 		}},
-		Server: &ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
+		Server: &ServerConfig{ServerRoutes: map[string]string{"*.*": "loopback_cdp"}},
 	})
 	defer cdp.Close()
 

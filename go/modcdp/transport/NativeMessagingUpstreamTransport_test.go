@@ -201,22 +201,21 @@ func waitForNativePeerDisconnect(t *testing.T, transport *NativeMessagingUpstrea
 }
 
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {
-	nativeHostName := fmt.Sprintf("com.modcdp.test.go.%d", os.Getpid())
+	nativeHostName := "com.modcdp.bridge"
 	cdp := modcdp.New(modcdp.Options{
-		Launch: modcdp.LaunchConfig{
-			Mode: "local",
-			Options: modcdp.LaunchOptions{
+		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
+			LauncherOptions: modcdp.LaunchOptions{
 				Headless: boolPtr(true),
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: modcdp.UpstreamConfig{Mode: "nativemessaging", UpstreamNativeMessagingHostName: nativeHostName},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "auto",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "nativemessaging", UpstreamNativeMessagingHostName: nativeHostName},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
-		Server: &modcdp.ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
+		Server: &modcdp.ServerConfig{ServerRoutes: map[string]string{"*.*": "loopback_cdp"}},
 	})
 	defer cdp.Close()
 

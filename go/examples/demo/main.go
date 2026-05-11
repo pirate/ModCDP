@@ -40,10 +40,10 @@ func optionsFor(mode, cdpURL, extensionPath string, launchOptions modcdp.LaunchO
 	}
 	if mode == "direct" {
 		return modcdp.Options{
-			Launch:    modcdp.LaunchConfig{Mode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], Options: launchOptions},
-			Upstream:  modcdp.UpstreamConfig{Mode: "ws", CDPURL: cdpURL},
-			Extension: modcdp.ExtensionConfig{Mode: "auto", Path: extensionPath},
-			Client: modcdp.ClientConfig{Routes: routes(map[string]string{
+			Launcher: modcdp.LauncherConfig{LauncherMode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], LauncherOptions: launchOptions},
+			Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: cdpURL},
+			Injector: modcdp.InjectorConfig{InjectorMode: "auto", InjectorExtensionPath: extensionPath},
+			Client: modcdp.ClientConfig{ClientRoutes: routes(map[string]string{
 				"Mod.*":    "service_worker",
 				"Custom.*": "service_worker",
 				"*.*":      "direct_cdp",
@@ -51,16 +51,16 @@ func optionsFor(mode, cdpURL, extensionPath string, launchOptions modcdp.LaunchO
 		}
 	}
 	server := &modcdp.ServerConfig{
-		Routes: serverRoutesFor(mode),
+		ServerRoutes: serverRoutesFor(mode),
 	}
 	if mode == "loopback" && cdpURL != "" {
-		server.LoopbackCDPURL = cdpURL
+		server.ServerLoopbackCDPURL = cdpURL
 	}
 	return modcdp.Options{
-		Launch:    modcdp.LaunchConfig{Mode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], Options: launchOptions},
-		Upstream:  modcdp.UpstreamConfig{Mode: "ws", CDPURL: cdpURL},
-		Extension: modcdp.ExtensionConfig{Mode: "auto", Path: extensionPath},
-		Client: modcdp.ClientConfig{Routes: routes(map[string]string{
+		Launcher: modcdp.LauncherConfig{LauncherMode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], LauncherOptions: launchOptions},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: cdpURL},
+		Injector: modcdp.InjectorConfig{InjectorMode: "auto", InjectorExtensionPath: extensionPath},
+		Client: modcdp.ClientConfig{ClientRoutes: routes(map[string]string{
 			"Mod.*":    "service_worker",
 			"Custom.*": "service_worker",
 			"*.*":      "service_worker",

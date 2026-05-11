@@ -18,15 +18,7 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
       return;
     }
     if (!extension_path.endsWith(".zip")) {
-      if (this.extensionRuntimeConfig()) {
-        const unpacked_path = fs.mkdtempSync(path.join(os.tmpdir(), "modcdp-extension-"));
-        fs.cpSync(extension_path, unpacked_path, { recursive: true });
-        this.unpacked_extension_path = unpacked_path;
-        this.cleanup = async () => fs.rmSync(unpacked_path, { recursive: true, force: true });
-      } else {
-        this.unpacked_extension_path = extension_path;
-      }
-      this.writeExtensionRuntimeConfig(this.unpacked_extension_path);
+      this.unpacked_extension_path = extension_path;
       await super.prepare();
       return;
     }
@@ -34,7 +26,6 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
     const unpacked_path = fs.mkdtempSync(path.join(os.tmpdir(), "modcdp-extension-"));
     execFileSync("unzip", ["-q", extension_path, "-d", unpacked_path]);
     this.unpacked_extension_path = unpacked_path;
-    this.writeExtensionRuntimeConfig(unpacked_path);
     this.cleanup = async () => fs.rmSync(unpacked_path, { recursive: true, force: true });
     await super.prepare();
   }

@@ -1,8 +1,6 @@
 import type { BrowserLaunchOptions } from "../launcher/BrowserLauncher.js";
 import type { UpstreamTransportConfig } from "../transport/UpstreamTransport.js";
 import type { ProtocolParams, ProtocolResult } from "../types/modcdp.js";
-import fs from "node:fs";
-import path from "node:path";
 import { commands as RuntimeCommands } from "../types/generated/zod/Runtime.js";
 import { commands as TargetCommands } from "../types/generated/zod/Target.js";
 
@@ -138,28 +136,6 @@ export class ExtensionInjector {
     return this.options.send;
   }
 
-  protected extensionRuntimeConfig() {
-    const config = {
-      ...(this.options.upstream_reversews_url ? { upstream_reversews_url: this.options.upstream_reversews_url } : {}),
-      ...(this.options.upstream_nativemessaging_host_name ? { upstream_nativemessaging_host_name: this.options.upstream_nativemessaging_host_name } : {}),
-      ...(this.options.upstream_nats_url ? { upstream_nats_url: this.options.upstream_nats_url } : {}),
-      ...(this.options.upstream_nats_subject_prefix ? { upstream_nats_subject_prefix: this.options.upstream_nats_subject_prefix } : {}),
-    };
-    return Object.keys(config).length > 0 ? config : null;
-  }
-
-  protected writeExtensionRuntimeConfig(unpacked_extension_path: string) {
-    const config = this.extensionRuntimeConfig();
-    if (!config) return;
-    const config_dir = path.join(unpacked_extension_path, "modcdp");
-    fs.mkdirSync(config_dir, { recursive: true });
-    fs.writeFileSync(path.join(config_dir, "config.json"), `${JSON.stringify(config, null, 2)}\n`);
-    fs.writeFileSync(
-      path.join(unpacked_extension_path, "config.js"),
-      `globalThis.__MODCDP_RUNTIME_CONFIG__ = ${JSON.stringify(config, null, 2)};\nexport {};\n`,
-    );
-  }
-
   protected readyExpression() {
     const expression = this.options.injector_service_worker_ready_expression;
     return expression == null || expression.length === 0
@@ -279,7 +255,10 @@ export class ExtensionInjector {
       if (candidate.type !== "service_worker") continue;
       if (!candidate.url.startsWith("chrome-extension://")) continue;
       try {
-        const probed = await this.probeTarget(candidate as TargetInfo, this.options.injector_service_worker_probe_timeout_ms);
+        const probed = await this.probeTarget(
+          candidate as TargetInfo,
+          this.options.injector_service_worker_probe_timeout_ms,
+        );
         if (probed) return probed;
       } catch {
         continue;
@@ -306,7 +285,11 @@ export class ExtensionInjector {
     if (candidate.type !== "service_worker") return false;
     if (!url.startsWith("chrome-extension://")) return false;
     const has_extension_id = Boolean(this.options.injector_extension_id);
-    if (this.options.injector_extension_id && !url.startsWith(`chrome-extension://${this.options.injector_extension_id}/`)) return false;
+    if (
+      this.options.injector_extension_id &&
+      !url.startsWith(`chrome-extension://${this.options.injector_extension_id}/`)
+    )
+      return false;
     const includes = this.options.injector_service_worker_url_includes ?? [];
     const suffixes = this.options.injector_service_worker_url_suffixes ?? [];
     if (includes.length > 0 && !includes.every((part) => url.includes(part))) return false;

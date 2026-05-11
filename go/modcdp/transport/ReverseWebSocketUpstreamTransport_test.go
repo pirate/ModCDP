@@ -196,26 +196,21 @@ func waitForReversePeerDisconnect(t *testing.T, transport *ReverseWebSocketUpstr
 }
 
 func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionAndRoutesCDPThroughLoopback(t *testing.T) {
-	port, err := freePort()
-	if err != nil {
-		t.Fatal(err)
-	}
-	reverseBind := fmt.Sprintf("127.0.0.1:%d", port)
+	reverseBind := "127.0.0.1:29292"
 	cdp := modcdp.New(modcdp.Options{
-		Launch: modcdp.LaunchConfig{
-			Mode: "local",
-			Options: modcdp.LaunchOptions{
+		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
+			LauncherOptions: modcdp.LaunchOptions{
 				Headless: boolPtr(true),
 				Sandbox:  boolPtr(false),
 			},
 		},
-		Upstream: modcdp.UpstreamConfig{Mode: "reversews", UpstreamReverseWSBind: reverseBind},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "auto",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "reversews", UpstreamReverseWSBind: reverseBind},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
-		Server: &modcdp.ServerConfig{Routes: map[string]string{"*.*": "loopback_cdp"}},
+		Server: &modcdp.ServerConfig{ServerRoutes: map[string]string{"*.*": "loopback_cdp"}},
 	})
 	defer cdp.Close()
 

@@ -1,8 +1,4 @@
-import {
-  BrowserLauncher,
-  type BrowserLaunchOptions,
-  type LaunchedBrowser,
-} from "./BrowserLauncher.js";
+import { BrowserLauncher, type BrowserLaunchOptions, type LaunchedBrowser } from "./BrowserLauncher.js";
 
 const DEFAULT_BROWSERBASE_BASE_URL = "https://api.browserbase.com";
 const DEFAULT_BROWSERBASE_VIEWPORT = { width: 1288, height: 711 };
@@ -30,9 +26,7 @@ function firstBoolean(...values: unknown[]) {
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function browserbaseUrl(base_url: string, pathname: string) {
@@ -62,20 +56,13 @@ async function browserbaseRequest<T>({
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(
-      `Browserbase ${method} ${pathname} -> ${response.status}${text ? `: ${text}` : ""}`,
-    );
+    throw new Error(`Browserbase ${method} ${pathname} -> ${response.status}${text ? `: ${text}` : ""}`);
   }
   return (await response.json()) as T;
 }
 
 async function closeBrowserCDP(cdp_url: string | undefined) {
-  if (
-    !cdp_url ||
-    !/^wss?:\/\//i.test(cdp_url) ||
-    typeof WebSocket !== "function"
-  )
-    return;
+  if (!cdp_url || !/^wss?:\/\//i.test(cdp_url) || typeof WebSocket !== "function") return;
   await new Promise<void>((resolve) => {
     let settled = false;
     const ws = new WebSocket(cdp_url);
@@ -105,29 +92,18 @@ async function closeBrowserCDP(cdp_url: string | undefined) {
 export class BrowserbaseBrowserLauncher extends BrowserLauncher {
   async launch(options: BrowserLaunchOptions = {}): Promise<LaunchedBrowser> {
     const merged = { ...this.options, ...options };
-    const browserbase_api_key = firstString(
-      merged.browserbase_api_key,
-      process.env.BROWSERBASE_API_KEY,
-    );
+    const browserbase_api_key = firstString(merged.browserbase_api_key, process.env.BROWSERBASE_API_KEY);
     if (!browserbase_api_key) {
       throw new Error(
         "launcher.launcher_mode=bb requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key.",
       );
     }
 
-    const project_id = firstString(
-      merged.browserbase_project_id,
-      process.env.BROWSERBASE_PROJECT_ID,
-    );
     const base_url =
-      firstString(
-        merged.browserbase_base_url,
-        process.env.BROWSERBASE_BASE_URL,
-      ) ?? DEFAULT_BROWSERBASE_BASE_URL;
+      firstString(merged.browserbase_base_url, process.env.BROWSERBASE_BASE_URL) ?? DEFAULT_BROWSERBASE_BASE_URL;
     const resume_session_id = firstString(merged.browserbase_session_id);
     const keep_alive = firstBoolean(merged.browserbase_keep_alive) ?? false;
-    const close_session_on_close =
-      firstBoolean(merged.browserbase_close_session_on_close) ?? !keep_alive;
+    const close_session_on_close = firstBoolean(merged.browserbase_close_session_on_close) ?? !keep_alive;
 
     let created_session = false;
     let session: BrowserbaseSession;
@@ -139,9 +115,7 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
         pathname: `/v1/sessions/${resume_session_id}`,
       });
     } else {
-      const session_create_params = objectValue(
-        merged.browserbase_session_create_params,
-      );
+      const session_create_params = objectValue(merged.browserbase_session_create_params);
       const browser_settings = {
         ...objectValue(session_create_params.browserSettings),
         ...objectValue(merged.browserbase_browser_settings),
@@ -157,14 +131,11 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
       );
       const body = {
         ...session_create_params,
-        ...(project_id ? { projectId: project_id } : {}),
         ...(keep_alive ? { keepAlive: true } : {}),
         ...(firstString(merged.region, session_create_params.region)
           ? { region: firstString(merged.region, session_create_params.region) }
           : {}),
-        ...(typeof merged.timeout === "number"
-          ? { timeout: merged.timeout }
-          : {}),
+        ...(typeof merged.timeout === "number" ? { timeout: merged.timeout } : {}),
         ...(extension_id ? { extensionId: extension_id } : {}),
         browserSettings: {
           ...browser_settings,
@@ -189,9 +160,7 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
     }
 
     if (!session.id || !session.connectUrl) {
-      throw new Error(
-        "Browserbase session creation returned an unexpected shape.",
-      );
+      throw new Error("Browserbase session creation returned an unexpected shape.");
     }
 
     let closed = false;
@@ -205,10 +174,7 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
         browserbase_api_key,
         method: "POST",
         pathname: `/v1/sessions/${session.id}`,
-        body: {
-          status: "REQUEST_RELEASE",
-          ...(project_id ? { projectId: project_id } : {}),
-        },
+        body: { status: "REQUEST_RELEASE" },
       }).catch(() => {});
     };
 
@@ -217,8 +183,7 @@ export class BrowserbaseBrowserLauncher extends BrowserLauncher {
       cdp_url: session.connectUrl,
       browserbase_session_id: session.id,
       browserbase_session_url: `https://www.browserbase.com/sessions/${session.id}`,
-      browserbase_debug_url:
-        session.debuggerUrl ?? session.debuggerFullscreenUrl ?? null,
+      browserbase_debug_url: session.debuggerUrl ?? session.debuggerFullscreenUrl ?? null,
       close,
     };
     return this.launched;

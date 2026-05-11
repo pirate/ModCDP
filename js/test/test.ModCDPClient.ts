@@ -16,7 +16,8 @@ function delay(ms: number) {
 }
 
 test("ModCDPClient normalizes nested config owners", () => {
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_executable_path: "/tmp/chrome",
       launcher_user_data_dir: "/tmp/profile",
@@ -66,10 +67,7 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(cdp._launcherOptions().user_data_dir, "/tmp/profile");
   assert.equal(cdp.upstream.upstream_nats_wait_timeout_ms, 345);
   assert.equal(cdp.upstream.upstream_reversews_wait_timeout_ms, 456);
-  assert.equal(
-    cdp.upstream.upstream_nativemessaging_host_name,
-    "com.modcdp.custom",
-  );
+  assert.equal(cdp.upstream.upstream_nativemessaging_host_name, "com.modcdp.custom");
   assert.equal(cdp.upstream.upstream_nativemessaging_wait_timeout_ms, 567);
   assert.equal(cdp.upstream.upstream_ws_connect_error_settle_timeout_ms, 321);
   assert.equal(cdp.injector.injector_execution_context_timeout_ms, 4321);
@@ -97,12 +95,9 @@ test("ModCDPClient normalizes nested config owners", () => {
 test("ModCDPClient dispatches root events before extension session is attached", () => {
   const cdp = new ModCDPClient();
   const seen: string[] = [];
-  cdp.on(
-    "Target.targetCreated",
-    (payload: { targetInfo?: { targetId?: string } }) => {
-      seen.push(String(payload.targetInfo?.targetId));
-    },
-  );
+  cdp.on("Target.targetCreated", (payload: { targetInfo?: { targetId?: string } }) => {
+    seen.push(String(payload.targetInfo?.targetId));
+  });
 
   cdp._onRecv({
     method: "Target.targetCreated",
@@ -143,11 +138,13 @@ test("ModCDPClient event dispatch snapshots handlers when once removes itself", 
 });
 
 test("ModCDPClient connects with nested launch/upstream/extension/client/server config", async () => {
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
@@ -190,8 +187,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       targets.targetInfos.some(
         (target) =>
           target.type === "service_worker" &&
-          target.url ===
-            `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`,
+          target.url === `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`,
       ),
       true,
     );
@@ -199,8 +195,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       targets.targetInfos.some(
         (target) =>
           target.type === "background_page" &&
-          target.url ===
-            `chrome-extension://${cdp.extension_id}/offscreen/keepalive.html`,
+          target.url === `chrome-extension://${cdp.extension_id}/offscreen/keepalive.html`,
       ),
       true,
     );
@@ -228,10 +223,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       };
       cdp.on("Mod.pong", listener);
     });
-    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<
-      string,
-      unknown
-    >;
+    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<string, unknown>;
     const pong_payload = await pong;
     assert.equal(ping_result.ok, true);
     assert.equal(pong_payload.sent_at, sent_at);
@@ -239,38 +231,31 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(pong_payload.from, "extension-service-worker");
   } finally {
     if (direct_session_target_id) {
-      await cdp
-        .send("Target.closeTarget", { targetId: direct_session_target_id })
-        .catch(() => ({}));
+      await cdp.send("Target.closeTarget", { targetId: direct_session_target_id }).catch(() => ({}));
     }
     await cdp.close();
   }
 }, 60_000);
 
 test("ModCDPClient preserves explicit empty service worker suffix config", async () => {
-  const cdp = new ModCDPClient({ injector: {
+  const cdp = new ModCDPClient({
+    injector: {
       injector_mode: "borrow",
       injector_service_worker_url_suffixes: [],
     },
   });
 
   assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, []);
-  assert.deepEqual(
-    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
-    [],
-  );
+  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, []);
 });
 
 test("ModCDPClient defaults service worker suffix config to the ModCDP worker", async () => {
   const cdp = new ModCDPClient();
 
-  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, [
+  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, ["/modcdp/service_worker.js"]);
+  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, [
     "/modcdp/service_worker.js",
   ]);
-  assert.deepEqual(
-    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
-    ["/modcdp/service_worker.js"],
-  );
 });
 
 test("ModCDPClient preserves explicit null server config", () => {
@@ -292,9 +277,7 @@ test("ModCDPClient only exposes injector attach after CDP send is available", ()
 
 test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto", () => {
   for (const mode of ["nativemessaging", "reversews", "nats"] as const) {
-    const launched = new ModCDPClient({ launcher: { launcher_mode: "local" },
-      upstream: { upstream_mode: mode },
-    });
+    const launched = new ModCDPClient({ launcher: { launcher_mode: "local" }, upstream: { upstream_mode: mode } });
     assert.equal(launched.launcher.launcher_mode, "local");
     assert.equal(launched.upstream_endpoint_kind, "modcdp_server");
     assert.equal(launched.injector.injector_mode, "auto");
@@ -315,14 +298,11 @@ test("ModCDPClient rejects unknown component modes at their owning factory bound
     /unknown upstream\.upstream_mode=bogus/,
   );
   assert.throws(
-    () =>
-      new ModCDPClient({ launcher: { launcher_mode: "bogus" as any } })._browserLauncher(),
+    () => new ModCDPClient({ launcher: { launcher_mode: "bogus" as any } })._browserLauncher(),
     /unknown launcher\.launcher_mode=bogus/,
   );
   assert.throws(
-    () =>
-      new ModCDPClient({ injector: { injector_mode: "bogus" as any },
-      })._injectorsForConfig(),
+    () => new ModCDPClient({ injector: { injector_mode: "bogus" as any } })._injectorsForConfig(),
     /unknown injector\.injector_mode=bogus/,
   );
 });
@@ -334,8 +314,10 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
     extra_args: [`--load-extension=${EXTENSION_PATH}`],
   }).launch();
   const raw_cdp = await CdpSocket.connect(chrome.cdp_url!);
-  const cdp = new ModCDPClient({ launcher: { launcher_mode: "remote" },
-    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url }, injector: {
+  const cdp = new ModCDPClient({
+    launcher: { launcher_mode: "remote" },
+    upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
+    injector: {
       injector_mode: "discover",
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       injector_trust_service_worker_target: true,
@@ -356,15 +338,17 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
 }, 60_000);
 
 test("ModCDPClient.close keeps injector files until after launched browser shutdown", async () => {
-  const reverse_port = await LocalBrowserLauncher.freePort();
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
     upstream: {
       upstream_mode: "reversews",
-      upstream_reversews_bind: `127.0.0.1:${reverse_port}`,
-    }, injector: {
+      upstream_reversews_bind: "127.0.0.1:29292",
+      upstream_reversews_wait_timeout_ms: 30_000,
+    },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
@@ -378,16 +362,11 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
   try {
     await cdp.connect();
     const injector = cdp._injectors.find(
-      (candidate) =>
-        candidate.constructor.name === "LocalBrowserLaunchExtensionInjector",
+      (candidate) => candidate.constructor.name === "LocalBrowserLaunchExtensionInjector",
     ) as unknown as { unpacked_extension_path?: string | null } | undefined;
     const unpacked_extension_path = injector?.unpacked_extension_path;
     assert.equal(typeof unpacked_extension_path, "string");
-    assert.notEqual(unpacked_extension_path, EXTENSION_PATH);
-    assert.equal(
-      existsSync(path.join(unpacked_extension_path!, "config.js")),
-      true,
-    );
+    assert.equal(unpacked_extension_path, EXTENSION_PATH);
 
     const launched = cdp._launched;
     assert.ok(launched);
@@ -401,7 +380,7 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
     await cdp.close();
 
     assert.equal(browser_close_saw_extension, true);
-    assert.equal(existsSync(unpacked_extension_path!), false);
+    assert.equal(existsSync(unpacked_extension_path!), true);
   } finally {
     await cdp.close();
   }
@@ -411,11 +390,13 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
 }, 90_000);
 
 test("ModCDPClient.close clears top-level connection state", async () => {
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "ws" }, injector: {
+    upstream: { upstream_mode: "ws" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
@@ -428,8 +409,5 @@ test("ModCDPClient.close clears top-level connection state", async () => {
   await cdp.close();
 
   assert.equal(cdp.transport, null);
-  await assert.rejects(
-    () => cdp.sendRaw("Browser.getVersion"),
-    /ModCDP upstream is not connected/,
-  );
+  await assert.rejects(() => cdp.sendRaw("Browser.getVersion"), /ModCDP upstream is not connected/);
 });

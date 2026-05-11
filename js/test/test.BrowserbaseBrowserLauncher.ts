@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { BrowserbaseBrowserLauncher } from "../src/launcher/BrowserbaseBrowserLauncher.js";
-import {
-  CdpSocket,
-  expectCdpBrowserSurface,
-} from "./helpers.BrowserLauncher.js";
+import { CdpSocket, expectCdpBrowserSurface } from "./helpers.BrowserLauncher.js";
 
 const LIVE_BROWSERBASE_TIMEOUT_MS = 120_000;
-const hasBrowserbaseEnv = Boolean(process.env.BROWSERBASE_API_KEY?.trim());
 
 function browserbaseApiUrl(pathname: string) {
   return new URL(
@@ -17,28 +13,26 @@ function browserbaseApiUrl(pathname: string) {
 }
 
 async function retrieveBrowserbaseSession(session_id: string) {
-  const response = await fetch(
-    browserbaseApiUrl(`/v1/sessions/${session_id}`),
-    {
-      headers: { "x-bb-api-key": process.env.BROWSERBASE_API_KEY! },
-    },
-  );
+  const response = await fetch(browserbaseApiUrl(`/v1/sessions/${session_id}`), {
+    headers: { "x-bb-api-key": process.env.BROWSERBASE_API_KEY! },
+  });
   expect(response.status).toBeGreaterThanOrEqual(200);
   expect(response.status).toBeLessThan(300);
   return (await response.json()) as Record<string, unknown>;
 }
 
-describe.skipIf(!hasBrowserbaseEnv)("BrowserbaseBrowserLauncher", () => {
+describe("BrowserbaseBrowserLauncher", () => {
   it(
     "creates, verifies, resumes, and releases a real Browserbase browser session",
     { timeout: LIVE_BROWSERBASE_TIMEOUT_MS },
     async () => {
+      expect(
+        process.env.BROWSERBASE_API_KEY?.trim(),
+        "BROWSERBASE_API_KEY is required for live Browserbase tests",
+      ).toBeTruthy();
       const launcher = new BrowserbaseBrowserLauncher({
-        browserbase_project_id: process.env.BROWSERBASE_PROJECT_ID,
         timeout: 120,
-        ...(process.env.BROWSERBASE_REGION
-          ? { region: process.env.BROWSERBASE_REGION }
-          : {}),
+        ...(process.env.BROWSERBASE_REGION ? { region: process.env.BROWSERBASE_REGION } : {}),
         browserbase_browser_settings: {
           viewport: { width: 900, height: 700 },
           recordSession: false,
@@ -48,9 +42,7 @@ describe.skipIf(!hasBrowserbaseEnv)("BrowserbaseBrowserLauncher", () => {
         },
       });
       const browser = await launcher.launch();
-      let resumed: Awaited<
-        ReturnType<BrowserbaseBrowserLauncher["launch"]>
-      > | null = null;
+      let resumed: Awaited<ReturnType<BrowserbaseBrowserLauncher["launch"]>> | null = null;
       let cdp: CdpSocket | null = null;
       const session_id = browser.browserbase_session_id;
 
@@ -64,8 +56,6 @@ describe.skipIf(!hasBrowserbaseEnv)("BrowserbaseBrowserLauncher", () => {
         const retrieved = await retrieveBrowserbaseSession(session_id!);
         expect(retrieved.id).toBe(session_id);
         expect(retrieved.status).toBe("RUNNING");
-        if (process.env.BROWSERBASE_PROJECT_ID)
-          expect(retrieved.projectId).toBe(process.env.BROWSERBASE_PROJECT_ID);
 
         resumed = await new BrowserbaseBrowserLauncher({
           browserbase_session_id: session_id,
@@ -82,22 +72,8 @@ describe.skipIf(!hasBrowserbaseEnv)("BrowserbaseBrowserLauncher", () => {
       }
 
       await expect
-        .poll(
-          async () => (await retrieveBrowserbaseSession(session_id!)).status,
-          { timeout: 30_000, interval: 1_000 },
-        )
+        .poll(async () => (await retrieveBrowserbaseSession(session_id!)).status, { timeout: 30_000, interval: 1_000 })
         .not.toBe("RUNNING");
     },
   );
 });
-
-describe.skipIf(hasBrowserbaseEnv)(
-  "BrowserbaseBrowserLauncher without credentials",
-  () => {
-    it("requires BROWSERBASE_API_KEY", async () => {
-      const launcher = new BrowserbaseBrowserLauncher();
-
-      await expect(launcher.launch()).rejects.toThrow("BROWSERBASE_API_KEY");
-    });
-  },
-);

@@ -22,11 +22,13 @@ test("pipe upstream constructor, update, launcher config, and unconnected errors
 });
 
 test("pipe upstream launches a real browser and uses a pid-scoped pipe URL", async () => {
-  const cdp = new ModCDPClient({ launcher: {
+  const cdp = new ModCDPClient({
+    launcher: {
       launcher_mode: "local",
       launcher_options: { headless: true, sandbox: process.platform !== "linux" },
     },
-    upstream: { upstream_mode: "pipe" }, injector: {
+    upstream: { upstream_mode: "pipe" },
+    injector: {
       injector_mode: "auto",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],

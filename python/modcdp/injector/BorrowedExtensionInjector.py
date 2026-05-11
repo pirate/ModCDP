@@ -9,14 +9,14 @@ from ..injector.ExtensionInjector import DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS
 
 class BorrowedExtensionInjector(ExtensionInjector):
     def inject(self) -> ExtensionInjectionResult | None:
-        deadline = time.monotonic() + (self.options.get("service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS) / 1000
+        deadline = time.monotonic() + (self.options.get("injector_service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS) / 1000
         while True:
             borrowed = self._borrowVisibleServiceWorkers()
             if borrowed:
                 return borrowed
             if time.monotonic() >= deadline:
                 return None
-            time.sleep((self.options.get("service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS) / 1000)
+            time.sleep((self.options.get("injector_service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS) / 1000)
 
     def _borrowVisibleServiceWorkers(self) -> ExtensionInjectionResult | None:
         borrowed: list[ExtensionInjectionResult] = []
@@ -26,9 +26,9 @@ class BorrowedExtensionInjector(ExtensionInjector):
             if target.get("type") == "service_worker" and isinstance(target.get("url"), str) and target["url"].startswith("chrome-extension://")
         ]
         has_configured_matcher = bool(
-            self.options.get("extension_id")
-            or self.options.get("service_worker_url_includes")
-            or self.options.get("service_worker_url_suffixes")
+            self.options.get("injector_extension_id")
+            or self.options.get("injector_service_worker_url_includes")
+            or self.options.get("injector_service_worker_url_suffixes")
         )
         candidates = [target for target in visible_service_workers if self._serviceWorkerTargetMatches(target)] if has_configured_matcher else visible_service_workers
         for target in candidates:
@@ -44,7 +44,7 @@ class BorrowedExtensionInjector(ExtensionInjector):
     def _bootstrapTarget(self, target) -> ExtensionInjectionResult | None:
         session_id = self._ensureSessionIdForTarget(
             target["targetId"],
-            self.options.get("service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+            self.options.get("injector_service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
             True,
         )
         if session_id is None:

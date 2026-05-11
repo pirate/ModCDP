@@ -15,9 +15,7 @@ import {
 } from "./BrowserLauncher.js";
 
 function wildcardToRegExp(value: string) {
-  return new RegExp(
-    `^${value.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`,
-  );
+  return new RegExp(`^${value.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
 }
 
 function expandGlob(pattern: string) {
@@ -60,11 +58,7 @@ function newestFirst(candidates: string[]) {
   return [...new Set(candidates)].sort((a, b) => {
     const left = score(a);
     const right = score(b);
-    return (
-      right.version - left.version ||
-      right.mtime - left.mtime ||
-      a.localeCompare(b)
-    );
+    return right.version - left.version || right.mtime - left.mtime || a.localeCompare(b);
   });
 }
 
@@ -77,10 +71,7 @@ function chromeForTestingCandidates() {
             home,
             "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
           ),
-          path.join(
-            home,
-            "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium",
-          ),
+          path.join(home, "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium"),
           path.join(
             home,
             "Library/Caches/puppeteer/chrome/mac*-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
@@ -92,75 +83,46 @@ function chromeForTestingCandidates() {
               process.env.LOCALAPPDATA || path.join(home, "AppData/Local"),
               "ms-playwright/chromium-*/chrome-win*/chrome.exe",
             ),
-            path.join(
-              home,
-              ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe",
-            ),
+            path.join(home, ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe"),
           ]
         : [
-            path.join(
-              home,
-              ".cache/ms-playwright/chromium-*/chrome-linux*/chrome",
-            ),
+            path.join(home, ".cache/ms-playwright/chromium-*/chrome-linux*/chrome"),
             "/opt/pw-browsers/chromium-*/chrome-linux*/chrome",
-            path.join(
-              home,
-              ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome",
-            ),
+            path.join(home, ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome"),
           ];
   return newestFirst(patterns.flatMap(expandGlob));
 }
 
 function candidatePaths() {
   const home = homedir();
-  const programFiles = [
-    process.env.PROGRAMFILES,
-    process.env["PROGRAMFILES(X86)"],
-  ].filter(Boolean) as string[];
+  const programFiles = [process.env.PROGRAMFILES, process.env["PROGRAMFILES(X86)"]].filter(Boolean) as string[];
   const canary =
     platform() === "darwin"
-      ? [
-          "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-        ]
+      ? ["/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"]
       : platform() === "win32"
         ? [
             path.join(
               process.env.LOCALAPPDATA || path.join(home, "AppData/Local"),
               "Google/Chrome SxS/Application/chrome.exe",
             ),
-            ...programFiles.map((base) =>
-              path.join(base, "Google/Chrome SxS/Application/chrome.exe"),
-            ),
+            ...programFiles.map((base) => path.join(base, "Google/Chrome SxS/Application/chrome.exe")),
           ]
-        : [
-            "/usr/bin/google-chrome-canary",
-            "/usr/bin/google-chrome-unstable",
-            "/opt/google/chrome-unstable/chrome",
-          ];
+        : ["/usr/bin/google-chrome-canary", "/usr/bin/google-chrome-unstable", "/opt/google/chrome-unstable/chrome"];
   const stock =
     platform() === "darwin"
       ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
       : platform() === "win32"
         ? [
-            ...programFiles.map((base) =>
-              path.join(base, "Google/Chrome/Application/chrome.exe"),
-            ),
+            ...programFiles.map((base) => path.join(base, "Google/Chrome/Application/chrome.exe")),
             path.join(
               process.env.LOCALAPPDATA || path.join(home, "AppData/Local"),
               "Google/Chrome/Application/chrome.exe",
             ),
           ]
-        : [
-            "/usr/bin/google-chrome-stable",
-            "/usr/bin/google-chrome",
-            "/opt/google/chrome/chrome",
-          ];
-  return [
-    process.env.CHROME_PATH,
-    ...chromeForTestingCandidates(),
-    ...canary,
-    ...stock,
-  ].filter((candidate): candidate is string => Boolean(candidate));
+        : ["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"];
+  return [process.env.CHROME_PATH, ...chromeForTestingCandidates(), ...canary, ...stock].filter(
+    (candidate): candidate is string => Boolean(candidate),
+  );
 }
 
 const DEFAULT_FLAGS = [
@@ -186,15 +148,33 @@ function delay(ms: number) {
 
 async function terminateProcess(proc: ChildProcess, timeoutMs = 2_000) {
   if (proc.exitCode !== null || proc.signalCode !== null) return;
-  try {
-    proc.kill("SIGTERM");
-  } catch {}
+  const signalProcess = (signal: NodeJS.Signals) => {
+    if (process.platform !== "win32" && proc.pid) {
+      try {
+        process.kill(-proc.pid, signal);
+        return;
+      } catch {}
+    }
+    try {
+      proc.kill(signal);
+    } catch {}
+  };
+  signalProcess("SIGTERM");
   await Promise.race([once(proc, "exit"), delay(timeoutMs)]);
   if (proc.exitCode !== null || proc.signalCode !== null) return;
-  try {
-    proc.kill("SIGKILL");
-  } catch {}
+  signalProcess("SIGKILL");
   await Promise.race([once(proc, "exit"), delay(timeoutMs)]);
+}
+
+async function removeProfileDir(profile_dir: string) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await rm(profile_dir, { recursive: true, force: true }).catch(() => {});
+    if (!existsSync(profile_dir)) return;
+    await delay(100 * (attempt + 1));
+  }
+  try {
+    await rm(profile_dir, { recursive: true, force: true });
+  } catch {}
 }
 
 async function waitForPipeReady(
@@ -224,37 +204,24 @@ async function waitForPipeReady(
         const message = JSON.parse(raw);
         if (message.id !== readyId) continue;
         cleanup();
-        if (message.error)
-          reject(
-            new Error(
-              message.error.message ?? "Browser.getVersion failed over pipe",
-            ),
-          );
+        if (message.error) reject(new Error(message.error.message ?? "Browser.getVersion failed over pipe"));
         else resolve();
       }
     };
     const timeout = setTimeout(() => {
       cleanup();
-      reject(
-        new Error(
-          `Chrome remote-debugging pipe did not respond within ${timeoutMs}ms`,
-        ),
-      );
+      reject(new Error(`Chrome remote-debugging pipe did not respond within ${timeoutMs}ms`));
     }, timeoutMs);
     pipe_read.on("data", onData);
     pipe_read.on("error", onError);
     pipe_write.on("error", onError);
-    pipe_write.write(
-      `${JSON.stringify({ id: readyId, method: "Browser.getVersion" })}\0`,
-    );
+    pipe_write.write(`${JSON.stringify({ id: readyId, method: "Browser.getVersion" })}\0`);
   });
 }
 
 export class LocalBrowserLauncher extends BrowserLauncher {
   static findChromeBinary(explicit?: string | null) {
-    const candidates = [explicit, ...candidatePaths()].filter(
-      (candidate): candidate is string => Boolean(candidate),
-    );
+    const candidates = [explicit, ...candidatePaths()].filter((candidate): candidate is string => Boolean(candidate));
     for (const candidate of candidates) {
       if (candidate && existsSync(candidate)) return candidate;
     }
@@ -290,39 +257,31 @@ export class LocalBrowserLauncher extends BrowserLauncher {
     } = { ...this.options, ...options };
     const exe = LocalBrowserLauncher.findChromeBinary(executable_path);
     const usePipe = remote_debugging === "pipe";
-    const usePort = usePipe
-      ? null
-      : port || (await LocalBrowserLauncher.freePort());
-    const profile_dir =
-      user_data_dir || (await mkdtemp(path.join(tmpdir(), "modcdp.")));
-    const needsNoSandbox =
-      headless &&
-      process.platform === "linux" &&
-      !process.env.DISPLAY &&
-      sandbox !== true;
+    const usePort = usePipe ? null : port || (await LocalBrowserLauncher.freePort());
+    const profile_dir = user_data_dir || (await mkdtemp(path.join(tmpdir(), "modcdp.")));
+    const needsNoSandbox = headless && process.platform === "linux" && !process.env.DISPLAY && sandbox !== true;
     const flags = [
       ...DEFAULT_FLAGS,
       headless ? "--headless=new" : null,
       "--disable-gpu",
       needsNoSandbox ? "--no-sandbox" : null,
       `--user-data-dir=${profile_dir}`,
-      usePipe
-        ? "--remote-debugging-pipe"
-        : "--remote-debugging-address=127.0.0.1",
+      usePipe ? "--remote-debugging-pipe" : "--remote-debugging-address=127.0.0.1",
       usePipe ? null : `--remote-debugging-port=${usePort}`,
       ...args,
       ...extra_args,
       "about:blank",
     ].filter(Boolean);
 
-    const useStdio = (usePipe
-      ? ["ignore", "ignore", "ignore", "pipe", "pipe"]
-      : "ignore") as
+    const useStdio = (usePipe ? ["ignore", "ignore", "ignore", "pipe", "pipe"] : "ignore") as
       | "ignore"
       | "inherit"
       | "pipe"
       | import("node:child_process").StdioOptions;
-    const proc = spawn(exe, flags, { stdio: useStdio, detached: false });
+    const proc = spawn(exe, flags, {
+      stdio: useStdio,
+      detached: process.platform !== "win32",
+    });
     let spawnError: Error | null = null;
     proc.once("error", (error) => {
       spawnError = error;
@@ -332,8 +291,7 @@ export class LocalBrowserLauncher extends BrowserLauncher {
       if (closed) return;
       closed = true;
       await terminateProcess(proc);
-      if (!user_data_dir || cleanup_user_data_dir)
-        await rm(profile_dir, { recursive: true, force: true }).catch(() => {});
+      if (!user_data_dir || cleanup_user_data_dir) await removeProfileDir(profile_dir);
     };
 
     if (usePipe) {
@@ -341,9 +299,7 @@ export class LocalBrowserLauncher extends BrowserLauncher {
       const pipe_read = proc.stdio[4] as NodeJS.ReadableStream | null;
       if (!pipe_write || !pipe_read) {
         await close();
-        throw new Error(
-          "Chrome remote-debugging pipe stdio handles were not created.",
-        );
+        throw new Error("Chrome remote-debugging pipe stdio handles were not created.");
       }
       if (spawnError) {
         await close();
@@ -371,9 +327,7 @@ export class LocalBrowserLauncher extends BrowserLauncher {
       }
       if (proc.exitCode !== null || proc.signalCode !== null) {
         await close();
-        throw new Error(
-          `Chrome exited before CDP became ready (exit=${proc.exitCode}, signal=${proc.signalCode}).`,
-        );
+        throw new Error(`Chrome exited before CDP became ready (exit=${proc.exitCode}, signal=${proc.signalCode}).`);
       }
       try {
         const response = await fetch(`${cdp_url}/json/version`);
@@ -390,13 +344,9 @@ export class LocalBrowserLauncher extends BrowserLauncher {
           return this.launched;
         }
       } catch {}
-      await new Promise((resolve) =>
-        setTimeout(resolve, chrome_ready_poll_interval_ms),
-      );
+      await new Promise((resolve) => setTimeout(resolve, chrome_ready_poll_interval_ms));
     }
     await close();
-    throw new Error(
-      `Chrome at ${cdp_url} did not become ready within ${chrome_ready_timeout_ms}ms`,
-    );
+    throw new Error(`Chrome at ${cdp_url} did not become ready within ${chrome_ready_timeout_ms}ms`);
   }
 }

@@ -40,7 +40,7 @@ class ExtensionsLoadUnpackedInjectorTests(unittest.TestCase):
         injector = ExtensionsLoadUnpackedInjector(
             cast(Any, {
                 "send": send,
-                "extension_path": str(EXTENSION_PATH),
+                "injector_extension_path": str(EXTENSION_PATH),
             })
         )
         try:
@@ -56,22 +56,6 @@ class ExtensionsLoadUnpackedInjectorTests(unittest.TestCase):
             injector.close()
             ws.close()
             chrome["close"]()
-
-    def test_prepares_runtime_config_copy(self) -> None:
-        injector = ExtensionsLoadUnpackedInjector(
-            {
-                "extension_path": str(EXTENSION_PATH),
-                "upstream_reversews_url": "ws://127.0.0.1:29292",
-            }
-        )
-        try:
-            injector.prepare()
-            self.assertNotEqual(injector.unpacked_extension_path, str(EXTENSION_PATH))
-            config = Path(injector.unpacked_extension_path or "", "modcdp", "config.json").read_text()
-            self.assertEqual(config, '{\n  "upstream_reversews_url": "ws://127.0.0.1:29292"\n}\n')
-        finally:
-            injector.close()
-
 
 if __name__ == "__main__":
     unittest.main()

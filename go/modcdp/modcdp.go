@@ -9,9 +9,9 @@ import (
 
 type ModCDPClient = client.ModCDPClient
 type Options = client.Options
-type LaunchConfig = client.LaunchConfig
+type LauncherConfig = client.LauncherConfig
 type UpstreamConfig = client.UpstreamConfig
-type ExtensionConfig = client.ExtensionConfig
+type InjectorConfig = client.InjectorConfig
 type ClientConfig = client.ClientConfig
 type ServerConfig = client.ServerConfig
 type CustomCommand = client.CustomCommand

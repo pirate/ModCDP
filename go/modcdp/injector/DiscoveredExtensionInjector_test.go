@@ -28,12 +28,12 @@ func TestDiscoveredExtensionInjectorAttachesToAlreadyLoadedRealModCDPExtension(t
 	defer chrome.Close()
 
 	cdp := modcdp.New(modcdp.Options{
-		Launch:   modcdp.LaunchConfig{Mode: "remote"},
-		Upstream: modcdp.UpstreamConfig{Mode: "ws", CDPURL: chrome.CDPURL},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                     "discover",
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Launcher: modcdp.LauncherConfig{LauncherMode: "remote"},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "discover",
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
 	})
 	defer cdp.Close()
@@ -97,14 +97,14 @@ func TestDiscoveredExtensionInjectorSelectsConfiguredExtensionWhenMultipleModCDP
 	defer chrome.Close()
 
 	cdp := modcdp.New(modcdp.Options{
-		Launch:   modcdp.LaunchConfig{Mode: "remote"},
-		Upstream: modcdp.UpstreamConfig{Mode: "ws", CDPURL: chrome.CDPURL},
-		Extension: modcdp.ExtensionConfig{
-			Mode:                       "discover",
-			ExtensionID:                customDiscoveredExtensionID,
-			ServiceWorkerURLSuffixes:   []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget:   true,
-			RequireServiceWorkerTarget: true,
+		Launcher: modcdp.LauncherConfig{LauncherMode: "remote"},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                       "discover",
+			InjectorExtensionID:                customDiscoveredExtensionID,
+			InjectorServiceWorkerURLSuffixes:   []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget:   true,
+			InjectorRequireServiceWorkerTarget: true,
 		},
 	})
 	defer cdp.Close()

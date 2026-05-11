@@ -1,22 +1,10 @@
-import type {
-  CdpCommandMessage,
-  CdpEventMessage,
-  CdpResponseMessage,
-} from "../types/modcdp.js";
+import type { CdpCommandMessage, CdpEventMessage, CdpResponseMessage } from "../types/modcdp.js";
 import type { ModCDPServerOptions } from "../types/modcdp.js";
 import type { BrowserLaunchOptions } from "../launcher/BrowserLauncher.js";
 import type { ExtensionInjectorConfig } from "../injector/ExtensionInjector.js";
-import {
-  CdpEventMessageSchema,
-  CdpResponseMessageSchema,
-} from "../types/modcdp.js";
+import { CdpEventMessageSchema, CdpResponseMessageSchema } from "../types/modcdp.js";
 
-export type UpstreamMode =
-  | "ws"
-  | "pipe"
-  | "nativemessaging"
-  | "reversews"
-  | "nats";
+export type UpstreamMode = "ws" | "pipe" | "nativemessaging" | "reversews" | "nats";
 export type UpstreamEndpointKind = "raw_cdp" | "modcdp_server";
 export type UpstreamTransportConfig = {
   cdp_url?: string | null;
@@ -40,9 +28,7 @@ export class UpstreamTransport {
   readonly mode: UpstreamMode = "ws";
   readonly endpoint_kind: UpstreamEndpointKind = "raw_cdp";
   url?: string;
-  private recv_listeners = new Set<
-    (message: CdpResponseMessage | CdpEventMessage) => void
-  >();
+  private recv_listeners = new Set<(message: CdpResponseMessage | CdpEventMessage) => void>();
   private close_listeners = new Set<(error: Error) => void>();
 
   async connect() {
@@ -92,34 +78,21 @@ export class UpstreamTransport {
   protected parseAndEmitRecv(data: unknown) {
     try {
       const parsed = JSON.parse(typeof data === "string" ? data : String(data));
-      this.emitRecv(
-        "id" in parsed
-          ? CdpResponseMessageSchema.parse(parsed)
-          : CdpEventMessageSchema.parse(parsed),
-      );
+      this.emitRecv("id" in parsed ? CdpResponseMessageSchema.parse(parsed) : CdpEventMessageSchema.parse(parsed));
     } catch {}
   }
 
   async waitForPeer() {}
 }
 
-export function parseHostPort(
-  value: string,
-  defaultHost: string,
-  defaultPort: number,
-) {
-  const parsed = new URL(
-    /^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `ws://${value}`,
-  );
+export function parseHostPort(value: string, defaultHost: string, defaultPort: number) {
+  const parsed = new URL(/^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `ws://${value}`);
   const host = parsed.hostname || defaultHost;
   const port = Number(parsed.port || defaultPort);
-  if (!Number.isInteger(port) || port <= 0 || port > 65_535)
-    throw new Error(`Invalid host:port ${value}`);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error(`Invalid host:port ${value}`);
   return { host, port };
 }
 
-export function endpointKindForUpstream(
-  mode: UpstreamMode,
-): UpstreamEndpointKind {
+export function endpointKindForUpstream(mode: UpstreamMode): UpstreamEndpointKind {
   return mode === "ws" || mode === "pipe" ? "raw_cdp" : "modcdp_server";
 }

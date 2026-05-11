@@ -74,24 +74,24 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 		t.Fatal(err)
 	}
 	cdp := New(Options{
-		Launch:   LaunchConfig{Mode: "remote"},
-		Upstream: UpstreamConfig{Mode: "ws", CDPURL: chrome.CDPURL},
-		Extension: ExtensionConfig{
-			Mode:                     "auto",
-			Path:                     extensionPath,
-			ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			TrustServiceWorkerTarget: true,
+		Launcher: LauncherConfig{LauncherMode: "remote"},
+		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Injector: InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorExtensionPath:            extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
 		},
 		Client: ClientConfig{
-			Routes: map[string]string{
+			ClientRoutes: map[string]string{
 				"Target.getTargets":         "service_worker",
 				"Target.createTarget":       "service_worker",
 				"Target.setDiscoverTargets": "service_worker",
 			},
 		},
 		Server: &ServerConfig{
-			LoopbackCDPURL: chrome.CDPURL,
-			Routes:         map[string]string{"*.*": "loopback_cdp"},
+			ServerLoopbackCDPURL: chrome.CDPURL,
+			ServerRoutes:         map[string]string{"*.*": "loopback_cdp"},
 		},
 	})
 	defer chrome.Close()
@@ -103,8 +103,8 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 	if cdp.CDPURL != chrome.CDPURL {
 		t.Fatalf("CDPURL = %q, expected %q", cdp.CDPURL, chrome.CDPURL)
 	}
-	if cdp.Server.LoopbackCDPURL != chrome.CDPURL {
-		t.Fatalf("LoopbackCDPURL = %q, expected %q", cdp.Server.LoopbackCDPURL, chrome.CDPURL)
+	if cdp.Server.ServerLoopbackCDPURL != chrome.CDPURL {
+		t.Fatalf("ServerLoopbackCDPURL = %q, expected %q", cdp.Server.ServerLoopbackCDPURL, chrome.CDPURL)
 	}
 
 	rawTargets, err := cdp.sendMessage("Target.getTargets", map[string]any{}, "")

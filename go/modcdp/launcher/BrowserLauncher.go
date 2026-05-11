@@ -167,9 +167,6 @@ func mergeLaunchOptions(existing LaunchOptions, incoming LaunchOptions) LaunchOp
 	if incoming.BrowserbaseAPIKey != "" {
 		merged.BrowserbaseAPIKey = incoming.BrowserbaseAPIKey
 	}
-	if incoming.BrowserbaseProjectID != "" {
-		merged.BrowserbaseProjectID = incoming.BrowserbaseProjectID
-	}
 	if incoming.BrowserbaseBaseURL != "" {
 		merged.BrowserbaseBaseURL = incoming.BrowserbaseBaseURL
 	}

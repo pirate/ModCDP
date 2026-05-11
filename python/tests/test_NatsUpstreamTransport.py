@@ -11,7 +11,6 @@ from queue import Queue
 
 from websocket import create_connection
 
-from modcdp import ModCDPClient
 from modcdp.transport.NatsUpstreamTransport import NatsUpstreamTransport
 
 
@@ -98,39 +97,6 @@ class NatsUpstreamTransportTests(unittest.TestCase):
         finally:
             transport.close()
             nats["close"]()
-
-    def test_relays_cdp_through_real_extension_over_real_nats_server(self) -> None:
-        nats = _start_nats_server()
-        upstream_nats_subject_prefix = f"modcdp.test.{int(time.time() * 1000)}"
-        cdp = ModCDPClient(
-            launch={"mode": "local", "options": {"headless": True, "sandbox": False}},
-            upstream={"mode": "nats", "upstream_nats_url": nats["url"], "upstream_nats_subject_prefix": upstream_nats_subject_prefix},
-            extension={
-                "mode": "auto",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
-            },
-            server={"routes": {"*.*": "loopback_cdp"}},
-        )
-
-        try:
-            cdp.connect()
-            self.assertEqual(cdp.transport.mode if cdp.transport else None, "nats")
-            self.assertEqual(cdp.upstream_endpoint_kind, "modcdp_server")
-            transport = cdp.transport
-            if not isinstance(transport, NatsUpstreamTransport):
-                self.fail(f"transport = {type(transport).__name__}")
-            self.assertEqual(transport.url, f"{nats['url']}/")
-            self.assertEqual(transport.upstream_nats_subject_prefix, upstream_nats_subject_prefix)
-            version = cdp.send("Browser.getVersion")
-            self.assertIsInstance(version["product"], str)
-            time.sleep(1.5)
-            second_version = cdp.send("Browser.getVersion")
-            self.assertIsInstance(second_version["product"], str)
-        finally:
-            cdp.close()
-            nats["close"]()
-
 
 def _start_nats_server():
     websocket_port = _free_port()

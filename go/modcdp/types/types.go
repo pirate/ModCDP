@@ -14,7 +14,6 @@ type LaunchOptions struct {
 	ChromeReadyPollIntervalMS      int            `json:"chrome_ready_poll_interval_ms,omitempty"`
 	CDPURL                         string         `json:"cdp_url,omitempty"`
 	BrowserbaseAPIKey              string         `json:"browserbase_api_key,omitempty"`
-	BrowserbaseProjectID           string         `json:"browserbase_project_id,omitempty"`
 	BrowserbaseBaseURL             string         `json:"browserbase_base_url,omitempty"`
 	BrowserbaseSessionID           string         `json:"browserbase_session_id,omitempty"`
 	BrowserbaseKeepAlive           *bool          `json:"browserbase_keep_alive,omitempty"`

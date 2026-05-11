@@ -29,12 +29,12 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
             }
         ).launch()
         cdp = ModCDPClient(
-            launch={"mode": "remote"},
-            upstream={"mode": "ws", "cdp_url": chrome["cdp_url"]},
-            extension={
-                "mode": "discover",
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "remote"},
+            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+            injector={
+                "injector_mode": "discover",
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
         )
 
@@ -68,14 +68,14 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
                 }
             ).launch()
             cdp = ModCDPClient(
-                launch={"mode": "remote"},
-                upstream={"mode": "ws", "cdp_url": chrome["cdp_url"]},
-                extension={
-                    "mode": "discover",
-                    "extension_id": CUSTOM_EXTENSION_ID,
-                    "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                    "trust_service_worker_target": True,
-                    "require_service_worker_target": True,
+                launcher={"launcher_mode": "remote"},
+                upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+                injector={
+                    "injector_mode": "discover",
+                    "injector_extension_id": CUSTOM_EXTENSION_ID,
+                    "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                    "injector_trust_service_worker_target": True,
+                    "injector_require_service_worker_target": True,
                 },
             )
 

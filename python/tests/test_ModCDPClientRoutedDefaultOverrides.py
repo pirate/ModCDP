@@ -79,22 +79,22 @@ class ModCDPClientRoutedDefaultOverridesTests(unittest.TestCase):
             }
         ).launch()
         cdp = ModCDPClient(
-            launch={"mode": "remote"},
-            upstream={"mode": "ws", "cdp_url": chrome["cdp_url"]},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            launcher={"launcher_mode": "remote"},
+            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
             client={
-                "routes": {
+                "client_routes": {
                     "Target.getTargets": "service_worker",
                     "Target.createTarget": "service_worker",
                     "Target.setDiscoverTargets": "service_worker",
                 }
             },
-            server={"loopback_cdp_url": chrome["cdp_url"], "routes": {"*.*": "loopback_cdp"}},
+            server={"server_loopback_cdp_url": chrome["cdp_url"], "server_routes": {"*.*": "loopback_cdp"}},
         )
 
         try:
@@ -102,7 +102,7 @@ class ModCDPClientRoutedDefaultOverridesTests(unittest.TestCase):
             self.assertEqual(cdp.cdp_url, chrome["cdp_url"])
             self.assertIsNotNone(cdp.server)
             server = cast(dict[str, Any], cdp.server)
-            self.assertEqual(server["loopback_cdp_url"], chrome["cdp_url"])
+            self.assertEqual(server["server_loopback_cdp_url"], chrome["cdp_url"])
 
             raw_targets = cdp._send_message("Target.getTargets", {})
             raw_target_infos = target_infos_from_result(raw_targets)

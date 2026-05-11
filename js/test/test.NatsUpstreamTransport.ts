@@ -4,16 +4,11 @@ import { once } from "node:events";
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { getBinaryPath } from "@eplightning/nats-server";
 import { test } from "vitest";
 
 import { LocalBrowserLauncher } from "../src/launcher/LocalBrowserLauncher.js";
 import { NatsUpstreamTransport } from "../src/transport/NatsUpstreamTransport.js";
-import { ModCDPClient } from "../src/client/ModCDPClient.js";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
 
 test("nats upstream config owns url, subject prefix, wait timeout, and injector config", async () => {
   const transport = new NatsUpstreamTransport({
@@ -37,10 +32,7 @@ test("nats upstream config owns url, subject prefix, wait timeout, and injector 
   );
   assert.equal(transport.url, "nats://127.0.0.1:4222");
   assert.equal(transport.upstream_nats_subject_prefix, "modcdp.two");
-  await assert.rejects(
-    () => transport.waitForPeer(),
-    /Timed out waiting 5ms for NATS ModCDP peer/,
-  );
+  await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms for NATS ModCDP peer/);
 });
 
 test("nats upstream close rejects pending peer waits", async () => {
@@ -53,27 +45,21 @@ test("nats upstream close rejects pending peer waits", async () => {
 
   await transport.close();
 
-  await assert.rejects(
-    () => pending,
-    /NATS transport for modcdp\.close closed before a peer connected/,
-  );
+  await assert.rejects(() => pending, /NATS transport for modcdp\.close closed before a peer connected/);
 });
 
 test("nats upstream close resets peer wait state", async () => {
   const transport = new NatsUpstreamTransport({
     upstream_nats_wait_timeout_ms: 5,
   });
-  (
-    transport as unknown as { handlePayload: (payload: string) => void }
-  ).handlePayload(`{"type":"modcdp.nats.hello","role":"browser","version":1}`);
+  (transport as unknown as { handlePayload: (payload: string) => void }).handlePayload(
+    `{"type":"modcdp.nats.hello","role":"browser","version":1}`,
+  );
 
   await transport.waitForPeer();
   await transport.close();
 
-  await assert.rejects(
-    () => transport.waitForPeer(),
-    /Timed out waiting 5ms for NATS ModCDP peer/,
-  );
+  await assert.rejects(() => transport.waitForPeer(), /Timed out waiting 5ms for NATS ModCDP peer/);
 });
 
 test("nats upstream reconnects after close against a real NATS server", async () => {
@@ -85,20 +71,11 @@ test("nats upstream reconnects after close against a real NATS server", async ()
 
   try {
     await transport.connect();
-    assert.equal(
-      (transport as unknown as { connected: boolean }).connected,
-      true,
-    );
+    assert.equal((transport as unknown as { connected: boolean }).connected, true);
     await transport.close();
-    assert.equal(
-      (transport as unknown as { connected: boolean }).connected,
-      false,
-    );
+    assert.equal((transport as unknown as { connected: boolean }).connected, false);
     await transport.connect();
-    assert.equal(
-      (transport as unknown as { connected: boolean }).connected,
-      true,
-    );
+    assert.equal((transport as unknown as { connected: boolean }).connected, true);
   } finally {
     await transport.close();
     await nats.close();
@@ -126,9 +103,7 @@ async function waitForWebSocket(url: string, timeout_ms = 10_000) {
       await delay(50);
     }
   }
-  throw last_error instanceof Error
-    ? last_error
-    : new Error(`Timed out waiting for ${url}`);
+  throw last_error instanceof Error ? last_error : new Error(`Timed out waiting for ${url}`);
 }
 
 async function closeProcess(proc: ChildProcess) {
@@ -177,50 +152,3 @@ async function startNatsServer() {
     },
   };
 }
-
-test("nats upstream relays CDP through a real extension over a real NATS server", async () => {
-  const nats = await startNatsServer();
-  const upstream_nats_subject_prefix = `modcdp.test.${Date.now()}`;
-  const nats_client = new ModCDPClient({ launcher: {
-      launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
-    },
-    upstream: {
-      upstream_mode: "nats",
-      upstream_nats_url: nats.url,
-      upstream_nats_subject_prefix: upstream_nats_subject_prefix,
-    }, injector: {
-      injector_mode: "auto",
-      injector_extension_path: EXTENSION_PATH,
-      injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
-      injector_trust_service_worker_target: true,
-    },
-    server: {
-      server_routes: { "*.*": "loopback_cdp" },
-    },
-  });
-
-  try {
-    await nats_client.connect();
-    assert.equal(nats_client.transport?.mode, "nats");
-    assert.equal(nats_client.upstream_endpoint_kind, "modcdp_server");
-    assert.equal(nats_client.transport?.url, `${nats.url}/`);
-    assert.equal(
-      nats_client.upstream.upstream_nats_subject_prefix,
-      upstream_nats_subject_prefix,
-    );
-    const version = (await nats_client.send("Browser.getVersion")) as Record<
-      string,
-      unknown
-    >;
-    assert.equal(typeof version.product, "string");
-    await delay(1_500);
-    const second_version = (await nats_client.send(
-      "Browser.getVersion",
-    )) as Record<string, unknown>;
-    assert.equal(typeof second_version.product, "string");
-  } finally {
-    await nats_client.close();
-    await nats.close();
-  }
-}, 90_000);

@@ -1,4 +1,4 @@
-name: Client Demos
+name: Test
 
 on:
   pull_request:
@@ -17,6 +17,7 @@ jobs:
       CHROME_PATH: /usr/bin/chromium
       CI: "true"
       GOFLAGS: -buildvcs=false
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,7 +50,7 @@ jobs:
               ;;
             go)
               cd go
-              go test -count=1 ./...
+              go test -count=1 -p 1 ./...
               ;;
             *)
               echo "unknown client: ${{ matrix.client }}" >&2

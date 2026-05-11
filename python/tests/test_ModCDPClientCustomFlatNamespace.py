@@ -23,19 +23,19 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
             success: bool
 
         client = ModCDPClient(
-            launch={
-                "mode": "local",
-                "options": {"headless": True, "sandbox": False},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {"headless": True, "sandbox": False},
             },
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
-            server={"routes": {"*.*": "loopback_cdp"}},
+            client={"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
 
         async def run() -> None:
@@ -64,19 +64,19 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
             data: str
 
         client = ModCDPClient(
-            launch={
-                "mode": "local",
-                "options": {"headless": True, "sandbox": False},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {"headless": True, "sandbox": False},
             },
-            upstream={"mode": "ws"},
-            extension={
-                "mode": "auto",
-                "path": str(EXTENSION_PATH),
-                "service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "trust_service_worker_target": True,
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
             },
-            client={"routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
-            server={"routes": {"*.*": "loopback_cdp"}},
+            client={"client_routes": {"Mod.*": "service_worker", "Custom.*": "service_worker", "*.*": "direct_cdp"}},
+            server={"server_routes": {"*.*": "loopback_cdp"}},
         )
         seen: Queue[str] = Queue()
 

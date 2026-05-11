@@ -1,10 +1,7 @@
 package injector
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -173,46 +170,6 @@ func (i *ExtensionInjector) Close() error {
 
 func (i *ExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
 	return nil, fmt.Errorf("%T.Inject is not implemented", i)
-}
-
-func (i ExtensionInjector) extensionRuntimeConfig() map[string]string {
-	config := map[string]string{}
-	if i.Options.UpstreamReverseWSURL != "" {
-		config["upstream_reversews_url"] = i.Options.UpstreamReverseWSURL
-	}
-	if i.Options.UpstreamNativeMessagingHostName != "" {
-		config["upstream_nativemessaging_host_name"] = i.Options.UpstreamNativeMessagingHostName
-	}
-	if i.Options.UpstreamNATSURL != "" {
-		config["upstream_nats_url"] = i.Options.UpstreamNATSURL
-	}
-	if i.Options.UpstreamNATSSubjectPrefix != "" {
-		config["upstream_nats_subject_prefix"] = i.Options.UpstreamNATSSubjectPrefix
-	}
-	return config
-}
-
-func (i ExtensionInjector) writeExtensionRuntimeConfig(unpackedExtensionPath string) error {
-	config := i.extensionRuntimeConfig()
-	if len(config) == 0 {
-		return nil
-	}
-	configBytes, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(unpackedExtensionPath, "modcdp"), 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(unpackedExtensionPath, "modcdp", "config.json"), append(configBytes, '\n'), 0o644); err != nil {
-		return err
-	}
-	configJS := "globalThis.__MODCDP_RUNTIME_CONFIG__ = " + string(configBytes) + ";\nexport {};\n"
-	return os.WriteFile(filepath.Join(unpackedExtensionPath, "config.js"), []byte(configJS), 0o644)
-}
-
-func (i ExtensionInjector) WriteExtensionRuntimeConfig(unpackedExtensionPath string) error {
-	return i.writeExtensionRuntimeConfig(unpackedExtensionPath)
 }
 
 func (i ExtensionInjector) readyExpression() string {
