@@ -288,7 +288,6 @@ func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 		`"launcher_executable_path"`,
 		`"launcher_user_data_dir"`,
 		`"launcher_options"`,
-		`"executable_path"`,
 		`"remote_debugging"`,
 		`"browserbase_api_key"`,
 		`"browserbase_session_create_params"`,

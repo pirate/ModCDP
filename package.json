@@ -138,7 +138,7 @@
     "demo:proxy:playwright": "pnpm run build && node dist/js/examples/playwright.js",
     "demo:proxy:puppeteer": "pnpm run build && node dist/js/examples/puppeteer.js",
     "proxy": "pnpm run build && node dist/js/src/proxy/cli.js",
-    "test": "pnpm run build && vitest run --fileParallelism=false",
+    "test": "pnpm run build && vitest run --fileParallelism=false --maxWorkers=1",
     "test:launchers": "vitest run js/test/test.LocalBrowserLauncher.ts js/test/test.RemoteBrowserLauncher.ts js/test/test.BrowserbaseBrowserLauncher.ts",
     "pack:npm": "pnpm run build && npm pack --ignore-scripts",
     "prepare": "pnpm run build"

@@ -1178,7 +1178,7 @@ export function runProxyCli(args = process.argv.slice(2)) {
       : typeof argv["server-routes"] === "string" && argv["server-routes"] !== "true"
         ? { server_routes: JSON.parse(argv["server-routes"]) }
         : {};
-  startProxy({
+  const proxyPromise = startProxy({
     host,
     port,
     launcher: {
@@ -1244,7 +1244,20 @@ export function runProxyCli(args = process.argv.slice(2)) {
     client: clientConfig as ClientConfigOptions,
     server: serverConfig as ModCDPServerOptions,
     forward_mirrored_upstream_events,
-  }).catch((e) => {
+  });
+  let shuttingDown = false;
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    try {
+      const proxy = await proxyPromise;
+      await proxy.close();
+    } catch {}
+    process.exit(0);
+  };
+  process.once("SIGINT", () => void shutdown());
+  process.once("SIGTERM", () => void shutdown());
+  proxyPromise.catch((e) => {
     console.error(e);
     process.exitCode = 1;
   });
