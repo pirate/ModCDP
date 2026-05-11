@@ -79,7 +79,7 @@ class NativeMessagingUpstreamTransport(UpstreamTransport):
         return self
 
     def getServerConfig(self) -> dict[str, Any]:
-        return {"loopback_cdp_url": self.cdp_url} if self.cdp_url else {}
+        return {"server_loopback_cdp_url": self.cdp_url} if self.cdp_url else {}
 
     def getInjectorConfig(self) -> dict[str, Any]:
         return {"upstream_nativemessaging_host_name": self.upstream_nativemessaging_host_name}

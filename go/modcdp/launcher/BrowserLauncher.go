@@ -116,9 +116,9 @@ func (l BrowserLauncher) GetTransportConfig() map[string]any {
 
 func (l BrowserLauncher) GetInjectorConfig() ExtensionInjectorConfig {
 	return ExtensionInjectorConfig{
-		BrowserbaseAPIKey:  l.Options.BrowserbaseAPIKey,
-		BrowserbaseBaseURL: l.Options.BrowserbaseBaseURL,
-		ExtensionID:        l.Options.ExtensionID,
+		InjectorBrowserbaseAPIKey:  l.Options.BrowserbaseAPIKey,
+		InjectorBrowserbaseBaseURL: l.Options.BrowserbaseBaseURL,
+		InjectorExtensionID:        l.Options.InjectorExtensionID,
 	}
 }
 
@@ -185,8 +185,8 @@ func mergeLaunchOptions(existing LaunchOptions, incoming LaunchOptions) LaunchOp
 	if incoming.Timeout != 0 {
 		merged.Timeout = incoming.Timeout
 	}
-	if incoming.ExtensionID != "" {
-		merged.ExtensionID = incoming.ExtensionID
+	if incoming.InjectorExtensionID != "" {
+		merged.InjectorExtensionID = incoming.InjectorExtensionID
 	}
 	if incoming.BrowserbaseBrowserSettings != nil {
 		merged.BrowserbaseBrowserSettings = incoming.BrowserbaseBrowserSettings

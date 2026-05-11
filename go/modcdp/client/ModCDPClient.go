@@ -787,11 +787,7 @@ func (c *ModCDPClient) connectUpstreamTransport() error {
 		serverConfig["server_loopback_cdp_url"] = launchedCDPURL
 	}
 	for key, value := range transport.GetServerConfig() {
-		if key == "loopback_cdp_url" {
-			serverConfig["server_loopback_cdp_url"] = value
-		} else {
-			serverConfig[key] = value
-		}
+		serverConfig[key] = value
 	}
 	if c.Server != nil {
 		if loopbackCDPURL, _ := serverConfig["server_loopback_cdp_url"].(string); loopbackCDPURL != "" {
@@ -817,7 +813,7 @@ func (c *ModCDPClient) upstreamTransportConfig() map[string]any {
 		"upstream_nativemessaging_manifest":        c.Upstream.UpstreamNativeMessagingManifest,
 		"upstream_nativemessaging_host_name":       c.Upstream.UpstreamNativeMessagingHostName,
 		"upstream_nativemessaging_wait_timeout_ms": c.Upstream.UpstreamNativeMessagingWaitTimeoutMS,
-		"extension_id":                             c.Injector.InjectorExtensionID,
+		"injector_extension_id":                    c.Injector.InjectorExtensionID,
 	}
 }
 
@@ -1419,27 +1415,27 @@ func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInject
 			contextID, _ := c.autoSessions.WaitForExecutionContext(sessionID, timeoutMS)
 			return contextID
 		},
-		ExtensionPath:                c.Injector.InjectorExtensionPath,
-		ExtensionID:                  c.Injector.InjectorExtensionID,
-		WakePath:                     firstNonEmptyString(c.Injector.InjectorWakePath, DefaultModCDPWakePath),
-		WakeURL:                      c.Injector.InjectorWakeURL,
-		ServiceWorkerURLIncludes:     c.Injector.InjectorServiceWorkerURLIncludes,
-		ServiceWorkerURLSuffixes:     c.Injector.InjectorServiceWorkerURLSuffixes,
-		TrustServiceWorkerTarget:     trustMatchedServiceWorker,
-		RequireServiceWorkerTarget:   c.Injector.InjectorRequireServiceWorkerTarget || c.Injector.InjectorMode == "discover",
-		ServiceWorkerReadyExpression: c.Injector.InjectorServiceWorkerReadyExpression,
-		CDPSendTimeoutMS:             c.Client.ClientCDPSendTimeoutMS,
-		ExecutionContextTimeoutMS:    c.Injector.InjectorExecutionContextTimeoutMS,
-		ServiceWorkerProbeTimeoutMS:  c.Injector.InjectorServiceWorkerProbeTimeoutMS,
-		ServiceWorkerReadyTimeoutMS:  c.Injector.InjectorServiceWorkerReadyTimeoutMS,
-		ServiceWorkerPollIntervalMS:  c.Injector.InjectorServiceWorkerPollIntervalMS,
-		TargetSessionPollIntervalMS:  c.Injector.InjectorTargetSessionPollIntervalMS,
+		InjectorExtensionPath:                c.Injector.InjectorExtensionPath,
+		InjectorExtensionID:                  c.Injector.InjectorExtensionID,
+		InjectorWakePath:                     firstNonEmptyString(c.Injector.InjectorWakePath, DefaultModCDPWakePath),
+		InjectorWakeURL:                      c.Injector.InjectorWakeURL,
+		InjectorServiceWorkerURLIncludes:     c.Injector.InjectorServiceWorkerURLIncludes,
+		InjectorServiceWorkerURLSuffixes:     c.Injector.InjectorServiceWorkerURLSuffixes,
+		InjectorTrustServiceWorkerTarget:     trustMatchedServiceWorker,
+		InjectorRequireServiceWorkerTarget:   c.Injector.InjectorRequireServiceWorkerTarget || c.Injector.InjectorMode == "discover",
+		InjectorServiceWorkerReadyExpression: c.Injector.InjectorServiceWorkerReadyExpression,
+		InjectorCDPSendTimeoutMS:             c.Client.ClientCDPSendTimeoutMS,
+		InjectorExecutionContextTimeoutMS:    c.Injector.InjectorExecutionContextTimeoutMS,
+		InjectorServiceWorkerProbeTimeoutMS:  c.Injector.InjectorServiceWorkerProbeTimeoutMS,
+		InjectorServiceWorkerReadyTimeoutMS:  c.Injector.InjectorServiceWorkerReadyTimeoutMS,
+		InjectorServiceWorkerPollIntervalMS:  c.Injector.InjectorServiceWorkerPollIntervalMS,
+		InjectorTargetSessionPollIntervalMS:  c.Injector.InjectorTargetSessionPollIntervalMS,
 	}
 }
 
 func (c *ModCDPClient) injectExtension(injectors []extensionInjector) (*ExtensionInjectionResult, error) {
 	if len(injectors) == 0 {
-		return nil, fmt.Errorf("extension.mode='none' cannot be used with a raw_cdp upstream")
+		return nil, fmt.Errorf("injector.injector_mode='none' cannot be used with a raw_cdp upstream")
 	}
 	send := func(method string, params map[string]any, sessionID string) (map[string]any, error) {
 		return c.sendMessageTimeout(method, params, sessionID, time.Duration(c.Client.ClientCDPSendTimeoutMS)*time.Millisecond)

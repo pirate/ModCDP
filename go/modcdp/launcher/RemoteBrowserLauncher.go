@@ -17,7 +17,7 @@ func NewRemoteBrowserLauncher(options LaunchOptions, cdpURL string) *RemoteBrows
 func (l *RemoteBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, error) {
 	cdpURL := firstString(l.CDPURL, options.CDPURL, l.Options.CDPURL)
 	if cdpURL == "" {
-		return nil, fmt.Errorf("launch.mode=remote requires upstream.cdp_url")
+		return nil, fmt.Errorf("launcher.launcher_mode=remote requires upstream.upstream_cdp_url")
 	}
 	resolvedCDPURL, err := websocketURLFor(cdpURL)
 	if err != nil {

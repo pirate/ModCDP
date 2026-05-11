@@ -19,13 +19,13 @@ func TestNativeMessagingUpstreamTransportConfigOwnsManifestHostWaitTimeoutLoopba
 		UpstreamNativeMessagingManifest:      "/tmp/modcdp-native-host.json",
 		UpstreamNativeMessagingManifests:     []string{"/tmp/modcdp-native-host-extra.json"},
 		UpstreamNativeMessagingHostName:      "com.modcdp.test",
-		ExtensionID:                          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		InjectorExtensionID:                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		UpstreamNativeMessagingWaitTimeoutMS: 10,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if raw := string(encoded); raw != `{"upstream_nativemessaging_manifest":"/tmp/modcdp-native-host.json","upstream_nativemessaging_manifests":["/tmp/modcdp-native-host-extra.json"],"upstream_nativemessaging_host_name":"com.modcdp.test","extension_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","upstream_nativemessaging_wait_timeout_ms":10}` {
+	if raw := string(encoded); raw != `{"upstream_nativemessaging_manifest":"/tmp/modcdp-native-host.json","upstream_nativemessaging_manifests":["/tmp/modcdp-native-host-extra.json"],"upstream_nativemessaging_host_name":"com.modcdp.test","injector_extension_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","upstream_nativemessaging_wait_timeout_ms":10}` {
 		t.Fatalf("NativeMessagingUpstreamTransportOptions JSON = %s", raw)
 	}
 
@@ -33,7 +33,7 @@ func TestNativeMessagingUpstreamTransportConfigOwnsManifestHostWaitTimeoutLoopba
 		UpstreamNativeMessagingManifest:      "/tmp/modcdp-native-host.json",
 		UpstreamNativeMessagingManifests:     []string{"/tmp/modcdp-native-host-extra.json"},
 		UpstreamNativeMessagingHostName:      "com.modcdp.test",
-		ExtensionID:                          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		InjectorExtensionID:                  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		UpstreamNativeMessagingWaitTimeoutMS: 10,
 	})
 	transport.Update(map[string]any{
@@ -45,7 +45,7 @@ func TestNativeMessagingUpstreamTransportConfigOwnsManifestHostWaitTimeoutLoopba
 	if transport.GetInjectorConfig().UpstreamNativeMessagingHostName != "com.modcdp.updated" {
 		t.Fatalf("updated injector config = %#v", transport.GetInjectorConfig())
 	}
-	if transport.GetServerConfig()["loopback_cdp_url"] != "ws://127.0.0.1:9222/devtools/browser/test" {
+	if transport.GetServerConfig()["server_loopback_cdp_url"] != "ws://127.0.0.1:9222/devtools/browser/test" {
 		t.Fatalf("server config = %#v", transport.GetServerConfig())
 	}
 	if transport.UpstreamNativeMessagingManifest != "/tmp/modcdp-native-host.json" {

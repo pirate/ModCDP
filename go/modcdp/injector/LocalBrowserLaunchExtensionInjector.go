@@ -29,7 +29,7 @@ func NewLocalBrowserLaunchExtensionInjector(options ExtensionInjectorConfig) Loc
 }
 
 func (i *LocalBrowserLaunchExtensionInjector) Prepare() error {
-	extensionPath := i.Options.ExtensionPath
+	extensionPath := i.Options.InjectorExtensionPath
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
@@ -52,11 +52,11 @@ func (i *LocalBrowserLaunchExtensionInjector) GetLauncherConfig() LaunchOptions 
 
 func (i *LocalBrowserLaunchExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
 	i.wakeConfiguredExtension()
-	timeoutMS := i.Options.ServiceWorkerProbeTimeoutMS
+	timeoutMS := i.Options.InjectorServiceWorkerProbeTimeoutMS
 	if timeoutMS > 3000 {
 		timeoutMS = 3000
 	}
-	discovered, err := i.waitForReadyServiceWorker(timeoutMS, i.Options.TrustServiceWorkerTarget)
+	discovered, err := i.waitForReadyServiceWorker(timeoutMS, i.Options.InjectorTrustServiceWorkerTarget)
 	if err != nil || discovered == nil {
 		return discovered, err
 	}
@@ -76,8 +76,8 @@ func (i *LocalBrowserLaunchExtensionInjector) resolveExtensionID() (string, erro
 	if i.ExtensionID != "" {
 		return i.ExtensionID, nil
 	}
-	if i.Options.ExtensionID != "" {
-		i.ExtensionID = i.Options.ExtensionID
+	if i.Options.InjectorExtensionID != "" {
+		i.ExtensionID = i.Options.InjectorExtensionID
 	} else if i.UnpackedExtensionPath != "" {
 		extensionID, err := extensionIDFromManifestKey(i.UnpackedExtensionPath)
 		if err != nil {
@@ -86,7 +86,7 @@ func (i *LocalBrowserLaunchExtensionInjector) resolveExtensionID() (string, erro
 		i.ExtensionID = extensionID
 	}
 	if i.ExtensionID != "" {
-		i.Options.ExtensionID = i.ExtensionID
+		i.Options.InjectorExtensionID = i.ExtensionID
 	}
 	return i.ExtensionID, nil
 }

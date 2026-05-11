@@ -16,7 +16,7 @@ class RemoteBrowserLauncher(BrowserLauncher):
         merged = {**self.options, **dict(options or {})}
         cdp_url = cast(str | None, merged.get("cdp_url"))
         if not cdp_url:
-            raise RuntimeError("launch.mode=remote requires upstream.cdp_url.")
+            raise RuntimeError("launcher.launcher_mode=remote requires upstream.upstream_cdp_url.")
         # cdp_url is resolved here so downstream transports can dial it directly.
         cdp_url = _websocket_url_for(cdp_url)
         self.launched = {"cdp_url": cdp_url, "close": lambda: None}

@@ -275,7 +275,7 @@ func TestModCDPClientOptionsMarshalToSnakeCaseConfigShape(t *testing.T) {
 	for _, wrong := range []string{
 		"Launcher", "ExecutablePath", "RemoteDebugging", "BrowserbaseAPIKey",
 		"Upstream", "UpstreamNATSSubjectPrefix", "UpstreamNATSWaitTimeoutMS", "UpstreamReverseWSWaitTimeoutMS", "UpstreamNativeMessagingHostName", "UpstreamNativeMessagingWaitTimeoutMS",
-		"Injector", "ServiceWorkerURLSuffixes", "TrustServiceWorkerTarget",
+		"Injector", "InjectorServiceWorkerURLSuffixes", "InjectorTrustServiceWorkerTarget",
 		"Client", "HydrateAliases", "CustomCommands",
 	} {
 		if strings.Contains(raw, wrong) {
@@ -342,8 +342,8 @@ func TestModCDPClientPreservesExplicitEmptyServiceWorkerSuffixConfig(t *testing.
 		t.Fatalf("InjectorServiceWorkerURLSuffixes = %#v", cdp.Injector.InjectorServiceWorkerURLSuffixes)
 	}
 	injectorConfig := cdp.baseExtensionInjectorConfig(nil)
-	if len(injectorConfig.ServiceWorkerURLSuffixes) != 0 {
-		t.Fatalf("injector ServiceWorkerURLSuffixes = %#v", injectorConfig.ServiceWorkerURLSuffixes)
+	if len(injectorConfig.InjectorServiceWorkerURLSuffixes) != 0 {
+		t.Fatalf("injector InjectorServiceWorkerURLSuffixes = %#v", injectorConfig.InjectorServiceWorkerURLSuffixes)
 	}
 }
 
@@ -362,8 +362,8 @@ func TestModCDPClientDefaultsServiceWorkerSuffixConfigToModCDPWorker(t *testing.
 		t.Fatalf("InjectorServiceWorkerURLSuffixes = %#v", cdp.Injector.InjectorServiceWorkerURLSuffixes)
 	}
 	injectorConfig := cdp.baseExtensionInjectorConfig(nil)
-	if len(injectorConfig.ServiceWorkerURLSuffixes) != 1 || injectorConfig.ServiceWorkerURLSuffixes[0] != "/modcdp/service_worker.js" {
-		t.Fatalf("injector ServiceWorkerURLSuffixes = %#v", injectorConfig.ServiceWorkerURLSuffixes)
+	if len(injectorConfig.InjectorServiceWorkerURLSuffixes) != 1 || injectorConfig.InjectorServiceWorkerURLSuffixes[0] != "/modcdp/service_worker.js" {
+		t.Fatalf("injector InjectorServiceWorkerURLSuffixes = %#v", injectorConfig.InjectorServiceWorkerURLSuffixes)
 	}
 }
 

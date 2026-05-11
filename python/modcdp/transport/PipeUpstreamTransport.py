@@ -33,7 +33,7 @@ class PipeUpstreamTransport(UpstreamTransport):
 
     def connect(self) -> None:
         if self.pipe_read is None or self.pipe_write is None:
-            raise RuntimeError("upstream.mode='pipe' requires launcher-provided remote-debugging pipe handles.")
+            raise RuntimeError("upstream.upstream_mode=pipe requires launcher-provided remote-debugging pipe handles.")
         if self._connected:
             return
         self._connected = True

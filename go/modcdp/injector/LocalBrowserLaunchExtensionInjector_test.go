@@ -23,7 +23,7 @@ func TestLocalBrowserLaunchExtensionInjectorLoadsRealExtensionDuringLocalLaunch(
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
 		Injector: modcdp.InjectorConfig{
 			InjectorMode:                     "inject",
-			InjectorExtensionPath:                     extensionPath,
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},
@@ -58,7 +58,7 @@ func TestLocalBrowserLaunchExtensionInjectorPreparesLauncherConfig(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	injector := NewLocalBrowserLaunchExtensionInjector(ExtensionInjectorConfig{ExtensionPath: extensionPath})
+	injector := NewLocalBrowserLaunchExtensionInjector(ExtensionInjectorConfig{InjectorExtensionPath: extensionPath})
 	if err := injector.Prepare(); err != nil {
 		t.Fatal(err)
 	}

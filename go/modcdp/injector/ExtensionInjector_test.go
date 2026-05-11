@@ -20,7 +20,7 @@ type probeExtensionInjector struct {
 }
 
 func (i probeExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
-	return i.WaitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, true)
+	return i.WaitForReadyServiceWorker(i.Options.InjectorServiceWorkerReadyTimeoutMS, true)
 }
 
 func TestExtensionInjectorProbesRealExtensionServiceWorkerWithSharedBaseConfig(t *testing.T) {
@@ -91,14 +91,14 @@ func TestExtensionInjectorProbesRealExtensionServiceWorkerWithSharedBaseConfig(t
 			sessionID, _ := result["sessionId"].(string)
 			return sessionID
 		},
-		ExtensionID:              DefaultModCDPExtensionID,
-		ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-		TrustServiceWorkerTarget: true,
+		InjectorExtensionID:              DefaultModCDPExtensionID,
+		InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+		InjectorTrustServiceWorkerTarget: true,
 	})}
 
 	transportConfig := injector.GetTransportConfig()
-	if transportConfig["extension_id"] != DefaultModCDPExtensionID {
-		t.Fatalf("extension_id = %v", transportConfig["extension_id"])
+	if transportConfig["injector_extension_id"] != DefaultModCDPExtensionID {
+		t.Fatalf("injector_extension_id = %v", transportConfig["injector_extension_id"])
 	}
 	if len(injector.GetLauncherConfig().ExtraArgs) != 0 {
 		t.Fatalf("expected empty launcher config")
@@ -186,9 +186,9 @@ func TestExtensionInjectorKeepsModCDPServiceWorkerAliveThroughOffscreenKeepalive
 			sessionID, _ := result["sessionId"].(string)
 			return sessionID
 		},
-		ExtensionID:              DefaultModCDPExtensionID,
-		ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-		TrustServiceWorkerTarget: true,
+		InjectorExtensionID:              DefaultModCDPExtensionID,
+		InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+		InjectorTrustServiceWorkerTarget: true,
 	})}
 
 	result, err := injector.Inject()
@@ -263,13 +263,13 @@ func TestExtensionInjectorKeepsModCDPServiceWorkerAliveThroughOffscreenKeepalive
 
 func TestExtensionInjectorOwnsSharedConfig(t *testing.T) {
 	injector := NewExtensionInjector(ExtensionInjectorConfig{
-		ExtensionID:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		ServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+		InjectorExtensionID:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 	})
 
 	transportConfig := injector.GetTransportConfig()
-	if transportConfig["extension_id"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Fatalf("extension_id = %v", transportConfig["extension_id"])
+	if transportConfig["injector_extension_id"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("injector_extension_id = %v", transportConfig["injector_extension_id"])
 	}
 	if len(injector.GetLauncherConfig().ExtraArgs) != 0 {
 		t.Fatalf("expected empty launcher config")
@@ -429,8 +429,8 @@ func TestExtensionInjectorWakesConfiguredExtensionWithHiddenBackgroundTarget(t *
 	}
 
 	injector := NewExtensionInjector(ExtensionInjectorConfig{
-		ExtensionID: DefaultModCDPExtensionID,
-		Send:        send,
+		InjectorExtensionID: DefaultModCDPExtensionID,
+		Send:                send,
 	})
 
 	if !injector.WakeConfiguredExtension() {

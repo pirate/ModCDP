@@ -21,8 +21,8 @@ func (i *DiscoveredExtensionInjector) Inject() (*ExtensionInjectionResult, error
 		}
 		return discovered, err
 	}
-	if i.Options.TrustServiceWorkerTarget {
-		waited, err := i.waitForReadyServiceWorker(i.Options.ServiceWorkerProbeTimeoutMS, true)
+	if i.Options.InjectorTrustServiceWorkerTarget {
+		waited, err := i.waitForReadyServiceWorker(i.Options.InjectorServiceWorkerProbeTimeoutMS, true)
 		if err != nil || waited != nil {
 			if waited != nil {
 				waited.Source = "discovered"
@@ -31,7 +31,7 @@ func (i *DiscoveredExtensionInjector) Inject() (*ExtensionInjectionResult, error
 		}
 	}
 	if i.wakeConfiguredExtension() {
-		waited, err := i.waitForReadyServiceWorker(i.Options.ServiceWorkerProbeTimeoutMS, i.Options.TrustServiceWorkerTarget)
+		waited, err := i.waitForReadyServiceWorker(i.Options.InjectorServiceWorkerProbeTimeoutMS, i.Options.InjectorTrustServiceWorkerTarget)
 		if err != nil || waited != nil {
 			if waited != nil {
 				waited.Source = "discovered"
@@ -39,17 +39,17 @@ func (i *DiscoveredExtensionInjector) Inject() (*ExtensionInjectionResult, error
 			return waited, err
 		}
 	}
-	if !i.Options.RequireServiceWorkerTarget {
+	if !i.Options.InjectorRequireServiceWorkerTarget {
 		return nil, nil
 	}
-	waited, err := i.waitForReadyServiceWorker(i.Options.ServiceWorkerReadyTimeoutMS, i.Options.TrustServiceWorkerTarget)
+	waited, err := i.waitForReadyServiceWorker(i.Options.InjectorServiceWorkerReadyTimeoutMS, i.Options.InjectorTrustServiceWorkerTarget)
 	if err != nil || waited != nil {
 		if waited != nil {
 			waited.Source = "discovered"
 		}
 		return waited, err
 	}
-	matchers := append(append([]string{}, i.Options.ServiceWorkerURLIncludes...), i.Options.ServiceWorkerURLSuffixes...)
+	matchers := append(append([]string{}, i.Options.InjectorServiceWorkerURLIncludes...), i.Options.InjectorServiceWorkerURLSuffixes...)
 	matcherText := strings.Join(matchers, ", ")
 	if matcherText == "" {
 		matcherText = "no matcher"

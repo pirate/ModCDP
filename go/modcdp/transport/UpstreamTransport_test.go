@@ -38,7 +38,7 @@ func TestUpstreamTransportSharedConfigEndpointClassificationAndRecvCallbacks(t *
 	if len(transport.GetLauncherConfig().ExtraArgs) != 0 {
 		t.Fatal("expected empty launcher config")
 	}
-	if transport.GetInjectorConfig().ExtensionID != "" {
+	if transport.GetInjectorConfig().InjectorExtensionID != "" {
 		t.Fatal("expected empty injector config")
 	}
 	if len(transport.GetServerConfig()) != 0 {

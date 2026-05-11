@@ -39,7 +39,7 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 	merged := mergeLaunchOptions(l.Options, options)
 	browserbaseAPIKey := firstString(merged.BrowserbaseAPIKey, os.Getenv("BROWSERBASE_API_KEY"))
 	if browserbaseAPIKey == "" {
-		return nil, fmt.Errorf("launch.mode=bb requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key")
+		return nil, fmt.Errorf("launcher.launcher_mode=bb requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key")
 	}
 
 	baseURL := firstString(merged.BrowserbaseBaseURL, os.Getenv("BROWSERBASE_BASE_URL"), DefaultBrowserbaseLauncherBaseURL)
@@ -57,7 +57,7 @@ func (l *BrowserbaseBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBro
 		browserSettings := mergeMap(objectValue(sessionCreateParams["browserSettings"]), objectValue(merged.BrowserbaseBrowserSettings))
 		userMetadata := mergeMap(objectValue(sessionCreateParams["userMetadata"]), objectValue(merged.BrowserbaseUserMetadata))
 		extensionID := firstString(
-			merged.ExtensionID,
+			merged.InjectorExtensionID,
 			stringValue(sessionCreateParams["extensionId"]),
 			stringValue(objectValue(sessionCreateParams["browserSettings"])["extensionId"]),
 		)

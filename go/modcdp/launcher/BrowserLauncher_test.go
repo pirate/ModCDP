@@ -7,12 +7,12 @@ import (
 
 func TestBrowserLauncherMergesLaunchConfigAndExposesTransportAndInjectorConfig(t *testing.T) {
 	launcher := NewBrowserLauncher(LaunchOptions{
-		CDPURL:            "ws://127.0.0.1:9222/devtools/browser/initial",
-		UserDataDir:       "/tmp/modcdp-browser-launcher",
-		BrowserbaseAPIKey: "test-key",
-		ExtensionID:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Args:              []string{"--load-extension=/tmp/args-one"},
-		ExtraArgs:         []string{"--load-extension=/tmp/one"},
+		CDPURL:              "ws://127.0.0.1:9222/devtools/browser/initial",
+		UserDataDir:         "/tmp/modcdp-browser-launcher",
+		BrowserbaseAPIKey:   "test-key",
+		InjectorExtensionID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Args:                []string{"--load-extension=/tmp/args-one"},
+		ExtraArgs:           []string{"--load-extension=/tmp/one"},
 	})
 	launcher.Update(LaunchOptions{
 		CDPURL:    "ws://127.0.0.1:9222/devtools/browser/updated",
@@ -32,11 +32,11 @@ func TestBrowserLauncherMergesLaunchConfigAndExposesTransportAndInjectorConfig(t
 	}
 
 	injectorConfig := launcher.GetInjectorConfig()
-	if injectorConfig.BrowserbaseAPIKey != "test-key" {
-		t.Fatalf("BrowserbaseAPIKey = %v", injectorConfig.BrowserbaseAPIKey)
+	if injectorConfig.InjectorBrowserbaseAPIKey != "test-key" {
+		t.Fatalf("InjectorBrowserbaseAPIKey = %v", injectorConfig.InjectorBrowserbaseAPIKey)
 	}
-	if injectorConfig.ExtensionID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Fatalf("ExtensionID = %v", injectorConfig.ExtensionID)
+	if injectorConfig.InjectorExtensionID != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("InjectorExtensionID = %v", injectorConfig.InjectorExtensionID)
 	}
 
 	if _, err := launcher.Launch(LaunchOptions{}); err == nil || !strings.Contains(err.Error(), "BrowserLauncher.Launch is not implemented") {

@@ -57,13 +57,13 @@ type NativeMessagingUpstreamTransportOptions struct {
 	UpstreamNativeMessagingManifest      string   `json:"upstream_nativemessaging_manifest,omitempty"`
 	UpstreamNativeMessagingManifests     []string `json:"upstream_nativemessaging_manifests,omitempty"`
 	UpstreamNativeMessagingHostName      string   `json:"upstream_nativemessaging_host_name,omitempty"`
-	ExtensionID                          string   `json:"extension_id,omitempty"`
+	InjectorExtensionID                  string   `json:"injector_extension_id,omitempty"`
 	UpstreamNativeMessagingWaitTimeoutMS int      `json:"upstream_nativemessaging_wait_timeout_ms,omitempty"`
 }
 
 func NewNativeMessagingUpstreamTransport(options NativeMessagingUpstreamTransportOptions) *NativeMessagingUpstreamTransport {
 	nativeHostName := firstNonEmptyString(options.UpstreamNativeMessagingHostName, DefaultUpstreamNativeMessagingHostName)
-	extensionID := firstNonEmptyString(options.ExtensionID, DefaultModCDPExtensionID)
+	extensionID := firstNonEmptyString(options.InjectorExtensionID, DefaultModCDPExtensionID)
 	waitTimeoutMS := options.UpstreamNativeMessagingWaitTimeoutMS
 	if waitTimeoutMS == 0 {
 		waitTimeoutMS = DefaultUpstreamNativeMessagingWaitTimeoutMS
@@ -110,7 +110,7 @@ func (t *NativeMessagingUpstreamTransport) Update(config map[string]any) {
 	if waitTimeoutMS, ok := intFromConfig(config["upstream_nativemessaging_wait_timeout_ms"]); ok {
 		t.WaitTimeoutMS = waitTimeoutMS
 	}
-	if extensionID, _ := config["extension_id"].(string); extensionID != "" {
+	if extensionID, _ := config["injector_extension_id"].(string); extensionID != "" {
 		t.ExtensionID = extensionID
 		shouldInstallNativeHost = true
 	}
@@ -131,7 +131,7 @@ func (t *NativeMessagingUpstreamTransport) GetServerConfig() map[string]any {
 	if t.CDPURL == "" {
 		return map[string]any{}
 	}
-	return map[string]any{"loopback_cdp_url": t.CDPURL}
+	return map[string]any{"server_loopback_cdp_url": t.CDPURL}
 }
 
 func (t *NativeMessagingUpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {

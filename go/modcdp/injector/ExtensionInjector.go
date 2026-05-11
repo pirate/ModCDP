@@ -42,26 +42,26 @@ type ExtensionInjector struct {
 }
 
 func NewExtensionInjector(options ExtensionInjectorConfig) ExtensionInjector {
-	if options.WakePath == "" {
-		options.WakePath = DefaultModCDPWakePath
+	if options.InjectorWakePath == "" {
+		options.InjectorWakePath = DefaultModCDPWakePath
 	}
-	if options.CDPSendTimeoutMS == 0 {
-		options.CDPSendTimeoutMS = DefaultCDPSendTimeoutMS
+	if options.InjectorCDPSendTimeoutMS == 0 {
+		options.InjectorCDPSendTimeoutMS = DefaultCDPSendTimeoutMS
 	}
-	if options.ExecutionContextTimeoutMS == 0 {
-		options.ExecutionContextTimeoutMS = DefaultExecutionContextTimeoutMS
+	if options.InjectorExecutionContextTimeoutMS == 0 {
+		options.InjectorExecutionContextTimeoutMS = DefaultExecutionContextTimeoutMS
 	}
-	if options.ServiceWorkerProbeTimeoutMS == 0 {
-		options.ServiceWorkerProbeTimeoutMS = DefaultServiceWorkerProbeTimeoutMS
+	if options.InjectorServiceWorkerProbeTimeoutMS == 0 {
+		options.InjectorServiceWorkerProbeTimeoutMS = DefaultServiceWorkerProbeTimeoutMS
 	}
-	if options.ServiceWorkerReadyTimeoutMS == 0 {
-		options.ServiceWorkerReadyTimeoutMS = DefaultServiceWorkerReadyTimeoutMS
+	if options.InjectorServiceWorkerReadyTimeoutMS == 0 {
+		options.InjectorServiceWorkerReadyTimeoutMS = DefaultServiceWorkerReadyTimeoutMS
 	}
-	if options.ServiceWorkerPollIntervalMS == 0 {
-		options.ServiceWorkerPollIntervalMS = DefaultServiceWorkerPollIntervalMS
+	if options.InjectorServiceWorkerPollIntervalMS == 0 {
+		options.InjectorServiceWorkerPollIntervalMS = DefaultServiceWorkerPollIntervalMS
 	}
-	if options.TargetSessionPollIntervalMS == 0 {
-		options.TargetSessionPollIntervalMS = DefaultTargetSessionPollIntervalMS
+	if options.InjectorTargetSessionPollIntervalMS == 0 {
+		options.InjectorTargetSessionPollIntervalMS = DefaultTargetSessionPollIntervalMS
 	}
 	return ExtensionInjector{Options: options, UnusableTargetIDs: map[string]bool{}}
 }
@@ -79,56 +79,56 @@ func (i *ExtensionInjector) Update(config ExtensionInjectorConfig) *ExtensionInj
 	if config.WaitForExecutionContext != nil {
 		i.Options.WaitForExecutionContext = config.WaitForExecutionContext
 	}
-	if config.ExtensionPath != "" {
-		i.Options.ExtensionPath = config.ExtensionPath
+	if config.InjectorExtensionPath != "" {
+		i.Options.InjectorExtensionPath = config.InjectorExtensionPath
 	}
-	if config.ExtensionID != "" {
-		i.Options.ExtensionID = config.ExtensionID
+	if config.InjectorExtensionID != "" {
+		i.Options.InjectorExtensionID = config.InjectorExtensionID
 	}
-	if config.WakePath != "" {
-		i.Options.WakePath = config.WakePath
+	if config.InjectorWakePath != "" {
+		i.Options.InjectorWakePath = config.InjectorWakePath
 	}
-	if config.WakeURL != "" {
-		i.Options.WakeURL = config.WakeURL
+	if config.InjectorWakeURL != "" {
+		i.Options.InjectorWakeURL = config.InjectorWakeURL
 	}
-	if config.ServiceWorkerURLIncludes != nil {
-		i.Options.ServiceWorkerURLIncludes = append([]string{}, config.ServiceWorkerURLIncludes...)
+	if config.InjectorServiceWorkerURLIncludes != nil {
+		i.Options.InjectorServiceWorkerURLIncludes = append([]string{}, config.InjectorServiceWorkerURLIncludes...)
 	}
-	if config.ServiceWorkerURLSuffixes != nil {
-		i.Options.ServiceWorkerURLSuffixes = append([]string{}, config.ServiceWorkerURLSuffixes...)
+	if config.InjectorServiceWorkerURLSuffixes != nil {
+		i.Options.InjectorServiceWorkerURLSuffixes = append([]string{}, config.InjectorServiceWorkerURLSuffixes...)
 	}
-	if config.TrustServiceWorkerTarget {
-		i.Options.TrustServiceWorkerTarget = true
+	if config.InjectorTrustServiceWorkerTarget {
+		i.Options.InjectorTrustServiceWorkerTarget = true
 	}
-	if config.RequireServiceWorkerTarget {
-		i.Options.RequireServiceWorkerTarget = true
+	if config.InjectorRequireServiceWorkerTarget {
+		i.Options.InjectorRequireServiceWorkerTarget = true
 	}
-	if config.ServiceWorkerReadyExpression != "" {
-		i.Options.ServiceWorkerReadyExpression = config.ServiceWorkerReadyExpression
+	if config.InjectorServiceWorkerReadyExpression != "" {
+		i.Options.InjectorServiceWorkerReadyExpression = config.InjectorServiceWorkerReadyExpression
 	}
-	if config.CDPSendTimeoutMS != 0 {
-		i.Options.CDPSendTimeoutMS = config.CDPSendTimeoutMS
+	if config.InjectorCDPSendTimeoutMS != 0 {
+		i.Options.InjectorCDPSendTimeoutMS = config.InjectorCDPSendTimeoutMS
 	}
-	if config.ExecutionContextTimeoutMS != 0 {
-		i.Options.ExecutionContextTimeoutMS = config.ExecutionContextTimeoutMS
+	if config.InjectorExecutionContextTimeoutMS != 0 {
+		i.Options.InjectorExecutionContextTimeoutMS = config.InjectorExecutionContextTimeoutMS
 	}
-	if config.ServiceWorkerProbeTimeoutMS != 0 {
-		i.Options.ServiceWorkerProbeTimeoutMS = config.ServiceWorkerProbeTimeoutMS
+	if config.InjectorServiceWorkerProbeTimeoutMS != 0 {
+		i.Options.InjectorServiceWorkerProbeTimeoutMS = config.InjectorServiceWorkerProbeTimeoutMS
 	}
-	if config.ServiceWorkerReadyTimeoutMS != 0 {
-		i.Options.ServiceWorkerReadyTimeoutMS = config.ServiceWorkerReadyTimeoutMS
+	if config.InjectorServiceWorkerReadyTimeoutMS != 0 {
+		i.Options.InjectorServiceWorkerReadyTimeoutMS = config.InjectorServiceWorkerReadyTimeoutMS
 	}
-	if config.ServiceWorkerPollIntervalMS != 0 {
-		i.Options.ServiceWorkerPollIntervalMS = config.ServiceWorkerPollIntervalMS
+	if config.InjectorServiceWorkerPollIntervalMS != 0 {
+		i.Options.InjectorServiceWorkerPollIntervalMS = config.InjectorServiceWorkerPollIntervalMS
 	}
-	if config.TargetSessionPollIntervalMS != 0 {
-		i.Options.TargetSessionPollIntervalMS = config.TargetSessionPollIntervalMS
+	if config.InjectorTargetSessionPollIntervalMS != 0 {
+		i.Options.InjectorTargetSessionPollIntervalMS = config.InjectorTargetSessionPollIntervalMS
 	}
-	if config.BrowserbaseAPIKey != "" {
-		i.Options.BrowserbaseAPIKey = config.BrowserbaseAPIKey
+	if config.InjectorBrowserbaseAPIKey != "" {
+		i.Options.InjectorBrowserbaseAPIKey = config.InjectorBrowserbaseAPIKey
 	}
-	if config.BrowserbaseBaseURL != "" {
-		i.Options.BrowserbaseBaseURL = config.BrowserbaseBaseURL
+	if config.InjectorBrowserbaseBaseURL != "" {
+		i.Options.InjectorBrowserbaseBaseURL = config.InjectorBrowserbaseBaseURL
 	}
 	if config.UpstreamReverseWSURL != "" {
 		i.Options.UpstreamReverseWSURL = config.UpstreamReverseWSURL
@@ -154,10 +154,10 @@ func (i ExtensionInjector) GetLauncherConfig() LaunchOptions {
 }
 
 func (i ExtensionInjector) GetTransportConfig() map[string]any {
-	if i.Options.ExtensionID == "" {
+	if i.Options.InjectorExtensionID == "" {
 		return map[string]any{}
 	}
-	return map[string]any{"extension_id": i.Options.ExtensionID}
+	return map[string]any{"injector_extension_id": i.Options.InjectorExtensionID}
 }
 
 func (i *ExtensionInjector) Prepare() error {
@@ -173,10 +173,10 @@ func (i *ExtensionInjector) Inject() (*ExtensionInjectionResult, error) {
 }
 
 func (i ExtensionInjector) readyExpression() string {
-	if i.Options.ServiceWorkerReadyExpression == "" {
+	if i.Options.InjectorServiceWorkerReadyExpression == "" {
 		return modcdpReadyExpression
 	}
-	return fmt.Sprintf("(%s) && Boolean(%s)", modcdpReadyExpression, i.Options.ServiceWorkerReadyExpression)
+	return fmt.Sprintf("(%s) && Boolean(%s)", modcdpReadyExpression, i.Options.InjectorServiceWorkerReadyExpression)
 }
 
 func (i ExtensionInjector) sendWithTimeout(method string, params map[string]any, sessionID string, timeoutMS int) (map[string]any, error) {
@@ -187,7 +187,7 @@ func (i ExtensionInjector) sendWithTimeout(method string, params map[string]any,
 		params = map[string]any{}
 	}
 	if timeoutMS == 0 {
-		timeoutMS = i.Options.CDPSendTimeoutMS
+		timeoutMS = i.Options.InjectorCDPSendTimeoutMS
 	}
 	if timeoutMS <= 0 {
 		return i.Options.Send(method, params, sessionID)
@@ -224,7 +224,7 @@ func (i ExtensionInjector) sessionIDForTarget(targetID string, timeoutMS int) st
 		if timeoutMS <= 0 || time.Now().After(deadline) {
 			return ""
 		}
-		time.Sleep(time.Duration(i.Options.TargetSessionPollIntervalMS) * time.Millisecond)
+		time.Sleep(time.Duration(i.Options.InjectorTargetSessionPollIntervalMS) * time.Millisecond)
 	}
 }
 
@@ -243,7 +243,7 @@ func (i ExtensionInjector) ensureSessionIDForTarget(targetID string, timeoutMS i
 }
 
 func (i ExtensionInjector) targetInfos() ([]map[string]any, error) {
-	result, err := i.sendWithTimeout("Target.getTargets", map[string]any{}, "", i.Options.CDPSendTimeoutMS)
+	result, err := i.sendWithTimeout("Target.getTargets", map[string]any{}, "", i.Options.InjectorCDPSendTimeoutMS)
 	if err != nil {
 		return nil, err
 	}
@@ -259,20 +259,20 @@ func (i ExtensionInjector) targetInfos() ([]map[string]any, error) {
 }
 
 func (i ExtensionInjector) configuredWakeURL() string {
-	if i.Options.WakeURL != "" {
-		return i.Options.WakeURL
+	if i.Options.InjectorWakeURL != "" {
+		return i.Options.InjectorWakeURL
 	}
-	if i.Options.ExtensionID == "" {
+	if i.Options.InjectorExtensionID == "" {
 		return ""
 	}
-	wakePath := i.Options.WakePath
+	wakePath := i.Options.InjectorWakePath
 	if wakePath == "" {
 		wakePath = DefaultModCDPWakePath
 	}
 	if !strings.HasPrefix(wakePath, "/") {
 		wakePath = "/" + wakePath
 	}
-	return "chrome-extension://" + i.Options.ExtensionID + wakePath
+	return "chrome-extension://" + i.Options.InjectorExtensionID + wakePath
 }
 
 func (i ExtensionInjector) wakeConfiguredExtension() bool {
@@ -285,7 +285,7 @@ func (i ExtensionInjector) wakeConfiguredExtension() bool {
 		"background": true,
 		"hidden":     true,
 		"focus":      false,
-	}, "", i.Options.CDPSendTimeoutMS)
+	}, "", i.Options.InjectorCDPSendTimeoutMS)
 	return err == nil
 }
 
@@ -303,13 +303,13 @@ func (i ExtensionInjector) probeTarget(target map[string]any, sessionTimeoutMS i
 	if sessionID == "" {
 		return nil, nil
 	}
-	if _, err := i.sendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.CDPSendTimeoutMS); err != nil {
+	if _, err := i.sendWithTimeout("Runtime.enable", map[string]any{}, sessionID, i.Options.InjectorCDPSendTimeoutMS); err != nil {
 		return nil, err
 	}
 	probe, err := i.sendWithTimeout("Runtime.evaluate", map[string]any{
 		"expression":    i.readyExpression(),
 		"returnByValue": true,
-	}, sessionID, i.Options.CDPSendTimeoutMS)
+	}, sessionID, i.Options.InjectorCDPSendTimeoutMS)
 	if err != nil {
 		return nil, err
 	}
@@ -335,12 +335,12 @@ func (i ExtensionInjector) discoverReadyServiceWorker(matchedOnly bool) (*Extens
 	if err != nil {
 		return nil, err
 	}
-	if i.Options.TrustServiceWorkerTarget {
+	if i.Options.InjectorTrustServiceWorkerTarget {
 		for _, target := range targets {
 			if !i.serviceWorkerTargetMatches(target) {
 				continue
 			}
-			probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
+			probed, err := i.probeTarget(target, i.Options.InjectorServiceWorkerProbeTimeoutMS, true)
 			if err != nil {
 				return nil, err
 			}
@@ -350,7 +350,7 @@ func (i ExtensionInjector) discoverReadyServiceWorker(matchedOnly bool) (*Extens
 			}
 		}
 	}
-	if i.Options.TrustServiceWorkerTarget || matchedOnly {
+	if i.Options.InjectorTrustServiceWorkerTarget || matchedOnly {
 		return nil, nil
 	}
 	for _, target := range targets {
@@ -359,7 +359,7 @@ func (i ExtensionInjector) discoverReadyServiceWorker(matchedOnly bool) (*Extens
 		if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 			continue
 		}
-		probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, false)
+		probed, err := i.probeTarget(target, i.Options.InjectorServiceWorkerProbeTimeoutMS, false)
 		if err == nil && probed != nil {
 			return probed, nil
 		}
@@ -374,7 +374,7 @@ func (i ExtensionInjector) waitForReadyServiceWorker(timeoutMS int, matchedOnly 
 		if err != nil || discovered != nil {
 			return discovered, err
 		}
-		time.Sleep(time.Duration(i.Options.ServiceWorkerPollIntervalMS) * time.Millisecond)
+		time.Sleep(time.Duration(i.Options.InjectorServiceWorkerPollIntervalMS) * time.Millisecond)
 	}
 	return nil, nil
 }
@@ -389,18 +389,18 @@ func (i ExtensionInjector) serviceWorkerTargetMatches(target map[string]any) boo
 	if targetType != "service_worker" || !strings.HasPrefix(targetURL, "chrome-extension://") {
 		return false
 	}
-	hasExtensionID := i.Options.ExtensionID != ""
-	if i.Options.ExtensionID != "" && !strings.HasPrefix(targetURL, "chrome-extension://"+i.Options.ExtensionID+"/") {
+	hasExtensionID := i.Options.InjectorExtensionID != ""
+	if i.Options.InjectorExtensionID != "" && !strings.HasPrefix(targetURL, "chrome-extension://"+i.Options.InjectorExtensionID+"/") {
 		return false
 	}
-	for _, part := range i.Options.ServiceWorkerURLIncludes {
+	for _, part := range i.Options.InjectorServiceWorkerURLIncludes {
 		if !strings.Contains(targetURL, part) {
 			return false
 		}
 	}
-	if len(i.Options.ServiceWorkerURLSuffixes) > 0 {
+	if len(i.Options.InjectorServiceWorkerURLSuffixes) > 0 {
 		matched := false
-		for _, suffix := range i.Options.ServiceWorkerURLSuffixes {
+		for _, suffix := range i.Options.InjectorServiceWorkerURLSuffixes {
 			if strings.HasSuffix(targetURL, suffix) {
 				matched = true
 				break
@@ -410,7 +410,7 @@ func (i ExtensionInjector) serviceWorkerTargetMatches(target map[string]any) boo
 			return false
 		}
 	}
-	return hasExtensionID || len(i.Options.ServiceWorkerURLIncludes) > 0 || len(i.Options.ServiceWorkerURLSuffixes) > 0
+	return hasExtensionID || len(i.Options.InjectorServiceWorkerURLIncludes) > 0 || len(i.Options.InjectorServiceWorkerURLSuffixes) > 0
 }
 
 func (i ExtensionInjector) ServiceWorkerTargetMatches(target map[string]any) bool {

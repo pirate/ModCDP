@@ -20,10 +20,10 @@ func TestWebSocketUpstreamTransportConstructorUpdateAndServerConfigMatchTSShape(
 	if transport.URL != "ws://127.0.0.1:1/devtools/browser/test" {
 		t.Fatalf("URL = %q", transport.URL)
 	}
-	if transport.GetServerConfig()["loopback_cdp_url"] != "ws://127.0.0.1:1/devtools/browser/test" {
+	if transport.GetServerConfig()["server_loopback_cdp_url"] != "ws://127.0.0.1:1/devtools/browser/test" {
 		t.Fatalf("server config = %#v", transport.GetServerConfig())
 	}
-	if err := NewWebSocketUpstreamTransport(WebSocketUpstreamTransportOptions{}).Connect(); err == nil || !strings.Contains(err.Error(), "upstream.mode=ws requires") {
+	if err := NewWebSocketUpstreamTransport(WebSocketUpstreamTransportOptions{}).Connect(); err == nil || !strings.Contains(err.Error(), "upstream.upstream_mode=ws requires") {
 		t.Fatalf("connect error = %v", err)
 	}
 	if err := NewWebSocketUpstreamTransport(WebSocketUpstreamTransportOptions{}).Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err == nil || !strings.Contains(err.Error(), "CDP websocket is not connected") {

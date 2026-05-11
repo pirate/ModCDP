@@ -20,7 +20,7 @@ type LaunchOptions struct {
 	BrowserbaseCloseSessionOnClose *bool          `json:"browserbase_close_session_on_close,omitempty"`
 	Region                         string         `json:"region,omitempty"`
 	Timeout                        int            `json:"timeout,omitempty"`
-	ExtensionID                    string         `json:"extension_id,omitempty"`
+	InjectorExtensionID            string         `json:"injector_extension_id,omitempty"`
 	BrowserbaseBrowserSettings     map[string]any `json:"browserbase_browser_settings,omitempty"`
 	BrowserbaseUserMetadata        map[string]any `json:"browserbase_user_metadata,omitempty"`
 	BrowserbaseSessionCreateParams map[string]any `json:"browserbase_session_create_params,omitempty"`
@@ -32,31 +32,31 @@ type AttachToTarget func(targetID string) string
 type WaitForExecutionContext func(sessionID string, timeoutMS int) int
 
 type ExtensionInjectorConfig struct {
-	Send                            SendCDP                 `json:"-"`
-	SessionIDForTarget              SessionIDForTarget      `json:"-"`
-	AttachToTarget                  AttachToTarget          `json:"-"`
-	WaitForExecutionContext         WaitForExecutionContext `json:"-"`
-	ExtensionPath                   string                  `json:"extension_path,omitempty"`
-	ExtensionID                     string                  `json:"extension_id,omitempty"`
-	WakePath                        string                  `json:"wake_path,omitempty"`
-	WakeURL                         string                  `json:"wake_url,omitempty"`
-	ServiceWorkerURLIncludes        []string                `json:"service_worker_url_includes,omitempty"`
-	ServiceWorkerURLSuffixes        []string                `json:"service_worker_url_suffixes,omitempty"`
-	TrustServiceWorkerTarget        bool                    `json:"trust_service_worker_target,omitempty"`
-	RequireServiceWorkerTarget      bool                    `json:"require_service_worker_target,omitempty"`
-	ServiceWorkerReadyExpression    string                  `json:"service_worker_ready_expression,omitempty"`
-	CDPSendTimeoutMS                int                     `json:"cdp_send_timeout_ms,omitempty"`
-	ExecutionContextTimeoutMS       int                     `json:"execution_context_timeout_ms,omitempty"`
-	ServiceWorkerProbeTimeoutMS     int                     `json:"service_worker_probe_timeout_ms,omitempty"`
-	ServiceWorkerReadyTimeoutMS     int                     `json:"service_worker_ready_timeout_ms,omitempty"`
-	ServiceWorkerPollIntervalMS     int                     `json:"service_worker_poll_interval_ms,omitempty"`
-	TargetSessionPollIntervalMS     int                     `json:"target_session_poll_interval_ms,omitempty"`
-	BrowserbaseAPIKey               string                  `json:"browserbase_api_key,omitempty"`
-	BrowserbaseBaseURL              string                  `json:"browserbase_base_url,omitempty"`
-	UpstreamReverseWSURL            string                  `json:"upstream_reversews_url,omitempty"`
-	UpstreamNativeMessagingHostName string                  `json:"upstream_nativemessaging_host_name,omitempty"`
-	UpstreamNATSURL                 string                  `json:"upstream_nats_url,omitempty"`
-	UpstreamNATSSubjectPrefix       string                  `json:"upstream_nats_subject_prefix,omitempty"`
+	Send                                 SendCDP                 `json:"-"`
+	SessionIDForTarget                   SessionIDForTarget      `json:"-"`
+	AttachToTarget                       AttachToTarget          `json:"-"`
+	WaitForExecutionContext              WaitForExecutionContext `json:"-"`
+	InjectorExtensionPath                string                  `json:"injector_extension_path,omitempty"`
+	InjectorExtensionID                  string                  `json:"injector_extension_id,omitempty"`
+	InjectorWakePath                     string                  `json:"injector_wake_path,omitempty"`
+	InjectorWakeURL                      string                  `json:"injector_wake_url,omitempty"`
+	InjectorServiceWorkerURLIncludes     []string                `json:"injector_service_worker_url_includes,omitempty"`
+	InjectorServiceWorkerURLSuffixes     []string                `json:"injector_service_worker_url_suffixes,omitempty"`
+	InjectorTrustServiceWorkerTarget     bool                    `json:"injector_trust_service_worker_target,omitempty"`
+	InjectorRequireServiceWorkerTarget   bool                    `json:"injector_require_service_worker_target,omitempty"`
+	InjectorServiceWorkerReadyExpression string                  `json:"injector_service_worker_ready_expression,omitempty"`
+	InjectorCDPSendTimeoutMS             int                     `json:"injector_cdp_send_timeout_ms,omitempty"`
+	InjectorExecutionContextTimeoutMS    int                     `json:"injector_execution_context_timeout_ms,omitempty"`
+	InjectorServiceWorkerProbeTimeoutMS  int                     `json:"injector_service_worker_probe_timeout_ms,omitempty"`
+	InjectorServiceWorkerReadyTimeoutMS  int                     `json:"injector_service_worker_ready_timeout_ms,omitempty"`
+	InjectorServiceWorkerPollIntervalMS  int                     `json:"injector_service_worker_poll_interval_ms,omitempty"`
+	InjectorTargetSessionPollIntervalMS  int                     `json:"injector_target_session_poll_interval_ms,omitempty"`
+	InjectorBrowserbaseAPIKey            string                  `json:"injector_browserbase_api_key,omitempty"`
+	InjectorBrowserbaseBaseURL           string                  `json:"injector_browserbase_base_url,omitempty"`
+	UpstreamReverseWSURL                 string                  `json:"upstream_reversews_url,omitempty"`
+	UpstreamNativeMessagingHostName      string                  `json:"upstream_nativemessaging_host_name,omitempty"`
+	UpstreamNATSURL                      string                  `json:"upstream_nats_url,omitempty"`
+	UpstreamNATSSubjectPrefix            string                  `json:"upstream_nats_subject_prefix,omitempty"`
 }
 
 type ExtensionInjectionResult struct {

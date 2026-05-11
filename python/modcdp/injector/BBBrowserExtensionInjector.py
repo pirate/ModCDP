@@ -73,7 +73,7 @@ class BBBrowserExtensionInjector(ExtensionInjector):
     def _uploadExtension(self, zip_path: str) -> str:
         browserbase_api_key = _first_string(self.options.get("injector_browserbase_api_key"), os.environ.get("BROWSERBASE_API_KEY"))
         if not browserbase_api_key:
-            raise RuntimeError("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.")
+            raise RuntimeError("BBBrowserExtensionInjector requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key.")
         base_url = _first_string(
             self.options.get("injector_browserbase_base_url"),
             os.environ.get("BROWSERBASE_BASE_URL"),

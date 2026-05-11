@@ -137,7 +137,7 @@ func (t *NatsUpstreamTransport) Connect() error {
 		}
 		go t.readTCPLoop(conn, closeCh)
 	default:
-		return fmt.Errorf("upstream.mode=nats requires ws://, wss://, nats://, or tls:// URL, got %s", t.URL)
+		return fmt.Errorf("upstream.upstream_mode=nats requires ws://, wss://, nats://, or tls:// URL, got %s", t.URL)
 	}
 	t.connected = true
 	if err := t.subscribe(); err != nil {

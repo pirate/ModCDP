@@ -82,8 +82,8 @@ class BrowserLauncher:
 
     def getInjectorConfig(self) -> dict[str, Any]:
         return {
-            "browserbase_api_key": self.options.get("browserbase_api_key"),
-            "browserbase_base_url": self.options.get("browserbase_base_url"),
+            "injector_browserbase_api_key": self.options.get("browserbase_api_key"),
+            "injector_browserbase_base_url": self.options.get("browserbase_base_url"),
             "injector_extension_id": self.options.get("injector_extension_id"),
         }
 

@@ -91,7 +91,7 @@ class NatsUpstreamTransport(UpstreamTransport):
             self._write_protocol(f"CONNECT {json.dumps(_connect_options())}\r\nPING\r\n")
             threading.Thread(target=self._read_tcp_loop, args=(tcp_socket, close_generation), daemon=True).start()
         else:
-            raise RuntimeError(f"upstream.mode=nats requires ws://, wss://, nats://, or tls:// URL, got {self.url}.")
+            raise RuntimeError(f"upstream.upstream_mode=nats requires ws://, wss://, nats://, or tls:// URL, got {self.url}.")
         self.connected = True
         self._subscribe()
         self._publish(self._outgoing_subject(), {"type": "modcdp.nats.hello", "role": self.upstream_nats_role, "version": 1})

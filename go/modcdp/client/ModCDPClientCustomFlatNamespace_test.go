@@ -30,7 +30,7 @@ func TestCustomCommandsInstallFlatNamespaceThroughRealServiceWorker(t *testing.T
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
 		Injector: InjectorConfig{
 			InjectorMode:                     "auto",
-			InjectorExtensionPath:                     extensionPath,
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},
@@ -90,7 +90,7 @@ func TestCustomEventsValidateRawStringHandlersThroughRealServiceWorker(t *testin
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
 		Injector: InjectorConfig{
 			InjectorMode:                     "auto",
-			InjectorExtensionPath:                     extensionPath,
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},

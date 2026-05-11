@@ -24,13 +24,13 @@ func TestBBBrowserExtensionInjectorUploadsRealExtensionAndLaunchesBrowserbaseBro
 		launchOptions.Region = region
 	}
 	cdp := modcdp.New(modcdp.Options{
-		Launcher: modcdp.LauncherConfig{LauncherMode:    "bb",
+		Launcher: modcdp.LauncherConfig{LauncherMode: "bb",
 			LauncherOptions: launchOptions,
 		},
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
 		Injector: modcdp.InjectorConfig{
 			InjectorMode:                     "inject",
-			InjectorExtensionPath:                     extensionPath,
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},

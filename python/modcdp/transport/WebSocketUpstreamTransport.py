@@ -30,11 +30,11 @@ class WebSocketUpstreamTransport(UpstreamTransport):
         return self
 
     def getServerConfig(self) -> dict[str, Any]:
-        return {"loopback_cdp_url": self.url} if self.url else {}
+        return {"server_loopback_cdp_url": self.url} if self.url else {}
 
     def connect(self) -> None:
         if not self.url:
-            raise RuntimeError("upstream.mode='ws' requires upstream.cdp_url or launcher-provided cdp_url.")
+            raise RuntimeError("upstream.upstream_mode=ws requires upstream.upstream_cdp_url or launcher-provided cdp_url.")
         # cdp_url may start as an HTTP discovery endpoint; from here on it is the resolved WebSocket CDP endpoint.
         self.url = _websocket_url_for(self.url)
         self.ws = create_connection(self.url, timeout=10)
@@ -84,5 +84,5 @@ def _websocket_url_for(endpoint: str) -> str:
         version = json.loads(response.read().decode())
     cdp_url = version.get("webSocketDebuggerUrl")
     if not isinstance(cdp_url, str) or not cdp_url:
-        raise RuntimeError("upstream.cdp_url HTTP discovery returned no webSocketDebuggerUrl")
+        raise RuntimeError("upstream.upstream_cdp_url HTTP discovery returned no webSocketDebuggerUrl")
     return cdp_url

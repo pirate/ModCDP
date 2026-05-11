@@ -7,7 +7,7 @@ import (
 
 func TestRemoteBrowserLauncherRequiresUpstreamCDPURL(t *testing.T) {
 	_, err := NewRemoteBrowserLauncher(LaunchOptions{}, "").Launch(LaunchOptions{})
-	if err == nil || err.Error() != "launch.mode=remote requires upstream.cdp_url" {
+	if err == nil || err.Error() != "launcher.launcher_mode=remote requires upstream.upstream_cdp_url" {
 		t.Fatalf("Launch error = %v", err)
 	}
 }

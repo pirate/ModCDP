@@ -38,7 +38,7 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
         )
         self.assertEqual(
             transport.getServerConfig(),
-            {"loopback_cdp_url": "ws://127.0.0.1:9222/devtools/browser/test"},
+            {"server_loopback_cdp_url": "ws://127.0.0.1:9222/devtools/browser/test"},
         )
         self.assertEqual(transport.getInjectorConfig(), {"upstream_nativemessaging_host_name": "com.modcdp.updated"})
         self.assertFalse(transport.include_default_manifest_paths)

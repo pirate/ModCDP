@@ -45,11 +45,11 @@ class BrowserLauncherTests(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "browserbase_api_key": launcher.getInjectorConfig()["browserbase_api_key"],
+                "injector_browserbase_api_key": launcher.getInjectorConfig()["injector_browserbase_api_key"],
                 "injector_extension_id": launcher.getInjectorConfig()["injector_extension_id"],
             },
             {
-                "browserbase_api_key": "test-key",
+                "injector_browserbase_api_key": "test-key",
                 "injector_extension_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             },
         )

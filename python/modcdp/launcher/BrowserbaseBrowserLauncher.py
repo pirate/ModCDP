@@ -19,7 +19,7 @@ class BrowserbaseBrowserLauncher(BrowserLauncher):
         merged = {**self.options, **dict(options or {})}
         browserbase_api_key = _first_string(merged.get("browserbase_api_key"), os.environ.get("BROWSERBASE_API_KEY"))
         if not browserbase_api_key:
-            raise RuntimeError("launch.mode=bb requires BROWSERBASE_API_KEY or launch.options.browserbase_api_key.")
+            raise RuntimeError("launcher.launcher_mode=bb requires BROWSERBASE_API_KEY or launcher.launcher_options.browserbase_api_key.")
 
         base_url = _first_string(
             merged.get("browserbase_base_url"),

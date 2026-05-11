@@ -18,7 +18,7 @@ func NewExtensionsLoadUnpackedInjector(options ExtensionInjectorConfig) Extensio
 }
 
 func (i *ExtensionsLoadUnpackedInjector) Prepare() error {
-	extensionPath := i.Options.ExtensionPath
+	extensionPath := i.Options.InjectorExtensionPath
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 	if i.UnpackedExtensionPath == "" {
 		return nil, nil
 	}
-	loadResult, err := i.sendWithTimeout("Extensions.loadUnpacked", map[string]any{"path": i.UnpackedExtensionPath}, "", i.Options.CDPSendTimeoutMS)
+	loadResult, err := i.sendWithTimeout("Extensions.loadUnpacked", map[string]any{"path": i.UnpackedExtensionPath}, "", i.Options.InjectorCDPSendTimeoutMS)
 	if err != nil {
 		if strings.Contains(err.Error(), "Method not available") || strings.Contains(err.Error(), "Method not found") || strings.Contains(err.Error(), "wasn't found") {
 			i.LastError = err
@@ -50,10 +50,10 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 	if extensionID == "" {
 		return nil, fmt.Errorf("Extensions.loadUnpacked returned no extension id")
 	}
-	i.Options.ExtensionID = extensionID
+	i.Options.InjectorExtensionID = extensionID
 	i.wakeConfiguredExtension()
 	swURLPrefix := "chrome-extension://" + extensionID + "/"
-	deadline := time.Now().Add(time.Duration(i.Options.ServiceWorkerReadyTimeoutMS) * time.Millisecond)
+	deadline := time.Now().Add(time.Duration(i.Options.InjectorServiceWorkerReadyTimeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {
 		targets, err := i.targetInfos()
 		if err != nil {
@@ -65,7 +65,7 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 			if targetType != "service_worker" || !strings.HasPrefix(targetURL, swURLPrefix) {
 				continue
 			}
-			probed, err := i.probeTarget(target, i.Options.ServiceWorkerProbeTimeoutMS, true)
+			probed, err := i.probeTarget(target, i.Options.InjectorServiceWorkerProbeTimeoutMS, true)
 			if err != nil {
 				return nil, err
 			}
@@ -75,7 +75,7 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 				return probed, nil
 			}
 		}
-		time.Sleep(time.Duration(i.Options.ServiceWorkerPollIntervalMS) * time.Millisecond)
+		time.Sleep(time.Duration(i.Options.InjectorServiceWorkerPollIntervalMS) * time.Millisecond)
 	}
 	return nil, fmt.Errorf("timed out waiting for service worker target for extension %s", extensionID)
 }

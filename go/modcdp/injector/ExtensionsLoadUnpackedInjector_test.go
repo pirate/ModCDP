@@ -76,8 +76,8 @@ func TestExtensionsLoadUnpackedInjectorExercisesRealCDPLoadUnpackedPath(t *testi
 	}
 
 	injector := NewExtensionsLoadUnpackedInjector(ExtensionInjectorConfig{
-		Send:          send,
-		ExtensionPath: extensionPath,
+		Send:                  send,
+		InjectorExtensionPath: extensionPath,
 	})
 	if err := injector.Prepare(); err != nil {
 		t.Fatal(err)
