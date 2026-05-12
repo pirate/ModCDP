@@ -52,6 +52,7 @@ import type {
   CdpResponseMessage,
   CdpMessage,
   ModCDPServerOptions,
+  ProtocolResult,
 } from "../types/modcdp.js";
 import type { ProxyConnectionState } from "./ProxyConnectionState.js";
 import {
@@ -1006,7 +1007,7 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
 
     if (p.kind === "internal") {
       if (response.error) p.reject?.(new Error(response.error.message));
-      else p.resolve?.(response.result || {});
+      else p.resolve?.((response.result === undefined ? {} : response.result) as ProtocolResult);
       return;
     }
 
@@ -1019,7 +1020,7 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
     if (p.kind === "modcdp_eval") {
       try {
         replyToClient({
-          result: unwrapResponseIfNeeded(response.result || {}, "runtime") ?? {},
+          result: unwrapResponseIfNeeded((response.result === undefined ? {} : response.result) as ProtocolResult, "runtime") ?? {},
         });
       } catch (e) {
         replyToClient({ error: { code: -32000, message: e.message } });

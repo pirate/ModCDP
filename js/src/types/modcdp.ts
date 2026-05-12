@@ -349,7 +349,7 @@ export type CdpCommandMessage = z.infer<typeof CdpCommandMessageSchema>;
 export const CdpResponseMessageSchema = z
   .object({
     id: z.number(),
-    result: ProtocolResultSchema.optional(),
+    result: z.unknown().optional(),
     error: CdpErrorSchema.optional(),
     sessionId: z.string().optional(),
   })

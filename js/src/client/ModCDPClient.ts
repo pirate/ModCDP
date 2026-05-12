@@ -1168,7 +1168,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
         err.cdp = response.error;
         pending.reject(err);
       } else {
-        pending.resolve(response.result || {});
+        pending.resolve((response.result === undefined ? {} : response.result) as ProtocolResult);
       }
       return;
     }

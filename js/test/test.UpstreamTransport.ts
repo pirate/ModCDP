@@ -28,9 +28,13 @@ describe("UpstreamTransport", () => {
     const parsed: unknown[] = [];
     test_transport.onRecv((message) => parsed.push(message));
     test_transport.emit(JSON.stringify({ id: 1, result: { ok: true } }));
+    test_transport.emit(JSON.stringify({ id: 2, result: true }));
+    test_transport.emit(JSON.stringify({ id: 3, result: 0 }));
     test_transport.emit(JSON.stringify({ method: "Runtime.executionContextCreated", params: {} }));
     expect(parsed).toEqual([
       { id: 1, result: { ok: true } },
+      { id: 2, result: true },
+      { id: 3, result: 0 },
       { method: "Runtime.executionContextCreated", params: {} },
     ]);
 
