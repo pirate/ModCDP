@@ -719,7 +719,10 @@ async function handleConnection(
   }
   let closeCdpPromise: Promise<void> | null = null;
   const closeCdp = () => {
-    closeCdpPromise ??= cdp.close().catch(() => {}).finally(() => activeCdps.delete(cdp));
+    closeCdpPromise ??= cdp
+      .close()
+      .catch(() => {})
+      .finally(() => activeCdps.delete(cdp));
     return closeCdpPromise;
   };
   const upstream_socket = (cdp.transport as unknown as { ws?: WebSocket } | null)?.ws ?? null;

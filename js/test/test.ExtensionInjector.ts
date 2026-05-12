@@ -166,7 +166,6 @@ test("ExtensionInjector owns shared injector config", async () => {
       }),
       false,
     );
-
   } finally {
     await injector.close();
   }
