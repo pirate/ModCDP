@@ -1020,7 +1020,11 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
     if (p.kind === "modcdp_eval") {
       try {
         replyToClient({
-          result: unwrapResponseIfNeeded((response.result === undefined ? {} : response.result) as ProtocolResult, "runtime") ?? {},
+          result:
+            unwrapResponseIfNeeded(
+              (response.result === undefined ? {} : response.result) as ProtocolResult,
+              "runtime",
+            ) ?? {},
         });
       } catch (e) {
         replyToClient({ error: { code: -32000, message: e.message } });
