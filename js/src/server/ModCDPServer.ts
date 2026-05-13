@@ -41,10 +41,6 @@ type ModCDPGlobalScope = typeof globalThis &
     };
   };
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
-}
-
 export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis as ModCDPGlobalScope) {
   const MODCDP_SERVER_VERSION = 1;
   const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
@@ -55,6 +51,8 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const DEFAULT_NATIVE_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
   const DEFAULT_NATS_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
   const DEFAULT_NATS_BRIDGE_SUBJECT_PREFIX = "modcdp.default";
+  const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+    value != null && typeof value === "object" && !Array.isArray(value);
   if (
     globalScope.ModCDP?.__ModCDPServerVersion === MODCDP_SERVER_VERSION &&
     globalScope.ModCDP?.handleCommand &&
