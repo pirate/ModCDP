@@ -387,7 +387,7 @@ export const TranslatedStepSchema = z
     method: z.string(),
     params: ProtocolParamsSchema.optional(),
     sessionId: z.string().nullable().optional(),
-    unwrap: z.literal("runtime").optional(),
+    unwrap: z.enum(["runtime", "runtime_json"]).optional(),
   })
   .passthrough();
 export type TranslatedStep = z.infer<typeof TranslatedStepSchema>;

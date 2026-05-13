@@ -138,7 +138,7 @@ func wrapCustomCommand(method string, params map[string]any, sessionID string) m
 	m, _ := json.Marshal(method)
 	p, _ := json.Marshal(params)
 	sid, _ := json.Marshal(sessionID)
-	return callFunctionParams(fmt.Sprintf(`async function() { return await globalThis.ModCDP.handleCommand(%s, %s, %s); }`, string(m), string(p), string(sid)))
+	return callFunctionParams(fmt.Sprintf(`async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand(%s, %s, %s)); }`, string(m), string(p), string(sid)))
 }
 
 func wrapServiceWorkerCommand(method string, params map[string]any, sessionID string, targetSessionID string) []rawStep {
@@ -179,7 +179,11 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 		}
 		runtimeParams = wrapCustomCommand(method, params, cdpSessionID)
 	}
-	return []rawStep{{Method: "Runtime.callFunctionOn", Params: runtimeParams, Unwrap: "runtime"}}
+	unwrap := "runtime_json"
+	if strings.HasPrefix(method, "Mod.") {
+		unwrap = "runtime"
+	}
+	return []rawStep{{Method: "Runtime.callFunctionOn", Params: runtimeParams, Unwrap: unwrap}}
 }
 
 func WrapCommandIfNeeded(method string, params map[string]any, routes map[string]string, sessionID string, targetSessionID ...string) (rawCommand, error) {
@@ -198,7 +202,7 @@ func WrapCommandIfNeeded(method string, params map[string]any, routes map[string
 }
 
 func UnwrapResponseIfNeeded(result map[string]any, unwrap string) (any, error) {
-	if unwrap != "runtime" {
+	if unwrap != "runtime" && unwrap != "runtime_json" {
 		return result, nil
 	}
 	if ex, ok := result["exceptionDetails"].(map[string]any); ok {
@@ -219,7 +223,17 @@ func UnwrapResponseIfNeeded(result map[string]any, unwrap string) (any, error) {
 		return nil, fmt.Errorf("%s", msg)
 	}
 	inner, _ := result["result"].(map[string]any)
-	return inner["value"], nil
+	value := inner["value"]
+	if unwrap == "runtime_json" {
+		if raw, ok := value.(string); ok {
+			var decoded any
+			if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+				return nil, err
+			}
+			return decoded, nil
+		}
+	}
+	return value, nil
 }
 
 func UnwrapEventIfNeeded(method string, params map[string]any, sessionID string, ourSessionID string) (string, any, bool) {

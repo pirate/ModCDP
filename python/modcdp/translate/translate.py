@@ -153,8 +153,8 @@ def _wrap_modcdp_add_middleware(params: ProtocolParams) -> RuntimeCallFunctionOn
 
 def _wrap_custom_command(method: str, params: ProtocolParams, session_id: str) -> RuntimeCallFunctionOnParams:
     return _call_function_params(
-        "async function() { return await globalThis.ModCDP.handleCommand("
-        f"{json.dumps(method)}, {json.dumps(params)}, {json.dumps(session_id)}); }}"
+        "async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand("
+        f"{json.dumps(method)}, {json.dumps(params)}, {json.dumps(session_id)})); }}"
     )
 
 
@@ -183,7 +183,8 @@ def _wrap_service_worker_command(
         runtime_params = _wrap_modcdp_add_middleware(params)
     else:
         runtime_params = _wrap_custom_command(method, params, target_session_id or _optional_string(params, "cdpSessionId") or session_id)
-    return [{"method": "Runtime.callFunctionOn", "params": runtime_params, "unwrap": "runtime"}]
+    unwrap = "runtime" if method.startswith("Mod.") else "runtime_json"
+    return [{"method": "Runtime.callFunctionOn", "params": runtime_params, "unwrap": unwrap}]
 
 
 def wrap_command_if_needed(
@@ -231,6 +232,9 @@ def _unwrap_evaluate_response(result: ProtocolResult) -> JsonValue:
 
 
 def unwrap_response_if_needed(result: ProtocolResult, unwrap: str | None = None) -> JsonValue:
+    if unwrap == "runtime_json":
+        value = _unwrap_evaluate_response(result)
+        return cast(JsonValue, json.loads(value)) if isinstance(value, str) else value
     return _unwrap_evaluate_response(result) if unwrap == "runtime" else (result or {})
 
 

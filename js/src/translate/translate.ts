@@ -175,7 +175,7 @@ export function wrapCustomCommand(
   cdpSessionId: string | null = null,
 ): cdp.types.ts.Runtime.EvaluateParams {
   return {
-    functionDeclaration: `async function() { return await globalThis.ModCDP.handleCommand(${JSON.stringify(method)}, ${JSON.stringify(params)}, ${JSON.stringify(cdpSessionId)}); }`,
+    functionDeclaration: `async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand(${JSON.stringify(method)}, ${JSON.stringify(params)}, ${JSON.stringify(cdpSessionId)})); }`,
     awaitPromise: true,
     returnByValue: true,
   };
@@ -221,7 +221,7 @@ function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, c
     {
       method: "Runtime.callFunctionOn",
       params: runtimeParams,
-      unwrap: "runtime" as const,
+      unwrap: method.startsWith("Mod.") ? ("runtime" as const) : ("runtime_json" as const),
     },
   ];
 }
@@ -260,10 +260,16 @@ function unwrapRuntimeResponse(result: cdp.types.ts.Runtime.EvaluateResult) {
   return result?.result?.value;
 }
 
+function unwrapRuntimeJsonResponse(result: cdp.types.ts.Runtime.EvaluateResult) {
+  const value = unwrapRuntimeResponse(result);
+  return typeof value === "string" ? JSON.parse(value) : value;
+}
+
 export function unwrapResponseIfNeeded(
   result: ProtocolResult | cdp.types.ts.Runtime.EvaluateResult,
   unwrap: string | null = null,
 ) {
+  if (unwrap === "runtime_json") return unwrapRuntimeJsonResponse(result as cdp.types.ts.Runtime.EvaluateResult);
   return unwrap === "runtime" ? unwrapRuntimeResponse(result as cdp.types.ts.Runtime.EvaluateResult) : (result ?? {});
 }
 
