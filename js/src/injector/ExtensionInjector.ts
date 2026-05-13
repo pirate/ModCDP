@@ -3,7 +3,6 @@ import type { UpstreamTransportConfig } from "../transport/UpstreamTransport.js"
 import type { ProtocolParams, ProtocolResult } from "../types/modcdp.js";
 import { commands as RuntimeCommands } from "../types/generated/zod/Runtime.js";
 import { commands as TargetCommands } from "../types/generated/zod/Target.js";
-import { existsSync } from "node:fs";
 
 const EXT_ID_FROM_URL = /^chrome-extension:\/\/([a-z]+)\//;
 export const DEFAULT_MODCDP_EXTENSION_ID = "mdedooklbnfejodmnhmkdpkaedafkehf";
@@ -65,10 +64,10 @@ function delay(ms: number) {
 
 export function defaultModCDPExtensionPath() {
   if (typeof process === "object" && process?.versions?.node && import.meta.url.startsWith("file:")) {
-    const candidates = ["../../../dist/extension.zip", "../../../../dist/extension.zip"].map((relative_path) =>
-      decodeURIComponent(new URL(/* @vite-ignore */ relative_path, import.meta.url).pathname),
-    );
-    return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+    const relative_path = import.meta.url.includes("/dist/js/src/")
+      ? "../../../../dist/extension.zip"
+      : "../../../dist/extension.zip";
+    return decodeURIComponent(new URL(/* @vite-ignore */ relative_path, import.meta.url).pathname);
   }
   return "../../../dist/extension.zip";
 }

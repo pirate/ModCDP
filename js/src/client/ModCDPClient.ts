@@ -28,35 +28,12 @@ import {
   type UpstreamMode,
   type UpstreamTransport,
 } from "../transport/UpstreamTransport.js";
-import {
-  DEFAULT_UPSTREAM_REVERSEWS_BIND,
-  DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS,
-  ReverseWebSocketUpstreamTransport,
-} from "../transport/ReverseWebSocketUpstreamTransport.js";
-import { WebSocketUpstreamTransport } from "../transport/WebSocketUpstreamTransport.js";
-import {
-  DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS,
-  NativeMessagingUpstreamTransport,
-} from "../transport/NativeMessagingUpstreamTransport.js";
-import { PipeUpstreamTransport } from "../transport/PipeUpstreamTransport.js";
-import { DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS, NatsUpstreamTransport } from "../transport/NatsUpstreamTransport.js";
-import { LocalBrowserLauncher } from "../launcher/LocalBrowserLauncher.js";
-import { RemoteBrowserLauncher } from "../launcher/RemoteBrowserLauncher.js";
-import { BrowserbaseBrowserLauncher } from "../launcher/BrowserbaseBrowserLauncher.js";
-import { NoopBrowserLauncher } from "../launcher/NoopBrowserLauncher.js";
 import type { BrowserLauncher, BrowserLaunchOptions, LaunchedBrowser } from "../launcher/BrowserLauncher.js";
-import { BBBrowserExtensionInjector } from "../injector/BBBrowserExtensionInjector.js";
-import { BorrowedExtensionInjector } from "../injector/BorrowedExtensionInjector.js";
-import { DiscoveredExtensionInjector } from "../injector/DiscoveredExtensionInjector.js";
 import {
-  DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
-  DEFAULT_MODCDP_WAKE_PATH,
-  ExtensionInjector,
   type ExtensionInjectorConfig,
+  type ExtensionInjector,
   type SendCDP,
 } from "../injector/ExtensionInjector.js";
-import { ExtensionsLoadUnpackedInjector } from "../injector/ExtensionsLoadUnpackedInjector.js";
-import { LocalBrowserLaunchExtensionInjector } from "../injector/LocalBrowserLaunchExtensionInjector.js";
 import { AutoSessionRouter } from "../router/AutoSessionRouter.js";
 import type {
   CdpCommandMessage,
@@ -95,6 +72,12 @@ export const DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS = 60_000;
 export const DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS = 100;
 export const DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS = 20;
 export const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
+export const DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES = ["/modcdp/service_worker.js"];
+export const DEFAULT_MODCDP_WAKE_PATH = "/modcdp/wake.html";
+export const DEFAULT_UPSTREAM_REVERSEWS_BIND = "127.0.0.1:29292";
+export const DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS = 10_000;
+export const DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS = 10_000;
+export const DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS = 10_000;
 
 type PendingCommand = {
   method: string;
@@ -770,9 +753,9 @@ export class ModCDPClient extends ModCDPEventEmitter {
 
   async _connectUpstreamTransport() {
     if (this.transport) return;
-    const launcher = this._browserLauncher();
-    const transport = this._upstreamTransport();
-    const injectors = this._injectorsForConfig();
+    const launcher = await this._browserLauncher();
+    const transport = await this._upstreamTransport();
+    const injectors = await this._injectorsForConfig();
     this._injectors = injectors;
     const initial_transport_config = this._upstreamTransportConfig();
     transport.update(initial_transport_config);
@@ -821,29 +804,62 @@ export class ModCDPClient extends ModCDPEventEmitter {
     }
   }
 
-  _upstreamTransport(): UpstreamTransport {
-    const factories = {
-      ws: () => new WebSocketUpstreamTransport(),
-      pipe: () => new PipeUpstreamTransport(),
-      reversews: () => new ReverseWebSocketUpstreamTransport(),
-      nativemessaging: () => new NativeMessagingUpstreamTransport(),
-      nats: () => new NatsUpstreamTransport(),
-    } satisfies Record<UpstreamMode, () => UpstreamTransport>;
-    const factory = factories[this.upstream.upstream_mode as UpstreamMode];
-    if (!factory) throw new Error(`unknown upstream.upstream_mode=${this.upstream.upstream_mode}`);
-    return factory();
+  async _upstreamTransport(): Promise<UpstreamTransport> {
+    switch (this.upstream.upstream_mode as UpstreamMode) {
+      case "ws": {
+        const { WebSocketUpstreamTransport } = await import("../transport/WebSocketUpstreamTransport.js");
+        return new WebSocketUpstreamTransport();
+      }
+      case "pipe": {
+        const { PipeUpstreamTransport } = await import(
+          /* @vite-ignore */ "../transport/PipeUpstreamTransport.js"
+        );
+        return new PipeUpstreamTransport();
+      }
+      case "reversews": {
+        const { ReverseWebSocketUpstreamTransport } = await import(
+          /* @vite-ignore */ "../transport/ReverseWebSocketUpstreamTransport.js"
+        );
+        return new ReverseWebSocketUpstreamTransport();
+      }
+      case "nativemessaging": {
+        const { NativeMessagingUpstreamTransport } = await import(
+          /* @vite-ignore */ "../transport/NativeMessagingUpstreamTransport.js"
+        );
+        return new NativeMessagingUpstreamTransport();
+      }
+      case "nats": {
+        const { NatsUpstreamTransport } = await import(/* @vite-ignore */ "../transport/NatsUpstreamTransport.js");
+        return new NatsUpstreamTransport();
+      }
+      default:
+        throw new Error(`unknown upstream.upstream_mode=${this.upstream.upstream_mode}`);
+    }
   }
 
-  _browserLauncher(): BrowserLauncher {
-    const factories = {
-      local: () => new LocalBrowserLauncher(this.launcher.launcher_options),
-      remote: () => new RemoteBrowserLauncher(this.launcher.launcher_options, this.upstream.upstream_cdp_url),
-      bb: () => new BrowserbaseBrowserLauncher(this.launcher.launcher_options),
-      none: () => new NoopBrowserLauncher(this.launcher.launcher_options),
-    } satisfies Record<LauncherMode, () => BrowserLauncher>;
-    const factory = factories[this.launcher.launcher_mode as LauncherMode];
-    if (!factory) throw new Error(`unknown launcher.launcher_mode=${this.launcher.launcher_mode}`);
-    return factory();
+  async _browserLauncher(): Promise<BrowserLauncher> {
+    switch (this.launcher.launcher_mode as LauncherMode) {
+      case "local": {
+        const { LocalBrowserLauncher } = await import(/* @vite-ignore */ "../launcher/LocalBrowserLauncher.js");
+        return new LocalBrowserLauncher(this.launcher.launcher_options);
+      }
+      case "remote": {
+        const { RemoteBrowserLauncher } = await import("../launcher/RemoteBrowserLauncher.js");
+        return new RemoteBrowserLauncher(this.launcher.launcher_options, this.upstream.upstream_cdp_url);
+      }
+      case "bb": {
+        const { BrowserbaseBrowserLauncher } = await import(
+          /* @vite-ignore */ "../launcher/BrowserbaseBrowserLauncher.js"
+        );
+        return new BrowserbaseBrowserLauncher(this.launcher.launcher_options);
+      }
+      case "none": {
+        const { NoopBrowserLauncher } = await import("../launcher/NoopBrowserLauncher.js");
+        return new NoopBrowserLauncher(this.launcher.launcher_options);
+      }
+      default:
+        throw new Error(`unknown launcher.launcher_mode=${this.launcher.launcher_mode}`);
+    }
   }
 
   _launcherOptions(): BrowserLaunchOptions {
@@ -875,18 +891,33 @@ export class ModCDPClient extends ModCDPEventEmitter {
     };
   }
 
-  _injectorsForConfig() {
+  async _injectorsForConfig() {
     if (this.injector.injector_mode === "none") return [];
     const injectors: ExtensionInjector[] = [];
     if (this.injector.injector_mode === "auto" || this.injector.injector_mode === "discover") {
+      const { DiscoveredExtensionInjector } = await import("../injector/DiscoveredExtensionInjector.js");
       injectors.push(new DiscoveredExtensionInjector());
     }
     if (this.injector.injector_mode === "auto" || this.injector.injector_mode === "inject") {
-      if (this.launcher.launcher_mode === "bb") injectors.push(new BBBrowserExtensionInjector());
-      if (this.launcher.launcher_mode === "local") injectors.push(new LocalBrowserLaunchExtensionInjector());
+      if (this.launcher.launcher_mode === "bb") {
+        const { BBBrowserExtensionInjector } = await import(
+          /* @vite-ignore */ "../injector/BBBrowserExtensionInjector.js"
+        );
+        injectors.push(new BBBrowserExtensionInjector());
+      }
+      if (this.launcher.launcher_mode === "local") {
+        const { LocalBrowserLaunchExtensionInjector } = await import(
+          /* @vite-ignore */ "../injector/LocalBrowserLaunchExtensionInjector.js"
+        );
+        injectors.push(new LocalBrowserLaunchExtensionInjector());
+      }
+      const { ExtensionsLoadUnpackedInjector } = await import(
+        /* @vite-ignore */ "../injector/ExtensionsLoadUnpackedInjector.js"
+      );
       injectors.push(new ExtensionsLoadUnpackedInjector());
     }
     if (this.injector.injector_mode === "auto" || this.injector.injector_mode === "borrow") {
+      const { BorrowedExtensionInjector } = await import(/* @vite-ignore */ "../injector/BorrowedExtensionInjector.js");
       injectors.push(new BorrowedExtensionInjector());
     }
     if (injectors.length === 0) throw new Error(`unknown injector.injector_mode=${this.injector.injector_mode}`);
@@ -925,7 +956,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
   }
 
   async _runInjectors(send: SendCDP, injectors: ExtensionInjector[] | null = null) {
-    injectors ??= this._injectorsForConfig();
+    injectors ??= await this._injectorsForConfig();
     const errors: string[] = [];
     for (const injector of injectors) {
       injector.update(this._baseInjectorConfig(send));
