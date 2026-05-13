@@ -1385,13 +1385,13 @@ func handlerPointer(handler Handler) uintptr {
 }
 
 func (c *ModCDPClient) Close() {
-	if c.transport != nil {
-		_ = c.transport.Close()
-		c.transport = nil
-	}
 	if c.launchedBrowser != nil {
 		c.launchedBrowser.Close()
 		c.launchedBrowser = nil
+	}
+	if c.transport != nil {
+		_ = c.transport.Close()
+		c.transport = nil
 	}
 	for _, injector := range c.extensionInjectors {
 		_ = injector.Close()

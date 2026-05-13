@@ -28,6 +28,9 @@ test("translate routes, wraps, and unwraps ModCDP protocol messages deterministi
   assert.match(String(wrapped.steps[0]?.params.functionDeclaration), /attachToSession\("session-1"\)/);
   assert.equal(wrapped.steps[0]?.unwrap, "runtime");
 
+  const configured = wrapCommandIfNeeded("Mod.configure", { server: { server_routes: { "*.*": "loopback_cdp" } } });
+  assert.equal(configured.steps[0]?.unwrap, "runtime_json");
+
   assert.deepEqual(unwrapResponseIfNeeded({ result: { type: "object", value: { ok: true } } }, "runtime"), {
     ok: true,
   });

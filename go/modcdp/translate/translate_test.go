@@ -44,6 +44,14 @@ func TestTranslateRoutesWrapsAndUnwrapsModCDPProtocolMessagesDeterministically(t
 		t.Fatalf("unwrap = %q", wrapped.Steps[0].Unwrap)
 	}
 
+	configured, err := wrapCommandIfNeeded("Mod.configure", map[string]any{"server": map[string]any{"server_routes": map[string]any{"*.*": "loopback_cdp"}}}, DefaultClientRoutes(), "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configured.Steps[0].Unwrap != "runtime_json" {
+		t.Fatalf("configure unwrap = %q", configured.Steps[0].Unwrap)
+	}
+
 	unwrapped, err := unwrapResponseIfNeeded(map[string]any{"result": map[string]any{"type": "object", "value": map[string]any{"ok": true}}}, "runtime")
 	if err != nil {
 		t.Fatal(err)

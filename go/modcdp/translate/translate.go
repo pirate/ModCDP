@@ -165,6 +165,7 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 		}
 	}
 	runtimeParams := map[string]any{}
+	unwrap := "runtime"
 	switch method {
 	case "Mod.evaluate":
 		runtimeParams = wrapModCDPEvaluate(params, targetSessionID)
@@ -178,10 +179,7 @@ func wrapServiceWorkerCommand(method string, params map[string]any, sessionID st
 			cdpSessionID = targetSessionID
 		}
 		runtimeParams = wrapCustomCommand(method, params, cdpSessionID)
-	}
-	unwrap := "runtime_json"
-	if strings.HasPrefix(method, "Mod.") {
-		unwrap = "runtime"
+		unwrap = "runtime_json"
 	}
 	return []rawStep{{Method: "Runtime.callFunctionOn", Params: runtimeParams, Unwrap: unwrap}}
 }

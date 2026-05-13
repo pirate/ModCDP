@@ -31,6 +31,13 @@ class TranslateTests(unittest.TestCase):
         self.assertIn('attachToSession("session-1")', str(wrapped["steps"][0].get("params", {}).get("functionDeclaration")))
         self.assertEqual(wrapped["steps"][0].get("unwrap"), "runtime")
 
+        configured = wrap_command_if_needed(
+            "Mod.configure",
+            {"server": {"server_routes": {"*.*": "loopback_cdp"}}},
+            cdp_session_id="session-1",
+        )
+        self.assertEqual(configured["steps"][0].get("unwrap"), "runtime_json")
+
         self.assertEqual(unwrap_response_if_needed({"result": {"type": "object", "value": {"ok": True}}}, "runtime"), {"ok": True})
         self.assertEqual(unwrap_response_if_needed({"product": "Chrome/1"}, None), {"product": "Chrome/1"})
 

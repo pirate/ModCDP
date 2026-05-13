@@ -256,7 +256,7 @@ func TestExtensionInjectorKeepsModCDPServiceWorkerAliveThroughOffscreenKeepalive
 		t.Fatal(err)
 	}
 	versionResult, _ := version["result"].(map[string]any)
-	if versionResult["value"] != float64(1) {
+	if versionResult["value"] != float64(2) {
 		t.Fatalf("ModCDP server version = %#v", versionResult["value"])
 	}
 }

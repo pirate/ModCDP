@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
+import sys
 import threading
 import time
 import unittest
@@ -134,7 +136,10 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
 
     def test_accepts_real_extension_reverse_connection_and_routes_cdp_through_loopback(self) -> None:
         cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {"headless": sys.platform.startswith("linux") and not os.environ.get("DISPLAY"), "sandbox": False},
+            },
             upstream={"upstream_mode": "reversews"},
             injector={
                 "injector_mode": "auto",

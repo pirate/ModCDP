@@ -199,6 +199,7 @@ function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, c
   }
 
   let runtimeParams;
+  let unwrap: "runtime" | "runtime_json" = "runtime";
   if (method === "Mod.evaluate") {
     const evaluateParams = params as ModCDPEvaluateParams;
     runtimeParams = wrapModCDPEvaluate({
@@ -215,13 +216,14 @@ function wrapServiceWorkerCommand(method: string, params: ProtocolParams = {}, c
       params,
       ((params as ModCDPCustomPayload).cdpSessionId as string) ?? cdpSessionId,
     );
+    unwrap = "runtime_json";
   }
 
   return [
     {
       method: "Runtime.callFunctionOn",
       params: runtimeParams,
-      unwrap: method.startsWith("Mod.") ? ("runtime" as const) : ("runtime_json" as const),
+      unwrap,
     },
   ];
 }

@@ -29,11 +29,7 @@ import {
   type UpstreamTransport,
 } from "../transport/UpstreamTransport.js";
 import type { BrowserLauncher, BrowserLaunchOptions, LaunchedBrowser } from "../launcher/BrowserLauncher.js";
-import {
-  type ExtensionInjectorConfig,
-  type ExtensionInjector,
-  type SendCDP,
-} from "../injector/ExtensionInjector.js";
+import { type ExtensionInjectorConfig, type ExtensionInjector, type SendCDP } from "../injector/ExtensionInjector.js";
 import { AutoSessionRouter } from "../router/AutoSessionRouter.js";
 import type {
   CdpCommandMessage,
@@ -811,9 +807,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
         return new WebSocketUpstreamTransport();
       }
       case "pipe": {
-        const { PipeUpstreamTransport } = await import(
-          /* @vite-ignore */ "../transport/PipeUpstreamTransport.js"
-        );
+        const { PipeUpstreamTransport } = await import(/* @vite-ignore */ "../transport/PipeUpstreamTransport.js");
         return new PipeUpstreamTransport();
       }
       case "reversews": {
@@ -990,10 +984,10 @@ export class ModCDPClient extends ModCDPEventEmitter {
   async close() {
     for (const cleanup of this.event_wait_cleanups) cleanup();
     this.event_wait_cleanups.clear();
-    await this.transport?.close();
-    this.transport = null;
     if (this._launched) await this._launched.close();
     this._launched = null;
+    await this.transport?.close();
+    this.transport = null;
     for (const injector of this._injectors) await injector.close();
     this._injectors = [];
   }

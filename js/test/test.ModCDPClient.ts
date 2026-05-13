@@ -293,19 +293,19 @@ test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto",
   }
 });
 
-test("ModCDPClient rejects unknown component modes at their owning factory boundary", () => {
-  assert.throws(
+test("ModCDPClient rejects unknown component modes at their owning factory boundary", async () => {
+  await assert.rejects(
     () =>
       new ModCDPClient({
         upstream: { upstream_mode: "bogus" as any },
       })._upstreamTransport(),
     /unknown upstream\.upstream_mode=bogus/,
   );
-  assert.throws(
+  await assert.rejects(
     () => new ModCDPClient({ launcher: { launcher_mode: "bogus" as any } })._browserLauncher(),
     /unknown launcher\.launcher_mode=bogus/,
   );
-  assert.throws(
+  await assert.rejects(
     () => new ModCDPClient({ injector: { injector_mode: "bogus" as any } })._injectorsForConfig(),
     /unknown injector\.injector_mode=bogus/,
   );

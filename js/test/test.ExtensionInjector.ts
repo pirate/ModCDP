@@ -135,7 +135,7 @@ test("ExtensionInjector keeps the ModCDP service worker alive through offscreen 
       { expression: "globalThis.ModCDP?.__ModCDPServerVersion", returnByValue: true },
       session_id,
     );
-    assert.equal((version.result as { value?: unknown }).value, 1);
+    assert.equal((version.result as { value?: unknown }).value, 2);
   } finally {
     await cdp.close();
     await injector.close();

@@ -190,7 +190,7 @@ class ExtensionInjectorTests(unittest.TestCase):
                 {"expression": "globalThis.ModCDP?.__ModCDPServerVersion", "returnByValue": True},
                 cast(str, session_id),
             )
-            self.assertEqual(cast(dict[str, Any], version.get("result") or {}).get("value"), 1)
+            self.assertEqual(cast(dict[str, Any], version.get("result") or {}).get("value"), 2)
         finally:
             injector.close()
             ws.close()

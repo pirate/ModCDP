@@ -175,6 +175,7 @@ def _wrap_service_worker_command(
                 "unwrap": "runtime",
             },
         ]
+    unwrap = "runtime"
     if method == "Mod.evaluate":
         runtime_params = _wrap_modcdp_evaluate(params, session_id, target_session_id)
     elif method == "Mod.addCustomCommand":
@@ -183,7 +184,7 @@ def _wrap_service_worker_command(
         runtime_params = _wrap_modcdp_add_middleware(params)
     else:
         runtime_params = _wrap_custom_command(method, params, target_session_id or _optional_string(params, "cdpSessionId") or session_id)
-    unwrap = "runtime" if method.startswith("Mod.") else "runtime_json"
+        unwrap = "runtime_json"
     return [{"method": "Runtime.callFunctionOn", "params": runtime_params, "unwrap": unwrap}]
 
 
