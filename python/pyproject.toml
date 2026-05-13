@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modcdp"
-version = "0.0.9"
+version = "0.0.10"
 description = "Python client for ModCDP."
 readme = "README.md"
 requires-python = ">=3.11"

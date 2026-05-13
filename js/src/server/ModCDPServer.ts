@@ -42,7 +42,7 @@ type ModCDPGlobalScope = typeof globalThis &
   };
 
 export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis as ModCDPGlobalScope) {
-  const MODCDP_SERVER_VERSION = 1;
+  const MODCDP_SERVER_VERSION = 2;
   const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
   const DEFAULT_LOOPBACK_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
   const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
@@ -51,8 +51,6 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const DEFAULT_NATIVE_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
   const DEFAULT_NATS_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
   const DEFAULT_NATS_BRIDGE_SUBJECT_PREFIX = "modcdp.default";
-  const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-    value != null && typeof value === "object" && !Array.isArray(value);
   if (
     globalScope.ModCDP?.__ModCDPServerVersion === MODCDP_SERVER_VERSION &&
     globalScope.ModCDP?.handleCommand &&
@@ -1083,7 +1081,9 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
             const nextResult = await next(result.value);
             const { __ModCDP_middleware_next__, value, ...overrides } = result;
             if (Object.keys(overrides).length === 0) return nextResult;
-            return isPlainObject(nextResult) ? { ...nextResult, ...overrides } : overrides;
+            return nextResult != null && typeof nextResult === "object" && !Array.isArray(nextResult)
+              ? { ...(nextResult as Record<string, unknown>), ...overrides }
+              : overrides;
           }
           return result;
         };
