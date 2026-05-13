@@ -85,7 +85,12 @@ export class BBBrowserExtensionInjector extends ExtensionInjector {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const form = new FormData();
-    form.append("file", new Blob([fs.readFileSync(zip_path)]), path.basename(zip_path));
+    const zip_bytes = fs.readFileSync(zip_path);
+    const zip_array_buffer = zip_bytes.buffer.slice(
+      zip_bytes.byteOffset,
+      zip_bytes.byteOffset + zip_bytes.byteLength,
+    ) as ArrayBuffer;
+    form.append("file", new Blob([zip_array_buffer]), path.basename(zip_path));
     const response = await fetch(new URL("/v1/extensions", `${base_url.replace(/\/$/, "")}/`), {
       method: "POST",
       headers: { "X-BB-API-Key": browserbase_api_key },

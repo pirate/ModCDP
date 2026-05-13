@@ -1,13 +1,11 @@
 {
   "name": "modcdp",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pirate/modcdp.git"
   },
   "files": [
-    "js/src/**/*.ts",
-    "js/examples/**/*.ts",
     "js/scripts/**/*.mjs",
     "dist/**/*",
     "dist/extension.zip",
@@ -20,106 +18,115 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./js/src/index.ts",
+      "types": "./dist/js/src/index.d.ts",
       "import": "./dist/js/src/index.js",
       "default": "./dist/js/src/index.js"
     },
     "./client": {
-      "types": "./js/src/client/ModCDPClient.ts",
+      "types": "./dist/js/src/client/ModCDPClient.d.ts",
       "import": "./dist/js/src/client/ModCDPClient.js",
       "default": "./dist/js/src/client/ModCDPClient.js"
     },
     "./client/ModCDPClient.js": {
-      "types": "./js/src/client/ModCDPClient.ts",
+      "types": "./dist/js/src/client/ModCDPClient.d.ts",
       "import": "./dist/js/src/client/ModCDPClient.js"
     },
     "./server/ModCDPServer.js": {
-      "types": "./js/src/server/ModCDPServer.ts",
+      "types": "./dist/js/src/server/ModCDPServer.d.ts",
       "import": "./dist/js/src/server/ModCDPServer.js"
     },
     "./launcher/BrowserLauncher.js": {
-      "types": "./js/src/launcher/BrowserLauncher.ts",
+      "types": "./dist/js/src/launcher/BrowserLauncher.d.ts",
       "import": "./dist/js/src/launcher/BrowserLauncher.js"
     },
     "./launcher/LocalBrowserLauncher.js": {
-      "types": "./js/src/launcher/LocalBrowserLauncher.ts",
+      "types": "./dist/js/src/launcher/LocalBrowserLauncher.d.ts",
       "import": "./dist/js/src/launcher/LocalBrowserLauncher.js"
     },
     "./launcher/RemoteBrowserLauncher.js": {
-      "types": "./js/src/launcher/RemoteBrowserLauncher.ts",
+      "types": "./dist/js/src/launcher/RemoteBrowserLauncher.d.ts",
       "import": "./dist/js/src/launcher/RemoteBrowserLauncher.js"
     },
     "./launcher/BrowserbaseBrowserLauncher.js": {
-      "types": "./js/src/launcher/BrowserbaseBrowserLauncher.ts",
+      "types": "./dist/js/src/launcher/BrowserbaseBrowserLauncher.d.ts",
       "import": "./dist/js/src/launcher/BrowserbaseBrowserLauncher.js"
     },
     "./launcher/NoopBrowserLauncher.js": {
-      "types": "./js/src/launcher/NoopBrowserLauncher.ts",
+      "types": "./dist/js/src/launcher/NoopBrowserLauncher.d.ts",
       "import": "./dist/js/src/launcher/NoopBrowserLauncher.js"
     },
     "./transport/UpstreamTransport.js": {
-      "types": "./js/src/transport/UpstreamTransport.ts",
+      "types": "./dist/js/src/transport/UpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/UpstreamTransport.js"
     },
     "./transport/WebSocketUpstreamTransport.js": {
-      "types": "./js/src/transport/WebSocketUpstreamTransport.ts",
+      "types": "./dist/js/src/transport/WebSocketUpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/WebSocketUpstreamTransport.js"
     },
     "./transport/ReverseWebSocketUpstreamTransport.js": {
-      "types": "./js/src/transport/ReverseWebSocketUpstreamTransport.ts",
+      "types": "./dist/js/src/transport/ReverseWebSocketUpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/ReverseWebSocketUpstreamTransport.js"
     },
     "./transport/NativeMessagingUpstreamTransport.js": {
-      "types": "./js/src/transport/NativeMessagingUpstreamTransport.ts",
+      "types": "./dist/js/src/transport/NativeMessagingUpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/NativeMessagingUpstreamTransport.js"
     },
     "./transport/PipeUpstreamTransport.js": {
-      "types": "./js/src/transport/PipeUpstreamTransport.ts",
+      "types": "./dist/js/src/transport/PipeUpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/PipeUpstreamTransport.js"
     },
     "./transport/NatsUpstreamTransport.js": {
-      "types": "./js/src/transport/NatsUpstreamTransport.ts",
+      "types": "./dist/js/src/transport/NatsUpstreamTransport.d.ts",
       "import": "./dist/js/src/transport/NatsUpstreamTransport.js"
     },
     "./injector/ExtensionInjector.js": {
-      "types": "./js/src/injector/ExtensionInjector.ts",
+      "types": "./dist/js/src/injector/ExtensionInjector.d.ts",
       "import": "./dist/js/src/injector/ExtensionInjector.js"
     },
     "./injector/DiscoveredExtensionInjector.js": {
-      "types": "./js/src/injector/DiscoveredExtensionInjector.ts",
+      "types": "./dist/js/src/injector/DiscoveredExtensionInjector.d.ts",
       "import": "./dist/js/src/injector/DiscoveredExtensionInjector.js"
     },
     "./injector/LocalBrowserLaunchExtensionInjector.js": {
-      "types": "./js/src/injector/LocalBrowserLaunchExtensionInjector.ts",
+      "types": "./dist/js/src/injector/LocalBrowserLaunchExtensionInjector.d.ts",
       "import": "./dist/js/src/injector/LocalBrowserLaunchExtensionInjector.js"
     },
     "./injector/BBBrowserExtensionInjector.js": {
-      "types": "./js/src/injector/BBBrowserExtensionInjector.ts",
+      "types": "./dist/js/src/injector/BBBrowserExtensionInjector.d.ts",
       "import": "./dist/js/src/injector/BBBrowserExtensionInjector.js"
     },
     "./injector/ExtensionsLoadUnpackedInjector.js": {
-      "types": "./js/src/injector/ExtensionsLoadUnpackedInjector.ts",
+      "types": "./dist/js/src/injector/ExtensionsLoadUnpackedInjector.d.ts",
       "import": "./dist/js/src/injector/ExtensionsLoadUnpackedInjector.js"
     },
     "./injector/BorrowedExtensionInjector.js": {
-      "types": "./js/src/injector/BorrowedExtensionInjector.ts",
+      "types": "./dist/js/src/injector/BorrowedExtensionInjector.d.ts",
       "import": "./dist/js/src/injector/BorrowedExtensionInjector.js"
     },
     "./router/AutoSessionRouter.js": {
-      "types": "./js/src/router/AutoSessionRouter.ts",
+      "types": "./dist/js/src/router/AutoSessionRouter.d.ts",
       "import": "./dist/js/src/router/AutoSessionRouter.js"
     },
     "./proxy/proxy.js": {
-      "types": "./js/src/proxy/proxy.ts",
+      "types": "./dist/js/src/proxy/proxy.d.ts",
       "import": "./dist/js/src/proxy/proxy.js"
     },
     "./proxy/cli.js": {
-      "types": "./js/src/proxy/cli.ts",
+      "types": "./dist/js/src/proxy/cli.d.ts",
       "import": "./dist/js/src/proxy/cli.js"
     },
-    "./translate/translate.js": "./dist/js/src/translate/translate.js",
-    "./types/*": "./dist/js/src/types/*",
-    "./types/generated/*": "./dist/js/src/types/generated/*"
+    "./translate/translate.js": {
+      "types": "./dist/js/src/translate/translate.d.ts",
+      "import": "./dist/js/src/translate/translate.js"
+    },
+    "./types/*": {
+      "types": "./dist/js/src/types/*.d.ts",
+      "import": "./dist/js/src/types/*.js"
+    },
+    "./types/generated/*": {
+      "types": "./dist/js/src/types/generated/*.d.ts",
+      "import": "./dist/js/src/types/generated/*.js"
+    }
   },
   "scripts": {
     "clean": "rm -rf dist",
