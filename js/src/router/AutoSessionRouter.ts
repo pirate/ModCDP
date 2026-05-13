@@ -1,12 +1,18 @@
 import type { ProtocolParams, ProtocolResult } from "../types/modcdp.js";
 
 type SendCDP = (method: string, params?: ProtocolParams, session_id?: string | null) => Promise<ProtocolResult>;
+type ExecutionContextWaiter = {
+  resolve: (context_id: number) => void;
+  reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
+};
 
 export class AutoSessionRouter {
   readonly target_sessions = new Map<string, string>();
   readonly session_targets = new Map<string, Record<string, unknown>>();
   readonly execution_contexts = new Map<string, number>();
-  private readonly execution_context_waiters = new Map<string, Set<(context_id: number) => void>>();
+  private readonly execution_context_waiters = new Map<string, Set<ExecutionContextWaiter>>();
+  private readonly detached_sessions = new Set<string>();
 
   constructor(
     private readonly send: SendCDP,
@@ -36,6 +42,7 @@ export class AutoSessionRouter {
           : null;
       const target_id = typeof target_info?.targetId === "string" ? target_info.targetId : null;
       if (attached_session_id && target_id && target_info) {
+        this.detached_sessions.delete(attached_session_id);
         this.target_sessions.set(target_id, attached_session_id);
         this.session_targets.set(attached_session_id, target_info);
       }
@@ -55,28 +62,32 @@ export class AutoSessionRouter {
     const existing = this.execution_contexts.get(session_id);
     if (existing != null) return Promise.resolve(existing);
     return new Promise<number>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        const waiters = this.execution_context_waiters.get(session_id);
-        waiters?.delete(complete);
-        if (waiters?.size === 0) this.execution_context_waiters.delete(session_id);
-        reject(new Error(`Timed out waiting for Runtime.executionContextCreated for session ${session_id}.`));
-      }, effective_timeout_ms);
-      const complete = (context_id: number) => {
-        clearTimeout(timeout);
-        resolve(context_id);
+      const waiter: ExecutionContextWaiter = {
+        resolve,
+        reject,
+        timeout: setTimeout(() => {
+          const waiters = this.execution_context_waiters.get(session_id);
+          waiters?.delete(waiter);
+          if (waiters?.size === 0) this.execution_context_waiters.delete(session_id);
+          reject(new Error(`Timed out waiting for Runtime.executionContextCreated for session ${session_id}.`));
+        }, effective_timeout_ms),
       };
       const waiters = this.execution_context_waiters.get(session_id);
-      if (waiters) waiters.add(complete);
-      else this.execution_context_waiters.set(session_id, new Set([complete]));
+      if (waiters) waiters.add(waiter);
+      else this.execution_context_waiters.set(session_id, new Set([waiter]));
     });
   }
 
   private recordExecutionContext(session_id: string, context_id: number) {
+    if (this.detached_sessions.has(session_id)) return;
     this.execution_contexts.set(session_id, context_id);
     const waiters = this.execution_context_waiters.get(session_id);
     if (!waiters) return;
     this.execution_context_waiters.delete(session_id);
-    for (const resolve of waiters) resolve(context_id);
+    for (const waiter of waiters) {
+      clearTimeout(waiter.timeout);
+      waiter.resolve(context_id);
+    }
   }
 
   private forgetSession(session_id: string) {
@@ -85,5 +96,14 @@ export class AutoSessionRouter {
     if (target_id) this.target_sessions.delete(target_id);
     this.session_targets.delete(session_id);
     this.execution_contexts.delete(session_id);
+    this.detached_sessions.add(session_id);
+    const waiters = this.execution_context_waiters.get(session_id);
+    if (!waiters) return;
+    this.execution_context_waiters.delete(session_id);
+    const error = new Error(`Runtime execution context wait cancelled because session ${session_id} detached.`);
+    for (const waiter of waiters) {
+      clearTimeout(waiter.timeout);
+      waiter.reject(error);
+    }
   }
 }

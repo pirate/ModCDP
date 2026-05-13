@@ -5,6 +5,31 @@ import { expect, test } from "vitest";
 import { LocalBrowserLauncher } from "../src/launcher/LocalBrowserLauncher.js";
 import { AutoSessionRouter } from "../src/router/AutoSessionRouter.js";
 
+test("AutoSessionRouter rejects pending execution context waiters when a session detaches", async () => {
+  const router = new AutoSessionRouter(
+    async () => ({}),
+    () => 5_000,
+  );
+  const wait = router.waitForExecutionContext("detached-session", { timeout_ms: 5_000 });
+
+  router.recordProtocolEvent(
+    "Target.attachedToTarget",
+    {
+      sessionId: "detached-session",
+      targetInfo: { targetId: "target-1", type: "page" },
+    },
+    null,
+  );
+  router.recordProtocolEvent("Target.detachedFromTarget", { sessionId: "detached-session" }, null);
+  router.recordProtocolEvent("Runtime.executionContextCreated", { context: { id: 42 } }, "detached-session");
+
+  await expect(wait).rejects.toThrow(
+    "Runtime execution context wait cancelled because session detached-session detached.",
+  );
+  expect(router.sessionIdForTarget("target-1")).toBeNull();
+  expect(router.execution_contexts.get("detached-session")).toBeUndefined();
+}, 5_000);
+
 test("AutoSessionRouter tracks real target sessions and execution contexts", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,

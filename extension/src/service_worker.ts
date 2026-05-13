@@ -17,7 +17,16 @@ let next_log_id = 1;
 const self_transports: Record<string, any> = {};
 const self_custom = { commands: new Set<string>(), events: new Set<string>() };
 const self_log: any[] = [];
-const compact = (value: unknown) => JSON.parse(JSON.stringify(value ?? null));
+const compact = (value: unknown) => {
+  try {
+    return JSON.parse(JSON.stringify(value ?? null));
+  } catch (error) {
+    return {
+      unserializable: true,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
 const trimLog = (log: any[]) => (log.length = Math.min(log.length, 80));
 const routeFor = (method: string) => {
   if (method.startsWith("Mod.") || method.startsWith("Custom.")) return "service_worker";

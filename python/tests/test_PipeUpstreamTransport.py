@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 
 from modcdp import ModCDPClient
@@ -19,6 +20,28 @@ class PipeUpstreamTransportTests(unittest.TestCase):
             transport.connect()
         with self.assertRaisesRegex(RuntimeError, "CDP pipe is not connected"):
             transport.send({"id": 1, "method": "Browser.getVersion"})
+
+    def test_resets_connection_state_after_pipe_closes(self) -> None:
+        read_fd, read_writer_fd = os.pipe()
+        write_reader_fd, write_fd = os.pipe()
+        pipe_read = os.fdopen(read_fd, "rb", buffering=0)
+        pipe_read_writer = os.fdopen(read_writer_fd, "wb", buffering=0)
+        pipe_write_reader = os.fdopen(write_reader_fd, "rb", buffering=0)
+        pipe_write = os.fdopen(write_fd, "wb", buffering=0)
+        transport = PipeUpstreamTransport({"pipe_read": pipe_read, "pipe_write": pipe_write, "cdp_url": "pipe://test"})
+        closed: list[Exception] = []
+        transport.onClose(lambda error: closed.append(error))
+
+        try:
+            transport.connect()
+            transport.send({"id": 1, "method": "Browser.getVersion", "params": {}})
+            pipe_read_writer.close()
+            self.assertTrue(_wait_for(lambda: len(closed) == 1))
+            with self.assertRaisesRegex(RuntimeError, "CDP pipe is not connected"):
+                transport.send({"id": 2, "method": "Browser.getVersion", "params": {}})
+        finally:
+            transport.close()
+            pipe_write_reader.close()
 
     def test_launches_real_browser_and_uses_pid_scoped_pipe_url(self) -> None:
         cdp = ModCDPClient(
@@ -41,6 +64,16 @@ class PipeUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(version["product"], str)
         finally:
             cdp.close()
+
+def _wait_for(fn, timeout_s: float = 2) -> bool:
+    import time
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if fn():
+            return True
+        time.sleep(0.02)
+    return False
 
 
 if __name__ == "__main__":

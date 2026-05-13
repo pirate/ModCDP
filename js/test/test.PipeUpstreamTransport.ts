@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
@@ -19,6 +20,30 @@ test("pipe upstream constructor, update, launcher config, and unconnected errors
   assert.equal(transport.url, "pipe://1234");
   await assert.rejects(() => transport.connect(), /upstream\.upstream_mode=pipe requires/);
   assert.throws(() => transport.send({ id: 1, method: "Browser.getVersion" }), /CDP pipe is not connected/);
+});
+
+test("pipe upstream resets connection state after pipe end and errors", async () => {
+  for (const event_name of ["end", "read_error", "write_error"] as const) {
+    const pipe_read = new PassThrough();
+    const pipe_write = new PassThrough();
+    const transport = new PipeUpstreamTransport({ pipe_read, pipe_write, cdp_url: "pipe://test" });
+    const closed: Error[] = [];
+    transport.onClose((error) => closed.push(error));
+
+    await transport.connect();
+    transport.send({ id: 1, method: "Browser.getVersion", params: {} });
+
+    if (event_name === "end") pipe_read.emit("end");
+    else if (event_name === "read_error") pipe_read.emit("error", new Error("read failed"));
+    else pipe_write.emit("error", new Error("write failed"));
+
+    assert.equal(closed.length, 1);
+    assert.throws(
+      () => transport.send({ id: 2, method: "Browser.getVersion", params: {} }),
+      /CDP pipe is not connected/,
+    );
+    await transport.close();
+  }
 });
 
 test("pipe upstream launches a real browser and uses a pid-scoped pipe URL", async () => {

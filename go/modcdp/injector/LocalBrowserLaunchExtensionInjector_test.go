@@ -1,6 +1,7 @@
 package injector_test
 
 import (
+	"archive/zip"
 	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
 	. "github.com/pirate/ModCDP/go/modcdp/injector"
 	"os"
@@ -9,6 +10,37 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestLocalBrowserLaunchExtensionInjectorRejectsZipEntriesOutsideExtractionDir(t *testing.T) {
+	tempDir := t.TempDir()
+	zipPath := filepath.Join(tempDir, "extension.zip")
+	file, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	entry, err := writer.Create("../evil.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write([]byte("evil")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	injector := NewLocalBrowserLaunchExtensionInjector(ExtensionInjectorConfig{InjectorExtensionPath: zipPath})
+	if err := injector.Prepare(); err == nil || !strings.Contains(err.Error(), "escapes extension extraction directory") {
+		t.Fatalf("Prepare error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tempDir, "evil.txt")); !os.IsNotExist(err) {
+		t.Fatalf("outside file was created: %v", err)
+	}
+}
 
 func TestLocalBrowserLaunchExtensionInjectorLoadsRealExtensionDuringLocalLaunch(t *testing.T) {
 	extensionPath, err := filepath.Abs(filepath.Join("..", "..", "..", "dist", "extension"))

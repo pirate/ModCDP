@@ -366,6 +366,21 @@ func TestModCDPClientPreservesExplicitNoneServerConfig(t *testing.T) {
 	}
 }
 
+func TestModCDPClientAllowsDisabledServerWithModCDPServerUpstreams(t *testing.T) {
+	for _, mode := range []string{"nativemessaging", "reversews", "nats"} {
+		cdp := New(Options{
+			Upstream: UpstreamConfig{UpstreamMode: mode},
+			Server:   ServerNone,
+		})
+		if cdp.Server != nil {
+			t.Fatalf("%s Server = %#v", mode, cdp.Server)
+		}
+		if cdp.UpstreamEndpointKind != UpstreamEndpointKindModCDPServer {
+			t.Fatalf("%s UpstreamEndpointKind = %q", mode, cdp.UpstreamEndpointKind)
+		}
+	}
+}
+
 func TestModCDPClientDefaultsServiceWorkerSuffixConfigToModCDPWorker(t *testing.T) {
 	cdp := New(Options{})
 

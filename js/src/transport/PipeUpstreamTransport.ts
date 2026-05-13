@@ -44,9 +44,9 @@ export class PipeUpstreamTransport extends UpstreamTransport {
     if (this.connected) return;
     this.connected = true;
     this.pipe_read.on("data", (chunk) => this.read(chunk));
-    this.pipe_read.on("end", () => this.emitClose(new Error("CDP pipe closed")));
-    this.pipe_read.on("error", () => this.emitClose(new Error("CDP pipe error")));
-    this.pipe_write.on("error", () => this.emitClose(new Error("CDP pipe write error")));
+    this.pipe_read.on("end", () => this.handleClose(new Error("CDP pipe closed")));
+    this.pipe_read.on("error", () => this.handleClose(new Error("CDP pipe error")));
+    this.pipe_write.on("error", () => this.handleClose(new Error("CDP pipe write error")));
   }
 
   send(message: CdpCommandMessage) {
@@ -73,5 +73,10 @@ export class PipeUpstreamTransport extends UpstreamTransport {
       this.buffer = this.buffer.slice(end + 1);
       if (message) this.parseAndEmitRecv(message);
     }
+  }
+
+  private handleClose(error: Error) {
+    this.connected = false;
+    this.emitClose(error);
   }
 }

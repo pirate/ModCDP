@@ -13,6 +13,32 @@ from modcdp.launcher.LocalBrowserLauncher import LocalBrowserLauncher
 
 
 class AutoSessionRouterTests(unittest.TestCase):
+    def test_rejects_pending_execution_context_waiters_when_session_detaches(self) -> None:
+        router = AutoSessionRouter(lambda _method, _params, _session_id: {}, lambda: 5_000)
+        result: Queue[int | BaseException] = Queue()
+        threading.Thread(
+            target=lambda: _put_result(result, lambda: router.waitForExecutionContext("detached-session", 5_000)),
+            daemon=True,
+        ).start()
+
+        router.recordProtocolEvent(
+            "Target.attachedToTarget",
+            {"sessionId": "detached-session", "targetInfo": {"targetId": "target-1", "type": "page"}},
+            None,
+        )
+        router.recordProtocolEvent("Target.detachedFromTarget", {"sessionId": "detached-session"}, None)
+        router.recordProtocolEvent(
+            "Runtime.executionContextCreated",
+            {"context": {"id": 42}},
+            "detached-session",
+        )
+
+        error = result.get(timeout=1)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertIn("Runtime execution context wait cancelled because session detached-session detached.", str(error))
+        self.assertIsNone(router.sessionIdForTarget("target-1"))
+        self.assertNotIn("detached-session", router.execution_contexts)
+
     def test_tracks_real_target_sessions_and_execution_contexts(self) -> None:
         chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
         ws = create_connection(str(chrome["cdp_url"]), timeout=10)

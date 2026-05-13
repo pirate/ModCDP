@@ -493,7 +493,7 @@ func New(opts Options) *ModCDPClient {
 	if opts.Server == nil && !opts.serverConfigured {
 		opts.Server = &ServerConfig{}
 	}
-	if upstreamEndpointKind == UpstreamEndpointKindModCDPServer && opts.Server.ServerRoutes == nil {
+	if upstreamEndpointKind == UpstreamEndpointKindModCDPServer && opts.Server != nil && opts.Server.ServerRoutes == nil {
 		opts.Server.ServerRoutes = map[string]string{"*.*": "chrome_debugger"}
 	}
 	if opts.Injector.InjectorServiceWorkerURLSuffixes == nil {
@@ -591,7 +591,7 @@ func (c *ModCDPClient) Connect() error {
 			}
 			c.configuredPeerGeneration = c.transport.PeerGeneration()
 		}
-		go func() { _ = c.measurePingLatency() }()
+		_ = c.measurePingLatency()
 		connectedAt := time.Now().UnixMilli()
 		c.ConnectTiming = map[string]any{
 			"started_at":             connectStartedAt,
@@ -686,7 +686,7 @@ func (c *ModCDPClient) Connect() error {
 			return fmt.Errorf("Mod.configure: %w", err)
 		}
 	}
-	go func() { _ = c.measurePingLatency() }()
+	_ = c.measurePingLatency()
 	connectedAt := time.Now().UnixMilli()
 	c.ConnectTiming = map[string]any{
 		"started_at":             connectStartedAt,

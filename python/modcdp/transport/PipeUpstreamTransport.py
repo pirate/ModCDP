@@ -63,6 +63,8 @@ class PipeUpstreamTransport(UpstreamTransport):
             while not self._closed and self.pipe_read is not None:
                 chunk = self.pipe_read.read(1)
                 if not chunk:
+                    if not self._closed:
+                        self._handle_close(RuntimeError("CDP pipe closed"))
                     break
                 buffer += chunk
                 if b"\0" not in buffer:
@@ -72,4 +74,8 @@ class PipeUpstreamTransport(UpstreamTransport):
                     self._parse_and_emit_recv(raw)
         except Exception as error:
             if not self._closed:
-                self._emit_close(error if isinstance(error, Exception) else Exception(str(error)))
+                self._handle_close(error if isinstance(error, Exception) else Exception(str(error)))
+
+    def _handle_close(self, error: Exception) -> None:
+        self._connected = False
+        self._emit_close(error)

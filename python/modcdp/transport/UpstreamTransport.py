@@ -41,11 +41,37 @@ class UpstreamTransport:
 
     def onRecv(self, listener: Callable[[dict[str, Any]], None]) -> Callable[[], None]:
         self._recv_listeners.append(listener)
-        return lambda: self._recv_listeners.remove(listener)
+
+        removed = False
+
+        def stop() -> None:
+            nonlocal removed
+            if removed:
+                return
+            removed = True
+            try:
+                self._recv_listeners.remove(listener)
+            except ValueError:
+                return
+
+        return stop
 
     def onClose(self, listener: Callable[[Exception], None]) -> Callable[[], None]:
         self._close_listeners.append(listener)
-        return lambda: self._close_listeners.remove(listener)
+
+        removed = False
+
+        def stop() -> None:
+            nonlocal removed
+            if removed:
+                return
+            removed = True
+            try:
+                self._close_listeners.remove(listener)
+            except ValueError:
+                return
+
+        return stop
 
     def waitForPeer(self) -> None:
         return None

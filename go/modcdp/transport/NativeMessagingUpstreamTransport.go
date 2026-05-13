@@ -171,14 +171,18 @@ func (t *NativeMessagingUpstreamTransport) Send(message map[string]any) error {
 }
 
 func (t *NativeMessagingUpstreamTransport) WaitForPeer() error {
-	if t.Conn != nil {
+	t.writeMu.Lock()
+	connected := t.Conn != nil
+	t.writeMu.Unlock()
+	if connected {
 		return nil
 	}
 	t.stateMu.Lock()
 	closeCh := t.closeCh
+	peerCh := t.peerCh
 	t.stateMu.Unlock()
 	select {
-	case <-t.peerCh:
+	case <-peerCh:
 		return nil
 	case <-closeCh:
 		return fmt.Errorf("native messaging transport for %s closed before a peer connected", t.UpstreamNativeMessagingHostName)
@@ -198,6 +202,8 @@ func (t *NativeMessagingUpstreamTransport) Close() error {
 	t.closed = true
 	closeCh := t.closeCh
 	t.closeCh = make(chan struct{})
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 	t.stateMu.Unlock()
 	close(closeCh)
 	t.writeMu.Lock()
@@ -210,12 +216,12 @@ func (t *NativeMessagingUpstreamTransport) Close() error {
 		_ = t.Listener.Close()
 		t.Listener = nil
 	}
-	t.peerCh = make(chan struct{})
-	t.peerOnce = sync.Once{}
 	return nil
 }
 
 func (t *NativeMessagingUpstreamTransport) Closed() bool {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
 	return t.closed
 }
 
@@ -223,7 +229,7 @@ func (t *NativeMessagingUpstreamTransport) acceptLoop() {
 	for {
 		conn, err := t.Listener.Accept()
 		if err != nil {
-			if !t.closed {
+			if !t.Closed() {
 				t.emitClose(err)
 			}
 			return
@@ -233,22 +239,28 @@ func (t *NativeMessagingUpstreamTransport) acceptLoop() {
 }
 
 func (t *NativeMessagingUpstreamTransport) accept(conn net.Conn) {
+	t.writeMu.Lock()
 	if t.Conn != nil && t.Conn != conn {
 		_ = t.Conn.Close()
 	}
 	t.Conn = conn
+	t.writeMu.Unlock()
 	t.stateMu.Lock()
 	t.generation++
-	t.stateMu.Unlock()
 	t.peerOnce.Do(func() { close(t.peerCh) })
+	t.stateMu.Unlock()
 	for {
 		message, err := readLengthPrefixedJSON(conn)
 		if err != nil {
+			t.writeMu.Lock()
 			if t.Conn == conn {
 				t.Conn = nil
+				t.writeMu.Unlock()
 				t.resetPeerWait()
+			} else {
+				t.writeMu.Unlock()
 			}
-			if !t.closed {
+			if !t.Closed() {
 				t.emitClose(err)
 			}
 			return

@@ -83,6 +83,10 @@ from ..types.modcdp import (
 )
 
 
+def _defaulted(value: Any, fallback: Any) -> Any:
+    return fallback if value is None else value
+
+
 class AwaitableValue:
     def __init__(self, value: Any) -> None:
         self.value = value
@@ -217,11 +221,11 @@ class ModCDPClient(CDPSurfaceMixin):
             "upstream_nats_url": upstream_input.get("upstream_nats_url"),
             "upstream_nats_subject_prefix": upstream_input.get("upstream_nats_subject_prefix"),
             "upstream_nats_wait_timeout_ms": int(
-                upstream_input.get("upstream_nats_wait_timeout_ms") or DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS
+                _defaulted(upstream_input.get("upstream_nats_wait_timeout_ms"), DEFAULT_UPSTREAM_NATS_WAIT_TIMEOUT_MS)
             ),
-            "upstream_reversews_bind": upstream_input.get("upstream_reversews_bind") or DEFAULT_UPSTREAM_REVERSEWS_BIND,
+            "upstream_reversews_bind": _defaulted(upstream_input.get("upstream_reversews_bind"), DEFAULT_UPSTREAM_REVERSEWS_BIND),
             "upstream_reversews_wait_timeout_ms": int(
-                upstream_input.get("upstream_reversews_wait_timeout_ms") or DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS
+                _defaulted(upstream_input.get("upstream_reversews_wait_timeout_ms"), DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS)
             ),
             "upstream_nativemessaging_manifest": upstream_input.get("upstream_nativemessaging_manifest"),
             "upstream_nativemessaging_manifests": list(
@@ -231,11 +235,16 @@ class ModCDPClient(CDPSurfaceMixin):
             else None,
             "upstream_nativemessaging_host_name": upstream_input.get("upstream_nativemessaging_host_name"),
             "upstream_nativemessaging_wait_timeout_ms": int(
-                upstream_input.get("upstream_nativemessaging_wait_timeout_ms") or DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS
+                _defaulted(
+                    upstream_input.get("upstream_nativemessaging_wait_timeout_ms"),
+                    DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS,
+                )
             ),
             "upstream_ws_connect_error_settle_timeout_ms": int(
-                upstream_input.get("upstream_ws_connect_error_settle_timeout_ms")
-                or DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS
+                _defaulted(
+                    upstream_input.get("upstream_ws_connect_error_settle_timeout_ms"),
+                    DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS,
+                )
             ),
         }
         self.upstream_endpoint_kind = "raw_cdp" if self.upstream["upstream_mode"] in ("ws", "pipe") else "modcdp_server"
@@ -256,7 +265,7 @@ class ModCDPClient(CDPSurfaceMixin):
             "injector_mode": injector_mode,
             "injector_extension_path": injector_input.get("injector_extension_path"),
             "injector_extension_id": injector_input.get("injector_extension_id"),
-            "injector_wake_path": injector_input.get("injector_wake_path") or DEFAULT_MODCDP_WAKE_PATH,
+            "injector_wake_path": _defaulted(injector_input.get("injector_wake_path"), DEFAULT_MODCDP_WAKE_PATH),
             "injector_wake_url": injector_input.get("injector_wake_url"),
             "injector_service_worker_url_includes": list(cast(Sequence[str], injector_input.get("injector_service_worker_url_includes") or [])),
             "injector_service_worker_url_suffixes": list(
@@ -271,19 +280,19 @@ class ModCDPClient(CDPSurfaceMixin):
             "injector_require_service_worker_target": bool(injector_input.get("injector_require_service_worker_target", False)),
             "injector_service_worker_ready_expression": injector_input.get("injector_service_worker_ready_expression"),
             "injector_execution_context_timeout_ms": int(
-                injector_input.get("injector_execution_context_timeout_ms") or DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS
+                _defaulted(injector_input.get("injector_execution_context_timeout_ms"), DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS)
             ),
             "injector_service_worker_probe_timeout_ms": int(
-                injector_input.get("injector_service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS
+                _defaulted(injector_input.get("injector_service_worker_probe_timeout_ms"), DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS)
             ),
             "injector_service_worker_ready_timeout_ms": int(
-                injector_input.get("injector_service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS
+                _defaulted(injector_input.get("injector_service_worker_ready_timeout_ms"), DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS)
             ),
             "injector_service_worker_poll_interval_ms": int(
-                injector_input.get("injector_service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS
+                _defaulted(injector_input.get("injector_service_worker_poll_interval_ms"), DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS)
             ),
             "injector_target_session_poll_interval_ms": int(
-                injector_input.get("injector_target_session_poll_interval_ms") or DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS
+                _defaulted(injector_input.get("injector_target_session_poll_interval_ms"), DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS)
             ),
         }
         self.client: dict[str, Any] = {
@@ -293,8 +302,8 @@ class ModCDPClient(CDPSurfaceMixin):
             },
             "client_hydrate_aliases": bool(client_input.get("client_hydrate_aliases", True)),
             "client_mirror_upstream_events": bool(client_input.get("client_mirror_upstream_events", True)),
-            "client_cdp_send_timeout_ms": int(client_input.get("client_cdp_send_timeout_ms") or DEFAULT_CDP_SEND_TIMEOUT_MS),
-            "client_event_wait_timeout_ms": int(client_input.get("client_event_wait_timeout_ms") or DEFAULT_EVENT_WAIT_TIMEOUT_MS),
+            "client_cdp_send_timeout_ms": int(_defaulted(client_input.get("client_cdp_send_timeout_ms"), DEFAULT_CDP_SEND_TIMEOUT_MS)),
+            "client_event_wait_timeout_ms": int(_defaulted(client_input.get("client_event_wait_timeout_ms"), DEFAULT_EVENT_WAIT_TIMEOUT_MS)),
         }
         self.cdp_url: str | None = cast(str | None, self.upstream.get("upstream_cdp_url"))
         if server is DEFAULT_SERVER:

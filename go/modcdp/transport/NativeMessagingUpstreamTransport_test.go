@@ -208,7 +208,8 @@ func waitForNativePeerDisconnect(t *testing.T, transport *NativeMessagingUpstrea
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if transport.Conn == nil {
+		err := transport.Send(map[string]any{"id": 99, "method": "Browser.getVersion"})
+		if err != nil && strings.Contains(err.Error(), "no native messaging peer is connected") {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)

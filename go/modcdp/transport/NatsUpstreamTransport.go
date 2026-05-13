@@ -32,6 +32,7 @@ type NatsUpstreamTransport struct {
 	connected                 bool
 	closed                    bool
 	writeMu                   sync.Mutex
+	bufferMu                  sync.Mutex
 	peerCh                    chan struct{}
 	peerOnce                  sync.Once
 	closeCh                   chan struct{}
@@ -84,7 +85,7 @@ func (t *NatsUpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {
 }
 
 func (t *NatsUpstreamTransport) Connect() error {
-	if t.connected {
+	if t.Connected() {
 		return nil
 	}
 	t.stateMu.Lock()
@@ -105,10 +106,12 @@ func (t *NatsUpstreamTransport) Connect() error {
 		if err != nil {
 			return err
 		}
+		t.writeMu.Lock()
 		t.Conn = conn
 		t.IsWebSocket = true
+		t.writeMu.Unlock()
 		if err := t.writeProtocol("CONNECT " + mustJSON(connectNATSOptions()) + "\r\nPING\r\n"); err != nil {
-			_ = conn.Close()
+			t.cleanupFailedConnect(conn)
 			return err
 		}
 		go t.readWebSocketLoop(conn, closeCh)
@@ -130,24 +133,34 @@ func (t *NatsUpstreamTransport) Connect() error {
 		if err != nil {
 			return err
 		}
+		t.writeMu.Lock()
 		t.Conn = conn
+		t.writeMu.Unlock()
 		if err := t.writeProtocol("CONNECT " + mustJSON(connectNATSOptions()) + "\r\nPING\r\n"); err != nil {
-			_ = conn.Close()
+			t.cleanupFailedConnect(conn)
 			return err
 		}
 		go t.readTCPLoop(conn, closeCh)
 	default:
 		return fmt.Errorf("upstream.upstream_mode=nats requires ws://, wss://, nats://, or tls:// URL, got %s", t.URL)
 	}
-	t.connected = true
 	if err := t.subscribe(); err != nil {
+		t.cleanupFailedConnect(t.currentConn())
 		return err
 	}
-	return t.publish(t.outgoingSubject(), map[string]any{"type": "modcdp.nats.hello", "role": t.UpstreamNATSRole, "version": 1})
+	if err := t.publish(t.outgoingSubject(), map[string]any{"type": "modcdp.nats.hello", "role": t.UpstreamNATSRole, "version": 1}); err != nil {
+		t.cleanupFailedConnect(t.currentConn())
+		return err
+	}
+	t.stateMu.Lock()
+	t.connected = true
+	t.closed = false
+	t.stateMu.Unlock()
+	return nil
 }
 
 func (t *NatsUpstreamTransport) Send(message map[string]any) error {
-	if !t.connected || t.Conn == nil {
+	if !t.Connected() || t.currentConn() == nil {
 		return fmt.Errorf("NATS transport is not connected")
 	}
 	return t.publish(t.outgoingSubject(), map[string]any{"type": "modcdp.nats.message", "message": message})
@@ -156,9 +169,10 @@ func (t *NatsUpstreamTransport) Send(message map[string]any) error {
 func (t *NatsUpstreamTransport) WaitForPeer() error {
 	t.stateMu.Lock()
 	closeCh := t.closeCh
+	peerCh := t.peerCh
 	t.stateMu.Unlock()
 	select {
-	case <-t.peerCh:
+	case <-peerCh:
 		return nil
 	case <-closeCh:
 		return fmt.Errorf("NATS transport for %s closed before a peer connected", t.UpstreamNATSSubjectPrefix)
@@ -170,29 +184,55 @@ func (t *NatsUpstreamTransport) WaitForPeer() error {
 func (t *NatsUpstreamTransport) Close() error {
 	t.stateMu.Lock()
 	t.closed = true
+	t.connected = false
 	closeCh := t.closeCh
 	t.closeCh = make(chan struct{})
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 	t.stateMu.Unlock()
 	close(closeCh)
+	t.bufferMu.Lock()
+	t.buffer = ""
+	t.bufferMu.Unlock()
 	t.writeMu.Lock()
-	t.connected = false
 	if t.Conn != nil {
 		_ = t.Conn.Close()
 		t.Conn = nil
 	}
 	t.writeMu.Unlock()
-	t.buffer = ""
-	t.peerCh = make(chan struct{})
-	t.peerOnce = sync.Once{}
 	return nil
 }
 
 func (t *NatsUpstreamTransport) Connected() bool {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
 	return t.connected
 }
 
 func (t *NatsUpstreamTransport) Closed() bool {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
 	return t.closed
+}
+
+func (t *NatsUpstreamTransport) currentConn() net.Conn {
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
+	return t.Conn
+}
+
+func (t *NatsUpstreamTransport) cleanupFailedConnect(conn net.Conn) {
+	if conn != nil {
+		_ = conn.Close()
+	}
+	t.writeMu.Lock()
+	if t.Conn == conn {
+		t.Conn = nil
+	}
+	t.writeMu.Unlock()
+	t.stateMu.Lock()
+	t.connected = false
+	t.stateMu.Unlock()
 }
 
 func natsClosed(closeCh chan struct{}) bool {
@@ -253,7 +293,9 @@ func (t *NatsUpstreamTransport) readWebSocketLoop(conn net.Conn, closeCh chan st
 			}
 			return
 		}
+		t.bufferMu.Lock()
 		t.buffer = t.consumeProtocol(t.buffer + string(data))
+		t.bufferMu.Unlock()
 	}
 }
 
@@ -267,7 +309,9 @@ func (t *NatsUpstreamTransport) readTCPLoop(conn net.Conn, closeCh chan struct{}
 			}
 			return
 		}
+		t.bufferMu.Lock()
 		t.buffer = t.consumeProtocol(t.buffer + string(chunk[:n]))
+		t.bufferMu.Unlock()
 	}
 }
 
@@ -308,7 +352,9 @@ func (t *NatsUpstreamTransport) handlePayload(payload string) {
 	}
 	record, _ := parsed.(map[string]any)
 	if record["type"] == "modcdp.nats.hello" {
+		t.stateMu.Lock()
 		t.peerOnce.Do(func() { close(t.peerCh) })
+		t.stateMu.Unlock()
 		return
 	}
 	message := parsed

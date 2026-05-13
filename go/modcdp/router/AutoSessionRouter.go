@@ -14,8 +14,14 @@ type AutoSessionRouter struct {
 	ExecutionContexts                map[string]int
 	send                             AutoSessionRouterSend
 	defaultExecutionContextTimeoutMS func() int
-	executionContextWaiters          map[string][]chan int
+	executionContextWaiters          map[string][]chan executionContextResult
+	detachedSessions                 map[string]bool
 	mu                               sync.Mutex
+}
+
+type executionContextResult struct {
+	contextID int
+	err       error
 }
 
 func NewAutoSessionRouter(send AutoSessionRouterSend, defaultExecutionContextTimeoutMS func() int) *AutoSessionRouter {
@@ -25,7 +31,8 @@ func NewAutoSessionRouter(send AutoSessionRouterSend, defaultExecutionContextTim
 		ExecutionContexts:                map[string]int{},
 		send:                             send,
 		defaultExecutionContextTimeoutMS: defaultExecutionContextTimeoutMS,
-		executionContextWaiters:          map[string][]chan int{},
+		executionContextWaiters:          map[string][]chan executionContextResult{},
+		detachedSessions:                 map[string]bool{},
 	}
 }
 
@@ -62,6 +69,7 @@ func (r *AutoSessionRouter) RecordProtocolEvent(method string, data any, session
 		targetID, _ := targetInfo["targetId"].(string)
 		if attachedSessionID != "" && targetID != "" {
 			r.mu.Lock()
+			delete(r.detachedSessions, attachedSessionID)
 			r.TargetSessions[targetID] = attachedSessionID
 			r.SessionTargets[attachedSessionID] = targetInfo
 			r.mu.Unlock()
@@ -95,13 +103,13 @@ func (r *AutoSessionRouter) WaitForExecutionContext(sessionID string, timeoutMS 
 		r.mu.Unlock()
 		return contextID, nil
 	}
-	waiter := make(chan int, 1)
+	waiter := make(chan executionContextResult, 1)
 	r.executionContextWaiters[sessionID] = append(r.executionContextWaiters[sessionID], waiter)
 	r.mu.Unlock()
 
 	select {
-	case contextID := <-waiter:
-		return contextID, nil
+	case result := <-waiter:
+		return result.contextID, result.err
 	case <-time.After(time.Duration(timeoutMS) * time.Millisecond):
 		r.mu.Lock()
 		waiters := r.executionContextWaiters[sessionID]
@@ -123,24 +131,35 @@ func (r *AutoSessionRouter) WaitForExecutionContext(sessionID string, timeoutMS 
 
 func (r *AutoSessionRouter) recordExecutionContext(sessionID string, contextID int) {
 	r.mu.Lock()
+	if r.detachedSessions[sessionID] {
+		r.mu.Unlock()
+		return
+	}
 	r.ExecutionContexts[sessionID] = contextID
 	waiters := r.executionContextWaiters[sessionID]
 	delete(r.executionContextWaiters, sessionID)
 	r.mu.Unlock()
 	for _, waiter := range waiters {
-		waiter <- contextID
+		waiter <- executionContextResult{contextID: contextID}
 	}
 }
 
 func (r *AutoSessionRouter) forgetSession(sessionID string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	targetInfo := r.SessionTargets[sessionID]
 	delete(r.SessionTargets, sessionID)
 	if targetID, _ := targetInfo["targetId"].(string); targetID != "" {
 		delete(r.TargetSessions, targetID)
 	}
 	delete(r.ExecutionContexts, sessionID)
+	r.detachedSessions[sessionID] = true
+	waiters := r.executionContextWaiters[sessionID]
+	delete(r.executionContextWaiters, sessionID)
+	r.mu.Unlock()
+	err := fmt.Errorf("Runtime execution context wait cancelled because session %s detached", sessionID)
+	for _, waiter := range waiters {
+		waiter <- executionContextResult{err: err}
+	}
 }
 
 func intFromAny(value any) (int, bool) {

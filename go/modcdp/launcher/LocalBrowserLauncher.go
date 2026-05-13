@@ -208,8 +208,9 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 	}
 	cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	deadline := time.Now().Add(time.Duration(chromeReadyTimeoutMS) * time.Millisecond)
+	client := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(cdpURL + "/json/version")
+		resp, err := client.Get(cdpURL + "/json/version")
 		if err == nil {
 			var version map[string]any
 			_ = json.NewDecoder(resp.Body).Decode(&version)

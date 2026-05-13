@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -136,8 +137,15 @@ func prepareUnpackedExtension(extensionPath string, copyDirectory bool) (string,
 }
 
 func extractZipFiles(files []*zip.File, dir string) error {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
 	for _, file := range files {
-		targetPath := filepath.Join(dir, file.Name)
+		targetPath, err := safeZipTarget(root, file.Name)
+		if err != nil {
+			return err
+		}
 		if file.FileInfo().IsDir() {
 			if err := os.MkdirAll(targetPath, 0o755); err != nil {
 				return err
@@ -170,6 +178,22 @@ func extractZipFiles(files []*zip.File, dir string) error {
 		}
 	}
 	return nil
+}
+
+func safeZipTarget(root string, name string) (string, error) {
+	cleanName := filepath.Clean(name)
+	if filepath.IsAbs(cleanName) || cleanName == "." || cleanName == ".." || strings.HasPrefix(cleanName, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("zip entry %q escapes extension extraction directory", name)
+	}
+	targetPath := filepath.Join(root, cleanName)
+	targetAbs, err := filepath.Abs(targetPath)
+	if err != nil {
+		return "", err
+	}
+	if targetAbs != root && !strings.HasPrefix(targetAbs, root+string(os.PathSeparator)) {
+		return "", fmt.Errorf("zip entry %q escapes extension extraction directory", name)
+	}
+	return targetAbs, nil
 }
 
 func extensionRoot(unpackedPath string) string {

@@ -3,7 +3,7 @@ package transport
 import (
 	"fmt"
 	"net"
-	"reflect"
+	"sync"
 
 	"github.com/pirate/ModCDP/go/modcdp/injector"
 	"github.com/pirate/ModCDP/go/modcdp/launcher"
@@ -56,8 +56,20 @@ const (
 )
 
 type UpstreamTransport struct {
-	recvListeners  []func(map[string]any)
-	closeListeners []func(error)
+	recvListeners  []recvListener
+	closeListeners []closeListener
+	listenerMu     sync.Mutex
+	nextListenerID int64
+}
+
+type recvListener struct {
+	id int64
+	fn func(map[string]any)
+}
+
+type closeListener struct {
+	id int64
+	fn func(error)
 }
 
 func (e *UpstreamTransport) Update(config map[string]any) {
@@ -88,34 +100,55 @@ func (e *UpstreamTransport) GetServerConfig() map[string]any {
 }
 
 func (e *UpstreamTransport) OnRecv(listener func(map[string]any)) func() {
-	e.recvListeners = append(e.recvListeners, listener)
+	e.listenerMu.Lock()
+	e.nextListenerID++
+	id := e.nextListenerID
+	e.recvListeners = append(e.recvListeners, recvListener{id: id, fn: listener})
+	e.listenerMu.Unlock()
+	var once sync.Once
 	return func() {
-		pointer := reflect.ValueOf(listener).Pointer()
-		for index, candidate := range e.recvListeners {
-			if reflect.ValueOf(candidate).Pointer() == pointer {
+		once.Do(func() {
+			e.listenerMu.Lock()
+			defer e.listenerMu.Unlock()
+			for index, candidate := range e.recvListeners {
+				if candidate.id != id {
+					continue
+				}
 				e.recvListeners = append(e.recvListeners[:index], e.recvListeners[index+1:]...)
 				return
 			}
-		}
+		})
 	}
 }
 
 func (e *UpstreamTransport) OnClose(listener func(error)) func() {
-	e.closeListeners = append(e.closeListeners, listener)
+	e.listenerMu.Lock()
+	e.nextListenerID++
+	id := e.nextListenerID
+	e.closeListeners = append(e.closeListeners, closeListener{id: id, fn: listener})
+	e.listenerMu.Unlock()
+	var once sync.Once
 	return func() {
-		pointer := reflect.ValueOf(listener).Pointer()
-		for index, candidate := range e.closeListeners {
-			if reflect.ValueOf(candidate).Pointer() == pointer {
+		once.Do(func() {
+			e.listenerMu.Lock()
+			defer e.listenerMu.Unlock()
+			for index, candidate := range e.closeListeners {
+				if candidate.id != id {
+					continue
+				}
 				e.closeListeners = append(e.closeListeners[:index], e.closeListeners[index+1:]...)
 				return
 			}
-		}
+		})
 	}
 }
 
 func (e *UpstreamTransport) emitRecv(message map[string]any) {
-	for _, listener := range e.recvListeners {
-		listener(message)
+	e.listenerMu.Lock()
+	listeners := append([]recvListener(nil), e.recvListeners...)
+	e.listenerMu.Unlock()
+	for _, listener := range listeners {
+		listener.fn(message)
 	}
 }
 
@@ -124,8 +157,11 @@ func (e *UpstreamTransport) EmitRecv(message map[string]any) {
 }
 
 func (e *UpstreamTransport) emitClose(err error) {
-	for _, listener := range e.closeListeners {
-		listener(err)
+	e.listenerMu.Lock()
+	listeners := append([]closeListener(nil), e.closeListeners...)
+	e.listenerMu.Unlock()
+	for _, listener := range listeners {
+		listener.fn(err)
 	}
 }
 

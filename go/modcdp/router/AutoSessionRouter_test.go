@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,47 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/pirate/ModCDP/go/modcdp/launcher"
 )
+
+func TestAutoSessionRouterRejectsPendingExecutionContextWaitersWhenSessionDetaches(t *testing.T) {
+	router := NewAutoSessionRouter(func(string, map[string]any, string) (map[string]any, error) {
+		return map[string]any{}, nil
+	}, func() int { return 5000 })
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := router.WaitForExecutionContext("detached-session", 5000)
+		result <- err
+	}()
+	waitForString(t, func() string {
+		router.mu.Lock()
+		defer router.mu.Unlock()
+		if len(router.executionContextWaiters["detached-session"]) > 0 {
+			return "waiting"
+		}
+		return ""
+	})
+	router.RecordProtocolEvent("Target.attachedToTarget", map[string]any{
+		"sessionId":  "detached-session",
+		"targetInfo": map[string]any{"targetId": "target-1", "type": "page"},
+	}, "")
+	router.RecordProtocolEvent("Target.detachedFromTarget", map[string]any{"sessionId": "detached-session"}, "")
+	router.RecordProtocolEvent("Runtime.executionContextCreated", map[string]any{"context": map[string]any{"id": 42}}, "detached-session")
+
+	select {
+	case err := <-result:
+		if err == nil || !strings.Contains(err.Error(), "Runtime execution context wait cancelled because session detached-session detached") {
+			t.Fatalf("wait error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for detach error")
+	}
+	if sessionID := router.SessionIDForTarget("target-1"); sessionID != "" {
+		t.Fatalf("session id after detach = %q", sessionID)
+	}
+	if _, ok := router.ExecutionContexts["detached-session"]; ok {
+		t.Fatal("stale execution context was recorded after detach")
+	}
+}
 
 func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testing.T) {
 	headless := true

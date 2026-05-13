@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import time
+import threading
 import unittest
 from queue import Queue
 from typing import Any, cast
+from unittest.mock import patch
 
 from modcdp import ModCDPClient
 from modcdp.launcher.LocalBrowserLauncher import LocalBrowserLauncher
@@ -11,6 +13,42 @@ from modcdp.transport.WebSocketUpstreamTransport import WebSocketUpstreamTranspo
 
 
 class WebSocketUpstreamTransportTests(unittest.TestCase):
+    def test_reconnect_closes_old_socket_and_ignores_stale_reader_errors(self) -> None:
+        class FakeWebSocket:
+            def __init__(self, name: str) -> None:
+                self.name = name
+                self.closed = False
+                self.entered = threading.Event()
+                self.release = threading.Event()
+
+            def recv(self) -> str:
+                self.entered.set()
+                self.release.wait(timeout=1)
+                raise RuntimeError(f"{self.name} stale read")
+
+            def send(self, _message: str) -> None:
+                return None
+
+            def close(self) -> None:
+                self.closed = True
+                self.release.set()
+
+        first = FakeWebSocket("first")
+        second = FakeWebSocket("second")
+        closes: list[Exception] = []
+        transport = WebSocketUpstreamTransport({"cdp_url": "ws://127.0.0.1:1/devtools/browser/test"})
+        transport.onClose(lambda error: closes.append(error))
+
+        with patch("modcdp.transport.WebSocketUpstreamTransport.create_connection", side_effect=[first, second]):
+            transport.connect()
+            self.assertTrue(first.entered.wait(timeout=1))
+            transport.connect()
+            self.assertTrue(first.closed)
+            first.release.set()
+            time.sleep(0.05)
+            self.assertEqual(closes, [])
+        transport.close()
+
     def test_constructor_update_and_server_config_match_ts_shape(self) -> None:
         transport = WebSocketUpstreamTransport()
         self.assertEqual(transport.url, "")

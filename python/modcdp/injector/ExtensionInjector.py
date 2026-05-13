@@ -66,6 +66,10 @@ def defaultModCDPExtensionPath() -> str | None:
     return str(bundled_extension) if bundled_extension.exists() else None
 
 
+def _defaulted(value: Any, fallback: int) -> int:
+    return fallback if value is None else int(value)
+
+
 class ExtensionInjectionResult(TypedDict):
     source: str
     extension_id: str | None
@@ -163,7 +167,10 @@ class ExtensionInjector:
         send = self.options.get("send")
         if send is None:
             raise RuntimeError(f"{type(self).__name__} requires a CDP send function.")
-        effective_timeout_ms = timeout_ms or self.options.get("injector_cdp_send_timeout_ms") or DEFAULT_CDP_SEND_TIMEOUT_MS
+        effective_timeout_ms = _defaulted(
+            timeout_ms if timeout_ms is not None else self.options.get("injector_cdp_send_timeout_ms"),
+            DEFAULT_CDP_SEND_TIMEOUT_MS,
+        )
         if effective_timeout_ms <= 0:
             return send(method, params or {}, session_id)
 
@@ -194,7 +201,7 @@ class ExtensionInjector:
                     return value
             if time.monotonic() >= deadline:
                 return None
-            time.sleep((self.options.get("injector_target_session_poll_interval_ms") or DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS) / 1000)
+            time.sleep(_defaulted(self.options.get("injector_target_session_poll_interval_ms"), DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS) / 1000)
 
     def _ensureSessionIdForTarget(self, target_id: str, timeout_ms: int = 0, allow_attach: bool = False) -> str | None:
         session_id = self.options.get("sessionIdForTarget")
@@ -233,7 +240,8 @@ class ExtensionInjector:
         extension_id = self.options.get("injector_extension_id")
         if not extension_id:
             return None
-        wake_path = self.options.get("injector_wake_path") or DEFAULT_MODCDP_WAKE_PATH
+        wake_path = self.options.get("injector_wake_path")
+        wake_path = DEFAULT_MODCDP_WAKE_PATH if wake_path is None else wake_path
         return f"chrome-extension://{extension_id}{wake_path if wake_path.startswith('/') else f'/{wake_path}'}"
 
     def _wakeConfiguredExtension(self) -> bool:
@@ -297,7 +305,7 @@ class ExtensionInjector:
                     continue
                 probed = self._probeTarget(
                     candidate,
-                    self.options.get("injector_service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+                    _defaulted(self.options.get("injector_service_worker_probe_timeout_ms"), DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS),
                     allow_attach=True,
                 )
                 if probed:
@@ -312,7 +320,7 @@ class ExtensionInjector:
             try:
                 probed = self._probeTarget(
                     candidate,
-                    self.options.get("injector_service_worker_probe_timeout_ms") or DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS,
+                    _defaulted(self.options.get("injector_service_worker_probe_timeout_ms"), DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS),
                 )
             except Exception:
                 continue
@@ -326,7 +334,7 @@ class ExtensionInjector:
             discovered = self._discoverReadyServiceWorker(matched_only=matched_only)
             if discovered:
                 return discovered
-            time.sleep((self.options.get("injector_service_worker_poll_interval_ms") or DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS) / 1000)
+            time.sleep(_defaulted(self.options.get("injector_service_worker_poll_interval_ms"), DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS) / 1000)
         return None
 
     def _serviceWorkerTargetMatches(self, candidate: Mapping[str, object]) -> bool:

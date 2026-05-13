@@ -44,7 +44,14 @@ class UpstreamTransportTests(unittest.TestCase):
         )
 
         stop()
+        stop()
         self.assertEqual(received, [])
+        close_errors = []
+        stop_close = transport.onClose(lambda error: close_errors.append(error))
+        stop_close()
+        stop_close()
+        transport._emit_close(RuntimeError("closed"))
+        self.assertEqual(close_errors, [])
         with self.assertRaisesRegex(NotImplementedError, "UpstreamTransport.connect is not implemented"):
             transport.connect()
         with self.assertRaisesRegex(NotImplementedError, "UpstreamTransport.send is not implemented"):

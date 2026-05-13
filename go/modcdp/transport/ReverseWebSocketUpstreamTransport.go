@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,9 +52,13 @@ func NewReverseWebSocketUpstreamTransport(options ReverseWebSocketUpstreamTransp
 }
 
 func (t *ReverseWebSocketUpstreamTransport) setBind(bind string) {
-	parsed, err := url.Parse(bind)
-	if err != nil || parsed.Scheme == "" {
-		parsed, _ = url.Parse("ws://" + bind)
+	raw := bind
+	if !strings.Contains(raw, "://") {
+		raw = "ws://" + raw
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		parsed, _ = url.Parse("ws://" + DefaultUpstreamReverseWSBind)
 	}
 	host := parsed.Hostname()
 	if host == "" {
@@ -111,14 +116,18 @@ func (t *ReverseWebSocketUpstreamTransport) GetInjectorConfig() ExtensionInjecto
 }
 
 func (t *ReverseWebSocketUpstreamTransport) WaitForPeer() error {
-	if t.Conn != nil {
+	t.writeMu.Lock()
+	connected := t.Conn != nil
+	t.writeMu.Unlock()
+	if connected {
 		return nil
 	}
 	t.stateMu.Lock()
 	closeCh := t.closeCh
+	peerCh := t.peerCh
 	t.stateMu.Unlock()
 	select {
-	case <-t.peerCh:
+	case <-peerCh:
 		return nil
 	case <-closeCh:
 		return fmt.Errorf("reverse websocket transport at %s closed before a peer connected", t.URL)
@@ -137,6 +146,8 @@ func (t *ReverseWebSocketUpstreamTransport) Close() error {
 	t.stateMu.Lock()
 	closeCh := t.closeCh
 	t.closeCh = make(chan struct{})
+	t.peerCh = make(chan struct{})
+	t.peerOnce = sync.Once{}
 	t.stateMu.Unlock()
 	close(closeCh)
 	t.writeMu.Lock()
@@ -149,9 +160,9 @@ func (t *ReverseWebSocketUpstreamTransport) Close() error {
 		_ = t.Listener.Close()
 		t.Listener = nil
 	}
+	t.stateMu.Lock()
 	t.PeerInfo = nil
-	t.peerCh = make(chan struct{})
-	t.peerOnce = sync.Once{}
+	t.stateMu.Unlock()
 	return nil
 }
 
@@ -188,22 +199,30 @@ func (t *ReverseWebSocketUpstreamTransport) accept(conn net.Conn) {
 		t.emitClose(err)
 		return
 	}
+	t.writeMu.Lock()
 	if t.Conn != nil && t.Conn != conn {
 		_ = t.Conn.Close()
 	}
 	t.Conn = conn
-	t.PeerInfo = hello
+	t.writeMu.Unlock()
 	t.stateMu.Lock()
+	t.PeerInfo = hello
 	t.generation++
-	t.stateMu.Unlock()
 	t.peerOnce.Do(func() { close(t.peerCh) })
+	t.stateMu.Unlock()
 	for {
 		data, err := wsutil.ReadClientText(conn)
 		if err != nil {
+			t.writeMu.Lock()
 			if t.Conn == conn {
 				t.Conn = nil
+				t.writeMu.Unlock()
+				t.stateMu.Lock()
 				t.PeerInfo = nil
+				t.stateMu.Unlock()
 				t.resetPeerWait()
+			} else {
+				t.writeMu.Unlock()
 			}
 			t.emitClose(err)
 			return

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestPipeUpstreamTransportConstructorUpdateLauncherConfigAndUnconnectedErrorsMatchTransportSurface(t *testing.T) {
@@ -26,6 +27,44 @@ func TestPipeUpstreamTransportConstructorUpdateLauncherConfigAndUnconnectedError
 	}
 	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err == nil {
 		t.Fatal("expected Send to require a connected pipe")
+	}
+}
+
+func TestPipeUpstreamTransportResetsConnectionStateAfterPipeCloses(t *testing.T) {
+	pipeRead, pipeReadWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipeWriteReader, pipeWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pipeRead.Close()
+	defer pipeReadWriter.Close()
+	defer pipeWriteReader.Close()
+	defer pipeWrite.Close()
+
+	transport := NewPipeUpstreamTransport(PipeUpstreamTransportOptions{
+		PipeRead:  pipeRead,
+		PipeWrite: pipeWrite,
+		CDPURL:    "pipe://test",
+	})
+	closed := make(chan error, 1)
+	transport.OnClose(func(err error) { closed <- err })
+	if err := transport.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = pipeReadWriter.Close()
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for pipe close")
+	}
+	if err := transport.Send(map[string]any{"id": 2, "method": "Browser.getVersion"}); err == nil {
+		t.Fatal("expected send to fail after pipe close")
 	}
 }
 

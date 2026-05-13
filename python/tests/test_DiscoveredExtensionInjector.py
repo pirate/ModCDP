@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from modcdp import ModCDPClient
+from modcdp.injector.DiscoveredExtensionInjector import DiscoveredExtensionInjector
 from modcdp.launcher.LocalBrowserLauncher import LocalBrowserLauncher
 
 
@@ -20,6 +21,58 @@ CUSTOM_EXTENSION_PUBLIC_KEY = (
 
 
 class DiscoveredExtensionInjectorTests(unittest.TestCase):
+    def test_preserves_explicit_zero_probe_timeout(self) -> None:
+        class ProbeTimeoutInjector(DiscoveredExtensionInjector):
+            def __init__(self) -> None:
+                super().__init__(
+                    {
+                        "injector_trust_service_worker_target": True,
+                        "injector_service_worker_probe_timeout_ms": 0,
+                        "injector_require_service_worker_target": False,
+                    }
+                )
+                self.waits: list[tuple[int, bool]] = []
+
+            def _discoverReadyServiceWorker(self):  # type: ignore[override]
+                return None
+
+            def _wakeConfiguredExtension(self):  # type: ignore[override]
+                return None
+
+            def _waitForReadyServiceWorker(self, timeout_ms: int, matched_only: bool = False):  # type: ignore[override]
+                self.waits.append((timeout_ms, matched_only))
+                return None
+
+        injector = ProbeTimeoutInjector()
+        self.assertIsNone(injector.inject())
+        self.assertEqual(injector.waits, [(0, True)])
+
+    def test_preserves_explicit_zero_ready_timeout(self) -> None:
+        class ReadyTimeoutInjector(DiscoveredExtensionInjector):
+            def __init__(self) -> None:
+                super().__init__(
+                    {
+                        "injector_service_worker_ready_timeout_ms": 0,
+                        "injector_require_service_worker_target": True,
+                    }
+                )
+                self.waits: list[tuple[int, bool]] = []
+
+            def _discoverReadyServiceWorker(self):  # type: ignore[override]
+                return None
+
+            def _wakeConfiguredExtension(self):  # type: ignore[override]
+                return None
+
+            def _waitForReadyServiceWorker(self, timeout_ms: int, matched_only: bool = False):  # type: ignore[override]
+                self.waits.append((timeout_ms, matched_only))
+                return None
+
+        injector = ReadyTimeoutInjector()
+        with self.assertRaisesRegex(RuntimeError, "Required ModCDP service worker target was not visible"):
+            injector.inject()
+        self.assertEqual(injector.waits, [(0, False)])
+
     def test_attaches_to_already_loaded_real_modcdp_extension(self) -> None:
         chrome = LocalBrowserLauncher(
             {

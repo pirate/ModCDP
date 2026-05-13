@@ -21,6 +21,7 @@ class WebSocketUpstreamTransport(UpstreamTransport):
         self.ws: Any | None = None
         self._reader_thread: threading.Thread | None = None
         self._closed = False
+        self._generation = 0
 
     def update(self, config: dict[str, Any] | None = None) -> "WebSocketUpstreamTransport":
         config = config or {}
@@ -37,9 +38,14 @@ class WebSocketUpstreamTransport(UpstreamTransport):
             raise RuntimeError("upstream.upstream_mode=ws requires upstream.upstream_cdp_url or launcher-provided cdp_url.")
         # cdp_url may start as an HTTP discovery endpoint; from here on it is the resolved WebSocket CDP endpoint.
         self.url = resolveCdpWebSocketUrl(self.url, "upstream_cdp_url")
+        previous_ws = self.ws
+        if previous_ws is not None:
+            previous_ws.close()
         self.ws = create_connection(self.url, timeout=10)
         self._closed = False
-        self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
+        self._generation += 1
+        generation = self._generation
+        self._reader_thread = threading.Thread(target=lambda: self._read_loop(generation), daemon=True)
         self._reader_thread.start()
 
     def send(self, message: dict[str, Any]) -> None:
@@ -54,6 +60,7 @@ class WebSocketUpstreamTransport(UpstreamTransport):
 
     def close(self) -> None:
         self._closed = True
+        self._generation += 1
         if self.ws is not None:
             self.ws.close()
         self.ws = None
@@ -61,16 +68,17 @@ class WebSocketUpstreamTransport(UpstreamTransport):
             self._reader_thread.join(timeout=1)
         self._reader_thread = None
 
-    def _read_loop(self) -> None:
+    def _read_loop(self, generation: int | None = None) -> None:
+        generation = self._generation if generation is None else generation
         ws = self.ws
         if ws is None:
             return
         try:
-            while not self._closed:
+            while not self._closed and self.ws is ws and self._generation == generation:
                 raw = ws.recv()
                 if not raw:
                     break
                 self._parse_and_emit_recv(raw)
         except Exception as error:
-            if not self._closed:
+            if not self._closed and self.ws is ws and self._generation == generation:
                 self._emit_close(error if isinstance(error, Exception) else RuntimeError(str(error)))

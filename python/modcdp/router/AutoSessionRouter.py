@@ -15,7 +15,8 @@ class AutoSessionRouter:
         self.target_sessions: dict[str, str] = {}
         self.session_targets: dict[str, dict[str, Any]] = {}
         self.execution_contexts: dict[str, int] = {}
-        self._execution_context_waiters: dict[str, list[tuple[threading.Event, dict[str, int]]]] = {}
+        self._execution_context_waiters: dict[str, list[tuple[threading.Event, dict[str, Any]]]] = {}
+        self._detached_sessions: set[str] = set()
         self._lock = threading.RLock()
 
     def sessionIdForTarget(self, target_id: str) -> str | None:
@@ -39,6 +40,7 @@ class AutoSessionRouter:
             target_id = target_info.get("targetId") if target_info else None
             if isinstance(attached_session_id, str) and isinstance(target_id, str) and target_info:
                 with self._lock:
+                    self._detached_sessions.discard(attached_session_id)
                     self.target_sessions[target_id] = attached_session_id
                     self.session_targets[attached_session_id] = target_info
         elif method == "Runtime.executionContextCreated":
@@ -70,10 +72,15 @@ class AutoSessionRouter:
                 if not self._execution_context_waiters[session_id]:
                     self._execution_context_waiters.pop(session_id, None)
             raise RuntimeError(f"Timed out waiting for Runtime.executionContextCreated for session {session_id}.")
+        error = result.get("error")
+        if isinstance(error, BaseException):
+            raise error
         return result["context_id"]
 
     def _recordExecutionContext(self, session_id: str, context_id: int) -> None:
         with self._lock:
+            if session_id in self._detached_sessions:
+                return
             self.execution_contexts[session_id] = context_id
             waiters = self._execution_context_waiters.pop(session_id, [])
         for event, result in waiters:
@@ -87,3 +94,9 @@ class AutoSessionRouter:
             if isinstance(target_id, str):
                 self.target_sessions.pop(target_id, None)
             self.execution_contexts.pop(session_id, None)
+            self._detached_sessions.add(session_id)
+            waiters = self._execution_context_waiters.pop(session_id, [])
+        error = RuntimeError(f"Runtime execution context wait cancelled because session {session_id} detached.")
+        for event, result in waiters:
+            result["error"] = error
+            event.set()

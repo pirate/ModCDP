@@ -31,6 +31,10 @@ func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesWaitTimeoutAndInj
 	if transport.GetInjectorConfig().UpstreamReverseWSURL != "ws://127.0.0.1:29293" {
 		t.Fatalf("injector config after update = %#v", transport.GetInjectorConfig())
 	}
+	transport.Update(map[string]any{"upstream_reversews_bind": "http://127.0.0.1:29294"})
+	if transport.URL != "ws://127.0.0.1:29294" {
+		t.Fatalf("URL after http update = %q", transport.URL)
+	}
 	if err := transport.WaitForPeer(); err == nil || !strings.Contains(err.Error(), "timed out waiting 5ms") {
 		t.Fatalf("WaitForPeer error = %v", err)
 	}
@@ -201,7 +205,8 @@ func waitForReversePeerDisconnect(t *testing.T, transport *ReverseWebSocketUpstr
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if transport.Conn == nil && transport.PeerInfo == nil {
+		err := transport.Send(map[string]any{"id": 99, "method": "Browser.getVersion"})
+		if err != nil && strings.Contains(err.Error(), "no reverse ModCDP extension peer is connected") {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)

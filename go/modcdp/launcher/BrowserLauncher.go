@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pirate/ModCDP/go/modcdp/types"
 )
@@ -25,6 +26,7 @@ func boolPtr(value bool) *bool {
 
 var writePipeMessage = WritePipeMessage
 var readPipeMessage = ReadPipeMessage
+var cdpHTTPClient = &http.Client{Timeout: 2 * time.Second}
 
 func freePort() (int, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -47,7 +49,7 @@ func WebsocketURLFor(endpoint string) (string, error) {
 	if !strings.Contains(endpoint, "://") {
 		httpEndpoint = "http://" + endpoint
 	}
-	resp, err := http.Get(httpEndpoint + "/json/version")
+	resp, err := cdpHTTPClient.Get(httpEndpoint + "/json/version")
 	if err != nil {
 		return "", fmt.Errorf("GET /json/version: %w", err)
 	}

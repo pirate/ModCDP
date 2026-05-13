@@ -107,6 +107,39 @@ class ModCDPClientTests(unittest.TestCase):
         self.assertEqual(params["server"]["server_loopback_execution_context_timeout_ms"], 8765)
         self.assertEqual(params["server"]["server_ws_connect_error_settle_timeout_ms"], 7654)
 
+    def test_preserves_explicit_zero_timeout_config(self) -> None:
+        cdp = ModCDPClient(
+            upstream={
+                "upstream_nats_wait_timeout_ms": 0,
+                "upstream_reversews_wait_timeout_ms": 0,
+                "upstream_nativemessaging_wait_timeout_ms": 0,
+                "upstream_ws_connect_error_settle_timeout_ms": 0,
+            },
+            injector={
+                "injector_execution_context_timeout_ms": 0,
+                "injector_service_worker_probe_timeout_ms": 0,
+                "injector_service_worker_ready_timeout_ms": 0,
+                "injector_service_worker_poll_interval_ms": 0,
+                "injector_target_session_poll_interval_ms": 0,
+            },
+            client={
+                "client_cdp_send_timeout_ms": 0,
+                "client_event_wait_timeout_ms": 0,
+            },
+        )
+
+        self.assertEqual(cdp.upstream["upstream_nats_wait_timeout_ms"], 0)
+        self.assertEqual(cdp.upstream["upstream_reversews_wait_timeout_ms"], 0)
+        self.assertEqual(cdp.upstream["upstream_nativemessaging_wait_timeout_ms"], 0)
+        self.assertEqual(cdp.upstream["upstream_ws_connect_error_settle_timeout_ms"], 0)
+        self.assertEqual(cdp.injector["injector_execution_context_timeout_ms"], 0)
+        self.assertEqual(cdp.injector["injector_service_worker_probe_timeout_ms"], 0)
+        self.assertEqual(cdp.injector["injector_service_worker_ready_timeout_ms"], 0)
+        self.assertEqual(cdp.injector["injector_service_worker_poll_interval_ms"], 0)
+        self.assertEqual(cdp.injector["injector_target_session_poll_interval_ms"], 0)
+        self.assertEqual(cdp.client["client_cdp_send_timeout_ms"], 0)
+        self.assertEqual(cdp.client["client_event_wait_timeout_ms"], 0)
+
     def test_preserves_explicit_empty_service_worker_suffix_config(self) -> None:
         cdp = ModCDPClient(injector={"injector_mode": "borrow", "injector_service_worker_url_suffixes": []})
 

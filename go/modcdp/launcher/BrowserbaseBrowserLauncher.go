@@ -133,7 +133,8 @@ func browserbaseRequest(baseURL string, browserbaseAPIKey string, method string,
 	}
 	request.Header.Set("content-type", "application/json")
 	request.Header.Set("x-bb-api-key", browserbaseAPIKey)
-	response, err := http.DefaultClient.Do(request)
+	client := &http.Client{Timeout: 30 * time.Second}
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}
