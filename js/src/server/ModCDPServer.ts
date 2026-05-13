@@ -41,6 +41,10 @@ type ModCDPGlobalScope = typeof globalThis &
     };
   };
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
 export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis as ModCDPGlobalScope) {
   const MODCDP_SERVER_VERSION = 1;
   const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
@@ -1078,7 +1082,10 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
             })()
           `)) as Record<string, unknown>;
           if (result?.__ModCDP_middleware_next__ === true && typeof next === "function") {
-            return await next(result.value);
+            const nextResult = await next(result.value);
+            const { __ModCDP_middleware_next__, value, ...overrides } = result;
+            if (Object.keys(overrides).length === 0) return nextResult;
+            return isPlainObject(nextResult) ? { ...nextResult, ...overrides } : overrides;
           }
           return result;
         };
