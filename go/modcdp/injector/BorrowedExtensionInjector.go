@@ -153,7 +153,7 @@ const __name = (fn) => fn;
 %s
 const ModCDP = installModCDPServer(globalThis);
 return {
-  ok: Boolean(ModCDP?.__ModCDPServerVersion === 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),
+  ok: Boolean(ModCDP?.__ModCDPServerVersion >= 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),
   extension_id: globalThis.chrome?.runtime?.id ?? null,
   has_tabs: Boolean(globalThis.chrome?.tabs?.query),
   has_debugger: Boolean(globalThis.chrome?.debugger?.sendCommand && globalThis.chrome?.debugger?.getTargets),

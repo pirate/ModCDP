@@ -9,7 +9,7 @@ export const DEFAULT_MODCDP_EXTENSION_ID = "mdedooklbnfejodmnhmkdpkaedafkehf";
 export const DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES = ["/modcdp/service_worker.js"];
 export const DEFAULT_MODCDP_WAKE_PATH = "/modcdp/wake.html";
 const MODCDP_READY_EXPRESSION =
-  "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
+  "Boolean(globalThis.ModCDP?.__ModCDPServerVersion >= 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
 export const DEFAULT_CDP_SEND_TIMEOUT_MS = 10_000;
 export const DEFAULT_EXECUTION_CONTEXT_TIMEOUT_MS = 10_000;
 export const DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS = 10_000;

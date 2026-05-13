@@ -105,7 +105,7 @@ def bootstrap_modcdp_server_expression() -> str:
         f"{installer}\n"
         "const ModCDP = installModCDPServer(globalThis);\n"
         "return {\n"
-        "  ok: Boolean(ModCDP?.__ModCDPServerVersion === 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),\n"
+        "  ok: Boolean(ModCDP?.__ModCDPServerVersion >= 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),\n"
         "  extension_id: globalThis.chrome?.runtime?.id ?? null,\n"
         "  has_tabs: Boolean(globalThis.chrome?.tabs?.query),\n"
         "  has_debugger: Boolean(globalThis.chrome?.debugger?.sendCommand && globalThis.chrome?.debugger?.getTargets),\n"

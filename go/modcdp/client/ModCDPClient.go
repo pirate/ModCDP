@@ -43,7 +43,7 @@ var (
 	extIDFromURL = regexp.MustCompile(`^chrome-extension://([a-z]+)/`)
 )
 
-const modcdpReadyExpression = `Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)`
+const modcdpReadyExpression = `Boolean(globalThis.ModCDP?.__ModCDPServerVersion >= 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)`
 
 const DefaultCDPSendTimeoutMS = 10_000
 const DefaultEventWaitTimeoutMS = 10_000

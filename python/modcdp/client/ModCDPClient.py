@@ -164,7 +164,7 @@ class _ModDomain:
         return self._client._send_command("Mod.ping", params)
 
 MODCDP_READY_EXPRESSION = (
-    "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && "
+    "Boolean(globalThis.ModCDP?.__ModCDPServerVersion >= 1 && "
     "globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)"
 )
 DEFAULT_SERVER = object()

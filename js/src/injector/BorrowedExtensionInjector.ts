@@ -4,14 +4,14 @@ import { ExtensionInjector, type ExtensionInjectionResult, type TargetInfo } fro
 
 const EXT_ID_FROM_URL = /^chrome-extension:\/\/([a-z]+)\//;
 const MODCDP_READY_EXPRESSION =
-  "Boolean(globalThis.ModCDP?.__ModCDPServerVersion === 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
+  "Boolean(globalThis.ModCDP?.__ModCDPServerVersion >= 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)";
 const bootstrap_modcdp_server_expression = `
   function() {
     const __name = (fn) => fn;
     const installModCDPServer = ${installModCDPServer.toString()};
     const ModCDP = installModCDPServer(globalThis);
     return {
-      ok: Boolean(ModCDP?.__ModCDPServerVersion === 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),
+      ok: Boolean(ModCDP?.__ModCDPServerVersion >= 1 && ModCDP?.handleCommand && ModCDP?.addCustomEvent),
       extension_id: globalThis.chrome?.runtime?.id ?? null,
       has_tabs: Boolean(globalThis.chrome?.tabs?.query),
       has_debugger: Boolean(globalThis.chrome?.debugger?.sendCommand && globalThis.chrome?.debugger?.getTargets),
