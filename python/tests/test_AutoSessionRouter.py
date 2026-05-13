@@ -39,6 +39,28 @@ class AutoSessionRouterTests(unittest.TestCase):
         self.assertIsNone(router.sessionIdForTarget("target-1"))
         self.assertNotIn("detached-session", router.execution_contexts)
 
+    def test_bounds_detached_session_guards_and_clears_them_when_session_reattaches(self) -> None:
+        router = AutoSessionRouter(lambda _method, _params, _session_id: {}, lambda: 5_000)
+
+        for index in range(1034):
+            router.recordProtocolEvent("Target.detachedFromTarget", {"sessionId": f"detached-session-{index}"}, None)
+
+        self.assertLessEqual(len(router._detached_sessions), 1024)
+
+        recent_session_id = "detached-session-1033"
+        router.recordProtocolEvent("Runtime.executionContextCreated", {"context": {"id": 42}}, recent_session_id)
+        self.assertNotIn(recent_session_id, router.execution_contexts)
+
+        router.recordProtocolEvent(
+            "Target.attachedToTarget",
+            {"sessionId": recent_session_id, "targetInfo": {"targetId": "target-reattached", "type": "page"}},
+            None,
+        )
+        router.recordProtocolEvent("Runtime.executionContextCreated", {"context": {"id": 43}}, recent_session_id)
+
+        self.assertEqual(router.sessionIdForTarget("target-reattached"), recent_session_id)
+        self.assertEqual(router.execution_contexts[recent_session_id], 43)
+
     def test_tracks_real_target_sessions_and_execution_contexts(self) -> None:
         chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
         ws = create_connection(str(chrome["cdp_url"]), timeout=10)

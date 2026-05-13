@@ -15,9 +15,11 @@ from modcdp.transport.WebSocketUpstreamTransport import WebSocketUpstreamTranspo
 class WebSocketUpstreamTransportTests(unittest.TestCase):
     def test_reconnect_closes_old_socket_and_ignores_stale_reader_errors(self) -> None:
         class FakeWebSocket:
-            def __init__(self, name: str) -> None:
+            def __init__(self, name: str, generation: Any) -> None:
                 self.name = name
+                self.generation = generation
                 self.closed = False
+                self.generation_at_close: int | None = None
                 self.entered = threading.Event()
                 self.release = threading.Event()
 
@@ -30,13 +32,14 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
                 return None
 
             def close(self) -> None:
+                self.generation_at_close = self.generation()
                 self.closed = True
                 self.release.set()
 
-        first = FakeWebSocket("first")
-        second = FakeWebSocket("second")
         closes: list[Exception] = []
         transport = WebSocketUpstreamTransport({"cdp_url": "ws://127.0.0.1:1/devtools/browser/test"})
+        first = FakeWebSocket("first", lambda: transport._generation)
+        second = FakeWebSocket("second", lambda: transport._generation)
         transport.onClose(lambda error: closes.append(error))
 
         with patch("modcdp.transport.WebSocketUpstreamTransport.create_connection", side_effect=[first, second]):
@@ -44,6 +47,7 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             self.assertTrue(first.entered.wait(timeout=1))
             transport.connect()
             self.assertTrue(first.closed)
+            self.assertEqual(first.generation_at_close, 2)
             first.release.set()
             time.sleep(0.05)
             self.assertEqual(closes, [])

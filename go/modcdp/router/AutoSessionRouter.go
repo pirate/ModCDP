@@ -8,6 +8,8 @@ import (
 
 type AutoSessionRouterSend func(method string, params map[string]any, sessionID string) (map[string]any, error)
 
+const maxDetachedSessionGuards = 1024
+
 type AutoSessionRouter struct {
 	TargetSessions                   map[string]string
 	SessionTargets                   map[string]map[string]any
@@ -16,6 +18,7 @@ type AutoSessionRouter struct {
 	defaultExecutionContextTimeoutMS func() int
 	executionContextWaiters          map[string][]chan executionContextResult
 	detachedSessions                 map[string]bool
+	detachedSessionOrder             []string
 	mu                               sync.Mutex
 }
 
@@ -33,6 +36,7 @@ func NewAutoSessionRouter(send AutoSessionRouterSend, defaultExecutionContextTim
 		defaultExecutionContextTimeoutMS: defaultExecutionContextTimeoutMS,
 		executionContextWaiters:          map[string][]chan executionContextResult{},
 		detachedSessions:                 map[string]bool{},
+		detachedSessionOrder:             []string{},
 	}
 }
 
@@ -69,7 +73,7 @@ func (r *AutoSessionRouter) RecordProtocolEvent(method string, data any, session
 		targetID, _ := targetInfo["targetId"].(string)
 		if attachedSessionID != "" && targetID != "" {
 			r.mu.Lock()
-			delete(r.detachedSessions, attachedSessionID)
+			r.clearDetachedSessionLocked(attachedSessionID)
 			r.TargetSessions[targetID] = attachedSessionID
 			r.SessionTargets[attachedSessionID] = targetInfo
 			r.mu.Unlock()
@@ -152,7 +156,7 @@ func (r *AutoSessionRouter) forgetSession(sessionID string) {
 		delete(r.TargetSessions, targetID)
 	}
 	delete(r.ExecutionContexts, sessionID)
-	r.detachedSessions[sessionID] = true
+	r.markDetachedSessionLocked(sessionID)
 	waiters := r.executionContextWaiters[sessionID]
 	delete(r.executionContextWaiters, sessionID)
 	r.mu.Unlock()
@@ -160,6 +164,22 @@ func (r *AutoSessionRouter) forgetSession(sessionID string) {
 	for _, waiter := range waiters {
 		waiter <- executionContextResult{err: err}
 	}
+}
+
+func (r *AutoSessionRouter) markDetachedSessionLocked(sessionID string) {
+	if !r.detachedSessions[sessionID] {
+		r.detachedSessionOrder = append(r.detachedSessionOrder, sessionID)
+	}
+	r.detachedSessions[sessionID] = true
+	for len(r.detachedSessions) > maxDetachedSessionGuards && len(r.detachedSessionOrder) > 0 {
+		oldestSessionID := r.detachedSessionOrder[0]
+		r.detachedSessionOrder = r.detachedSessionOrder[1:]
+		delete(r.detachedSessions, oldestSessionID)
+	}
+}
+
+func (r *AutoSessionRouter) clearDetachedSessionLocked(sessionID string) {
+	delete(r.detachedSessions, sessionID)
 }
 
 func intFromAny(value any) (int, bool) {

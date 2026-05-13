@@ -6,6 +6,7 @@ from typing import Any
 
 
 SendCDP = Callable[[str, dict[str, Any], str | None], dict[str, Any]]
+max_detached_session_guards = 1024
 
 
 class AutoSessionRouter:
@@ -16,7 +17,7 @@ class AutoSessionRouter:
         self.session_targets: dict[str, dict[str, Any]] = {}
         self.execution_contexts: dict[str, int] = {}
         self._execution_context_waiters: dict[str, list[tuple[threading.Event, dict[str, Any]]]] = {}
-        self._detached_sessions: set[str] = set()
+        self._detached_sessions: dict[str, None] = {}
         self._lock = threading.RLock()
 
     def sessionIdForTarget(self, target_id: str) -> str | None:
@@ -40,7 +41,7 @@ class AutoSessionRouter:
             target_id = target_info.get("targetId") if target_info else None
             if isinstance(attached_session_id, str) and isinstance(target_id, str) and target_info:
                 with self._lock:
-                    self._detached_sessions.discard(attached_session_id)
+                    self._detached_sessions.pop(attached_session_id, None)
                     self.target_sessions[target_id] = attached_session_id
                     self.session_targets[attached_session_id] = target_info
         elif method == "Runtime.executionContextCreated":
@@ -94,9 +95,18 @@ class AutoSessionRouter:
             if isinstance(target_id, str):
                 self.target_sessions.pop(target_id, None)
             self.execution_contexts.pop(session_id, None)
-            self._detached_sessions.add(session_id)
+            self._markDetachedSession(session_id)
             waiters = self._execution_context_waiters.pop(session_id, [])
         error = RuntimeError(f"Runtime execution context wait cancelled because session {session_id} detached.")
         for event, result in waiters:
             result["error"] = error
             event.set()
+
+    def _markDetachedSession(self, session_id: str) -> None:
+        self._detached_sessions.pop(session_id, None)
+        self._detached_sessions[session_id] = None
+        while len(self._detached_sessions) > max_detached_session_guards:
+            oldest_session_id = next(iter(self._detached_sessions), None)
+            if oldest_session_id is None:
+                break
+            self._detached_sessions.pop(oldest_session_id, None)

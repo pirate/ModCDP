@@ -10,7 +10,9 @@ test("AutoSessionRouter rejects pending execution context waiters when a session
     async () => ({}),
     () => 5_000,
   );
-  const wait = router.waitForExecutionContext("detached-session", { timeout_ms: 5_000 });
+  const wait = router.waitForExecutionContext("detached-session", {
+    timeout_ms: 5_000,
+  });
 
   router.recordProtocolEvent(
     "Target.attachedToTarget",
@@ -30,6 +32,37 @@ test("AutoSessionRouter rejects pending execution context waiters when a session
   expect(router.execution_contexts.get("detached-session")).toBeUndefined();
 }, 5_000);
 
+test("AutoSessionRouter bounds detached session guards and clears them when a session reattaches", () => {
+  const router = new AutoSessionRouter(
+    async () => ({}),
+    () => 5_000,
+  );
+
+  for (let index = 0; index < 1034; index += 1) {
+    router.recordProtocolEvent("Target.detachedFromTarget", { sessionId: `detached-session-${index}` }, null);
+  }
+
+  const detached_sessions = (router as unknown as { detached_sessions: Map<string, true> }).detached_sessions;
+  expect(detached_sessions.size).toBeLessThanOrEqual(1024);
+
+  const recent_session_id = "detached-session-1033";
+  router.recordProtocolEvent("Runtime.executionContextCreated", { context: { id: 42 } }, recent_session_id);
+  expect(router.execution_contexts.get(recent_session_id)).toBeUndefined();
+
+  router.recordProtocolEvent(
+    "Target.attachedToTarget",
+    {
+      sessionId: recent_session_id,
+      targetInfo: { targetId: "target-reattached", type: "page" },
+    },
+    null,
+  );
+  router.recordProtocolEvent("Runtime.executionContextCreated", { context: { id: 43 } }, recent_session_id);
+
+  expect(router.sessionIdForTarget("target-reattached")).toBe(recent_session_id);
+  expect(router.execution_contexts.get(recent_session_id)).toBe(43);
+});
+
 test("AutoSessionRouter tracks real target sessions and execution contexts", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
@@ -47,7 +80,14 @@ test("AutoSessionRouter tracks real target sessions and execution contexts", asy
 
   function send(method: string, params: Record<string, unknown> = {}, session_id: string | null = null) {
     const id = next_id++;
-    ws.send(JSON.stringify({ id, method, params, ...(session_id ? { sessionId: session_id } : {}) }));
+    ws.send(
+      JSON.stringify({
+        id,
+        method,
+        params,
+        ...(session_id ? { sessionId: session_id } : {}),
+      }),
+    );
     return new Promise<Record<string, unknown>>((resolve, reject) => {
       pending.set(id, (message) => {
         if (message.error) reject(new Error(JSON.stringify(message.error)));
@@ -72,14 +112,22 @@ test("AutoSessionRouter tracks real target sessions and execution contexts", asy
   });
 
   try {
-    await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+    await send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+    });
     await send("Target.setDiscoverTargets", { discover: true });
-    const created = await send("Target.createTarget", { url: "about:blank#modcdp-auto-session-router" });
+    const created = await send("Target.createTarget", {
+      url: "about:blank#modcdp-auto-session-router",
+    });
     const target_id = created.targetId as string;
     await expect.poll(() => router.sessionIdForTarget(target_id), { timeout: 5_000 }).toEqual(expect.any(String));
     const session_id = router.sessionIdForTarget(target_id)!;
 
-    const context_promise = router.waitForExecutionContext(session_id, { timeout_ms: 5_000 });
+    const context_promise = router.waitForExecutionContext(session_id, {
+      timeout_ms: 5_000,
+    });
     await send("Runtime.enable", {}, session_id);
     await expect(context_promise).resolves.toEqual(expect.any(Number));
     expect(router.execution_contexts.get(session_id)).toEqual(expect.any(Number));

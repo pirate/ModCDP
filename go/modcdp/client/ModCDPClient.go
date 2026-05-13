@@ -591,7 +591,7 @@ func (c *ModCDPClient) Connect() error {
 			}
 			c.configuredPeerGeneration = c.transport.PeerGeneration()
 		}
-		_ = c.measurePingLatency()
+		c.startPingLatencyMeasurement()
 		connectedAt := time.Now().UnixMilli()
 		c.ConnectTiming = map[string]any{
 			"started_at":             connectStartedAt,
@@ -686,7 +686,7 @@ func (c *ModCDPClient) Connect() error {
 			return fmt.Errorf("Mod.configure: %w", err)
 		}
 	}
-	_ = c.measurePingLatency()
+	c.startPingLatencyMeasurement()
 	connectedAt := time.Now().UnixMilli()
 	c.ConnectTiming = map[string]any{
 		"started_at":             connectStartedAt,
@@ -1628,6 +1628,12 @@ func (c *ModCDPClient) measurePingLatency() error {
 	case <-time.After(time.Duration(c.Client.ClientEventWaitTimeoutMS) * time.Millisecond):
 		return fmt.Errorf("Mod.pong timed out")
 	}
+}
+
+func (c *ModCDPClient) startPingLatencyMeasurement() {
+	go func() {
+		_ = c.measurePingLatency()
+	}()
 }
 
 func numberAsInt64(value any) (int64, bool) {

@@ -55,6 +55,42 @@ func TestAutoSessionRouterRejectsPendingExecutionContextWaitersWhenSessionDetach
 	}
 }
 
+func TestAutoSessionRouterBoundsDetachedSessionGuardsAndClearsThemWhenSessionReattaches(t *testing.T) {
+	router := NewAutoSessionRouter(func(string, map[string]any, string) (map[string]any, error) {
+		return map[string]any{}, nil
+	}, func() int { return 5000 })
+
+	for index := 0; index < 1034; index++ {
+		router.RecordProtocolEvent("Target.detachedFromTarget", map[string]any{"sessionId": fmt.Sprintf("detached-session-%d", index)}, "")
+	}
+
+	router.mu.Lock()
+	detachedCount := len(router.detachedSessions)
+	router.mu.Unlock()
+	if detachedCount > maxDetachedSessionGuards {
+		t.Fatalf("detached session guard count = %d, want <= %d", detachedCount, maxDetachedSessionGuards)
+	}
+
+	recentSessionID := "detached-session-1033"
+	router.RecordProtocolEvent("Runtime.executionContextCreated", map[string]any{"context": map[string]any{"id": 42}}, recentSessionID)
+	if _, ok := router.ExecutionContexts[recentSessionID]; ok {
+		t.Fatal("stale execution context was recorded for detached session")
+	}
+
+	router.RecordProtocolEvent("Target.attachedToTarget", map[string]any{
+		"sessionId":  recentSessionID,
+		"targetInfo": map[string]any{"targetId": "target-reattached", "type": "page"},
+	}, "")
+	router.RecordProtocolEvent("Runtime.executionContextCreated", map[string]any{"context": map[string]any{"id": 43}}, recentSessionID)
+
+	if sessionID := router.SessionIDForTarget("target-reattached"); sessionID != recentSessionID {
+		t.Fatalf("session id = %q, want %q", sessionID, recentSessionID)
+	}
+	if contextID := router.ExecutionContexts[recentSessionID]; contextID != 43 {
+		t.Fatalf("context id = %d, want 43", contextID)
+	}
+}
+
 func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testing.T) {
 	headless := true
 	sandbox := false

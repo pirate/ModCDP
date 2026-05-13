@@ -38,13 +38,13 @@ class WebSocketUpstreamTransport(UpstreamTransport):
             raise RuntimeError("upstream.upstream_mode=ws requires upstream.upstream_cdp_url or launcher-provided cdp_url.")
         # cdp_url may start as an HTTP discovery endpoint; from here on it is the resolved WebSocket CDP endpoint.
         self.url = resolveCdpWebSocketUrl(self.url, "upstream_cdp_url")
+        self._generation += 1
+        generation = self._generation
         previous_ws = self.ws
         if previous_ws is not None:
             previous_ws.close()
         self.ws = create_connection(self.url, timeout=10)
         self._closed = False
-        self._generation += 1
-        generation = self._generation
         self._reader_thread = threading.Thread(target=lambda: self._read_loop(generation), daemon=True)
         self._reader_thread.start()
 

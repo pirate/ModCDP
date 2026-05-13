@@ -7,12 +7,14 @@ type ExecutionContextWaiter = {
   timeout: ReturnType<typeof setTimeout>;
 };
 
+const max_detached_session_guards = 1024;
+
 export class AutoSessionRouter {
   readonly target_sessions = new Map<string, string>();
   readonly session_targets = new Map<string, Record<string, unknown>>();
   readonly execution_contexts = new Map<string, number>();
   private readonly execution_context_waiters = new Map<string, Set<ExecutionContextWaiter>>();
-  private readonly detached_sessions = new Set<string>();
+  private readonly detached_sessions = new Map<string, true>();
 
   constructor(
     private readonly send: SendCDP,
@@ -26,7 +28,10 @@ export class AutoSessionRouter {
   async attachToTarget(target_id: string) {
     const existing_session_id = this.sessionIdForTarget(target_id);
     if (existing_session_id != null) return existing_session_id;
-    const result = await this.send("Target.attachToTarget", { targetId: target_id, flatten: true });
+    const result = await this.send("Target.attachToTarget", {
+      targetId: target_id,
+      flatten: true,
+    });
     const session_id = result && typeof result === "object" ? (result as Record<string, unknown>).sessionId : null;
     return typeof session_id === "string" && session_id.length > 0 ? session_id : null;
   }
@@ -96,7 +101,7 @@ export class AutoSessionRouter {
     if (target_id) this.target_sessions.delete(target_id);
     this.session_targets.delete(session_id);
     this.execution_contexts.delete(session_id);
-    this.detached_sessions.add(session_id);
+    this.markDetachedSession(session_id);
     const waiters = this.execution_context_waiters.get(session_id);
     if (!waiters) return;
     this.execution_context_waiters.delete(session_id);
@@ -104,6 +109,16 @@ export class AutoSessionRouter {
     for (const waiter of waiters) {
       clearTimeout(waiter.timeout);
       waiter.reject(error);
+    }
+  }
+
+  private markDetachedSession(session_id: string) {
+    this.detached_sessions.delete(session_id);
+    this.detached_sessions.set(session_id, true);
+    while (this.detached_sessions.size > max_detached_session_guards) {
+      const oldest_session_id = this.detached_sessions.keys().next().value;
+      if (!oldest_session_id) break;
+      this.detached_sessions.delete(oldest_session_id);
     }
   }
 }
