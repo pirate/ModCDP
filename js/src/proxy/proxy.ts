@@ -930,12 +930,8 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
   // so the response can be steered back to the right Playwright CDPSession.
   if (MAGIC_METHODS.has(method) || ROUTE_TO_SW_RE.test(method)) {
     const upId = state.next_upstream_id++;
-    state.pending.set(upId, {
-      kind: "modcdp_eval",
-      client_id: id,
-      client_session_id: sessionId || null,
-    });
     let runtimeParams;
+    let unwrap: "runtime" | "runtime_json" = "runtime";
     if (method === "Mod.evaluate") {
       const evaluateParams = ModCDPEvaluateParamsSchema.parse(params ?? {});
       runtimeParams = wrapModCDPEvaluate({
@@ -957,7 +953,14 @@ function handleClientMessage(state: ProxyConnectionState, buf: RawData) {
           ? params.cdpSessionId
           : (sessionId ?? null);
       runtimeParams = wrapCustomCommand(method, params, cdpSessionId);
+      unwrap = "runtime_json";
     }
+    state.pending.set(upId, {
+      kind: "modcdp_eval",
+      client_id: id,
+      client_session_id: sessionId || null,
+      unwrap,
+    });
     if (state.ext_execution_context_id != null) runtimeParams.executionContextId = state.ext_execution_context_id;
     state.upstream.send(
       JSON.stringify({
@@ -1008,7 +1011,7 @@ function handleUpstreamMessage(state: ProxyConnectionState, msg: CdpResponseMess
           result:
             unwrapResponseIfNeeded(
               (response.result === undefined ? {} : response.result) as ProtocolResult,
-              "runtime",
+              p.unwrap ?? "runtime",
             ) ?? {},
         });
       } catch (e) {

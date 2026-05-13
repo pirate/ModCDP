@@ -8,6 +8,7 @@ export const ProxyPendingSchema = z
     client_id: z.number().optional(),
     client_session_id: z.string().nullable().optional(),
     event_name: z.string().optional(),
+    unwrap: z.enum(["runtime", "runtime_json"]).optional(),
     resolve: z.custom<(value: ProtocolResult) => void>().optional(),
     reject: z.custom<(error: Error) => void>().optional(),
   })
