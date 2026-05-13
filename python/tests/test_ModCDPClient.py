@@ -228,9 +228,12 @@ class ModCDPClientTests(unittest.TestCase):
 
             cdp.on("Mod.pong", muted_pong)
             cdp.off("Mod.pong", muted_pong)
-            cdp.once("Mod.pong", on_pong)
-            ping_result = cdp.Mod.ping(sent_at=sent_at)
-            pong_payload = pong.get(timeout=30)
+            cdp.on("Mod.pong", on_pong)
+            try:
+                ping_result = cdp.Mod.ping(sent_at=sent_at)
+                pong_payload = pong.get(timeout=30)
+            finally:
+                cdp.off("Mod.pong", on_pong)
             with self.assertRaises(Empty):
                 muted.get(timeout=0.2)
             self.assertEqual(ping_result["ok"], True)

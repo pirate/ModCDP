@@ -569,7 +569,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	}
 	cdp.On("Mod.pong", mutedHandler)
 	cdp.Off("Mod.pong", mutedHandler)
-	cdp.Once("Mod.pong", func(payload any) {
+	pongHandler := func(payload any) {
 		event, _ := payload.(map[string]any)
 		if event == nil {
 			return
@@ -577,7 +577,16 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 		if event["sent_at"] == float64(sent_at) || event["sent_at"] == sent_at {
 			pong <- event
 		}
-	})
+	}
+	cdp.On("Mod.pong", pongHandler)
+	pongHandlerActive := true
+	removePongHandler := func() {
+		if pongHandlerActive {
+			cdp.Off("Mod.pong", pongHandler)
+			pongHandlerActive = false
+		}
+	}
+	defer removePongHandler()
 	ping_raw, err := cdp.Mod.Ping(map[string]any{"sent_at": sent_at})
 	if err != nil {
 		t.Fatal(err)
@@ -588,6 +597,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	}
 	select {
 	case pong_payload := <-pong:
+		removePongHandler()
 		if pong_payload["from"] != "extension-service-worker" {
 			t.Fatalf("Mod.pong from = %#v", pong_payload["from"])
 		}
