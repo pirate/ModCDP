@@ -33,7 +33,7 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
                 )
                 self.waits: list[tuple[int, bool]] = []
 
-            def _discoverReadyServiceWorker(self):  # type: ignore[override]
+            def _discoverReadyServiceWorker(self, *, matched_only: bool = False):  # type: ignore[override]
                 return None
 
             def _wakeConfiguredExtension(self):  # type: ignore[override]
@@ -58,7 +58,7 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
                 )
                 self.waits: list[tuple[int, bool]] = []
 
-            def _discoverReadyServiceWorker(self):  # type: ignore[override]
+            def _discoverReadyServiceWorker(self, *, matched_only: bool = False):  # type: ignore[override]
                 return None
 
             def _wakeConfiguredExtension(self):  # type: ignore[override]
