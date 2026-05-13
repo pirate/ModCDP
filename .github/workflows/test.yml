@@ -1,0 +1,250 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  client-test:
+    name: ${{ matrix.client }} tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [js, python, go]
+    env:
+      CI: "true"
+      CHROME_PATH: /usr/bin/chromium
+      GOFLAGS: -buildvcs=false
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        if: matrix.client == 'python'
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        if: matrix.client == 'python'
+      - uses: actions/setup-go@v5
+        if: matrix.client == 'go'
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Run ${{ matrix.client }} tests
+        run: |
+          case "${{ matrix.client }}" in
+            js)
+              xvfb-run -a pnpm exec vitest run \
+                $(find js/test -name 'test.*.ts' \
+                  ! -name 'test.ModCDPClient.ts' \
+                  ! -name 'test.NatsUpstreamTransport.ts' \
+                  ! -name 'test.ReverseWebSocketUpstreamTransport.ts' \
+                  ! -name 'test.proxy.ts' | sort) \
+                --fileParallelism=false --maxWorkers=1
+              ;;
+            python)
+              cd python
+              xvfb-run -a uv run python -m unittest \
+                $(find tests -name 'test_*.py' \
+                  ! -name 'test_ModCDPClient.py' \
+                  ! -name 'test_NatsUpstreamTransport.py' \
+                  ! -name 'test_ReverseWebSocketUpstreamTransport.py' \
+                  | sed 's#/#.#g; s#\.py$##' | sort)
+              ;;
+            go)
+              cd go
+              xvfb-run -a go test -count=1 -p 1 \
+                ./modcdp \
+                ./modcdp/injector \
+                ./modcdp/launcher \
+                ./modcdp/router \
+                ./modcdp/translate
+              ;;
+            *)
+              echo "unknown client: ${{ matrix.client }}" >&2
+              exit 1
+              ;;
+          esac
+
+  client-demo:
+    name: ${{ matrix.client }} ${{ matrix.upstream }} ${{ matrix.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [js, python, go]
+        upstream: [ws, pipe, reversews, nativemessaging]
+        mode: [direct, loopback, debugger]
+        exclude:
+          - upstream: reversews
+            mode: direct
+          - upstream: reversews
+            mode: loopback
+          - upstream: reversews
+            mode: debugger
+          - upstream: nativemessaging
+            mode: direct
+    env:
+      CI: "true"
+      CHROME_PATH: /usr/bin/chromium
+      GOFLAGS: -buildvcs=false
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        if: matrix.client == 'python'
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        if: matrix.client == 'python'
+      - uses: actions/setup-go@v5
+        if: matrix.client == 'go'
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Run ${{ matrix.client }} demo (${{ matrix.mode }})
+        run: |
+          case "${{ matrix.client }}" in
+            js)
+              xvfb-run -a node dist/js/examples/demo.js --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              ;;
+            python)
+              cd python
+              xvfb-run -a uv run python examples/demo.py --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              ;;
+            go)
+              cd go
+              xvfb-run -a go run ./examples/demo --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              ;;
+            *)
+              echo "unknown client: ${{ matrix.client }}" >&2
+              exit 1
+              ;;
+          esac
+
+  serialized-connector-test:
+    name: serialized reversews/nats tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      CHROME_PATH: /usr/bin/chromium
+      GOFLAGS: -buildvcs=false
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Run JS serialized connector tests
+        run: |
+          xvfb-run -a pnpm exec vitest run \
+            js/test/test.ModCDPClient.ts \
+            js/test/test.NatsUpstreamTransport.ts \
+            js/test/test.ReverseWebSocketUpstreamTransport.ts \
+            js/test/test.proxy.ts \
+            --fileParallelism=false --maxWorkers=1
+      - name: Run Python serialized connector tests
+        run: |
+          cd python
+          xvfb-run -a uv run python -m unittest \
+            tests.test_ModCDPClient \
+            tests.test_NatsUpstreamTransport \
+            tests.test_ReverseWebSocketUpstreamTransport
+      - name: Run Go serialized connector tests
+        run: |
+          cd go
+          xvfb-run -a go test -count=1 -p 1 ./modcdp/client ./modcdp/transport
+
+  serialized-reversews-demo:
+    name: serialized reversews demos
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      CHROME_PATH: /usr/bin/chromium
+      GOFLAGS: -buildvcs=false
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Run reversews demos serially
+        run: |
+          for mode in loopback debugger; do
+            xvfb-run -a node dist/js/examples/demo.js --"$mode" --upstream=reversews
+            cd python
+            xvfb-run -a uv run python examples/demo.py --"$mode" --upstream=reversews
+            cd ..
+            cd go
+            xvfb-run -a go run ./examples/demo --"$mode" --upstream=reversews
+            cd ..
+          done
+
+  proxy-example:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: playwright proxy
+            command: node dist/js/examples/playwright.js
+          - name: puppeteer proxy
+            command: node dist/js/examples/puppeteer.js
+    env:
+      CI: "true"
+      CHROME_PATH: /usr/bin/chromium
+      GOFLAGS: -buildvcs=false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: xvfb-run -a ${{ matrix.command }}

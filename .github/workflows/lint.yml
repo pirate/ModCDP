@@ -3,8 +3,6 @@ name: Lint
 on:
   pull_request:
   push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -29,11 +27,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: client/go/go.mod
-          cache-dependency-path: client/go/go.sum
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
 
       - run: pnpm install --frozen-lockfile --prefer-offline
 
-      - run: uv --directory client/python sync --dev --frozen
+      - run: uv --directory python sync --dev --frozen
 
       - run: pnpm exec prek run --all-files

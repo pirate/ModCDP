@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modcdp"
+version = "0.0.6"
+description = "Python client for ModCDP."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.0", "typing-extensions>=4.12", "websocket-client>=1.8.0"]
+
+[project.urls]
+Repository = "https://github.com/pirate/ModCDP"
+
+[tool.hatch.build.targets.wheel]
+packages = ["modcdp"]
+artifacts = ["modcdp/extension.zip"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["modcdp/extension.zip"]
+
+[dependency-groups]
+dev = ["pyright>=1.1.409", "ty>=0.0.34"]

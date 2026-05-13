@@ -3,11 +3,19 @@
   "name": "ModCDP Bridge",
   "version": "0.1.0",
   "description": "Extension service worker bridge for ModCDP custom commands and events.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxd/1dI8epjKRdIOMd5V2sajM8+zIjZIEbznIG7/VLZXd3fDG9+Zz9T1ani6GeXWfaxaj5OcxefhbU1yJ5lT8fEHLM/uT/53QJHmMnfuiSjWbGqT7SCpDDjUmn64X5yYD8pMVW0f/EHthGPwlG3n+JDkgEv/5wBcQohxPZdVuGhmoQG6C5wU38tDh/Q+lYMiLb5lhtDSJoTt4c7nAgXeWo8mZGBk29QkHMhHlUIewPjcjeIny/RO9+Q7mp1Nnsya6f/hg5iQVPZLVJx/lyneX7v2I0r4ibA6u2uxNDqbmK+SgrP2RnBoAZCDOb+n2PQlXbQJFxL4WfgxCCQgiC3C+5QIDAQAB",
   "minimum_chrome_version": "116",
   "background": {
-    "service_worker": "service_worker.js",
+    "service_worker": "modcdp/service_worker.js",
     "type": "module"
   },
-  "permissions": ["activeTab", "tabs", "debugger", "offscreen"],
+  "action": {
+    "default_title": "ModCDP"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "permissions": ["activeTab", "tabs", "debugger", "offscreen", "nativeMessaging"],
   "host_permissions": ["<all_urls>", "http://localhost/*", "http://127.0.0.1/*", "ws://localhost/*", "ws://127.0.0.1/*"]
 }

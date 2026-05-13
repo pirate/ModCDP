@@ -1,73 +1,153 @@
 {
   "name": "modcdp",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pirate/modcdp.git"
   },
   "files": [
-    "bridge/**/*.ts",
-    "client/js/**/*.ts",
+    "js/src/**/*.ts",
+    "js/examples/**/*.ts",
+    "js/scripts/**/*.mjs",
     "dist/**/*",
     "dist/extension.zip",
-    "extension/**/*.ts",
+    "extension/src/**/*.ts",
+    "extension/src/pages/**/*",
     "extension/manifest.json",
-    "extension/offscreen/keepalive.html",
-    "types/**/*.ts"
+    "python/modcdp/extension.zip",
+    "go/modcdp/injector/extension.zip"
   ],
   "type": "module",
   "exports": {
     ".": {
-      "types": "./client/js/ModCDPClient.ts",
-      "import": "./dist/client/js/ModCDPClient.js",
-      "default": "./dist/client/js/ModCDPClient.js"
+      "types": "./js/src/index.ts",
+      "import": "./dist/js/src/index.js",
+      "default": "./dist/js/src/index.js"
     },
     "./client": {
-      "types": "./client/js/ModCDPClient.ts",
-      "import": "./dist/client/js/ModCDPClient.js",
-      "default": "./dist/client/js/ModCDPClient.js"
+      "types": "./js/src/client/ModCDPClient.ts",
+      "import": "./dist/js/src/client/ModCDPClient.js",
+      "default": "./dist/js/src/client/ModCDPClient.js"
     },
-    "./extension/service_worker.js": "./dist/extension/service_worker.js",
-    "./extension/ModCDPServer.js": {
-      "types": "./extension/ModCDPServer.ts",
-      "import": "./dist/extension/ModCDPServer.js"
+    "./client/ModCDPClient.js": {
+      "types": "./js/src/client/ModCDPClient.ts",
+      "import": "./dist/js/src/client/ModCDPClient.js"
     },
-    "./extension/translate.js": {
-      "types": "./extension/translate.ts",
-      "import": "./dist/extension/translate.js"
+    "./server/ModCDPServer.js": {
+      "types": "./js/src/server/ModCDPServer.ts",
+      "import": "./dist/js/src/server/ModCDPServer.js"
     },
-    "./bridge/launcher.js": {
-      "types": "./bridge/launcher.ts",
-      "import": "./dist/bridge/launcher.js"
+    "./launcher/BrowserLauncher.js": {
+      "types": "./js/src/launcher/BrowserLauncher.ts",
+      "import": "./dist/js/src/launcher/BrowserLauncher.js"
     },
-    "./bridge/translate.js": "./dist/bridge/translate.js",
-    "./types/*": "./dist/types/*",
-    "./types/zod/*": "./dist/types/zod/*"
+    "./launcher/LocalBrowserLauncher.js": {
+      "types": "./js/src/launcher/LocalBrowserLauncher.ts",
+      "import": "./dist/js/src/launcher/LocalBrowserLauncher.js"
+    },
+    "./launcher/RemoteBrowserLauncher.js": {
+      "types": "./js/src/launcher/RemoteBrowserLauncher.ts",
+      "import": "./dist/js/src/launcher/RemoteBrowserLauncher.js"
+    },
+    "./launcher/BrowserbaseBrowserLauncher.js": {
+      "types": "./js/src/launcher/BrowserbaseBrowserLauncher.ts",
+      "import": "./dist/js/src/launcher/BrowserbaseBrowserLauncher.js"
+    },
+    "./launcher/NoopBrowserLauncher.js": {
+      "types": "./js/src/launcher/NoopBrowserLauncher.ts",
+      "import": "./dist/js/src/launcher/NoopBrowserLauncher.js"
+    },
+    "./transport/UpstreamTransport.js": {
+      "types": "./js/src/transport/UpstreamTransport.ts",
+      "import": "./dist/js/src/transport/UpstreamTransport.js"
+    },
+    "./transport/WebSocketUpstreamTransport.js": {
+      "types": "./js/src/transport/WebSocketUpstreamTransport.ts",
+      "import": "./dist/js/src/transport/WebSocketUpstreamTransport.js"
+    },
+    "./transport/ReverseWebSocketUpstreamTransport.js": {
+      "types": "./js/src/transport/ReverseWebSocketUpstreamTransport.ts",
+      "import": "./dist/js/src/transport/ReverseWebSocketUpstreamTransport.js"
+    },
+    "./transport/NativeMessagingUpstreamTransport.js": {
+      "types": "./js/src/transport/NativeMessagingUpstreamTransport.ts",
+      "import": "./dist/js/src/transport/NativeMessagingUpstreamTransport.js"
+    },
+    "./transport/PipeUpstreamTransport.js": {
+      "types": "./js/src/transport/PipeUpstreamTransport.ts",
+      "import": "./dist/js/src/transport/PipeUpstreamTransport.js"
+    },
+    "./transport/NatsUpstreamTransport.js": {
+      "types": "./js/src/transport/NatsUpstreamTransport.ts",
+      "import": "./dist/js/src/transport/NatsUpstreamTransport.js"
+    },
+    "./injector/ExtensionInjector.js": {
+      "types": "./js/src/injector/ExtensionInjector.ts",
+      "import": "./dist/js/src/injector/ExtensionInjector.js"
+    },
+    "./injector/DiscoveredExtensionInjector.js": {
+      "types": "./js/src/injector/DiscoveredExtensionInjector.ts",
+      "import": "./dist/js/src/injector/DiscoveredExtensionInjector.js"
+    },
+    "./injector/LocalBrowserLaunchExtensionInjector.js": {
+      "types": "./js/src/injector/LocalBrowserLaunchExtensionInjector.ts",
+      "import": "./dist/js/src/injector/LocalBrowserLaunchExtensionInjector.js"
+    },
+    "./injector/BBBrowserExtensionInjector.js": {
+      "types": "./js/src/injector/BBBrowserExtensionInjector.ts",
+      "import": "./dist/js/src/injector/BBBrowserExtensionInjector.js"
+    },
+    "./injector/ExtensionsLoadUnpackedInjector.js": {
+      "types": "./js/src/injector/ExtensionsLoadUnpackedInjector.ts",
+      "import": "./dist/js/src/injector/ExtensionsLoadUnpackedInjector.js"
+    },
+    "./injector/BorrowedExtensionInjector.js": {
+      "types": "./js/src/injector/BorrowedExtensionInjector.ts",
+      "import": "./dist/js/src/injector/BorrowedExtensionInjector.js"
+    },
+    "./router/AutoSessionRouter.js": {
+      "types": "./js/src/router/AutoSessionRouter.ts",
+      "import": "./dist/js/src/router/AutoSessionRouter.js"
+    },
+    "./proxy/proxy.js": {
+      "types": "./js/src/proxy/proxy.ts",
+      "import": "./dist/js/src/proxy/proxy.js"
+    },
+    "./proxy/cli.js": {
+      "types": "./js/src/proxy/cli.ts",
+      "import": "./dist/js/src/proxy/cli.js"
+    },
+    "./translate/translate.js": "./dist/js/src/translate/translate.js",
+    "./types/*": "./dist/js/src/types/*",
+    "./types/generated/*": "./dist/js/src/types/generated/*"
   },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "pnpm run build:package && pnpm run build:extension-assets && pnpm run build:python-readme",
     "build:clean": "pnpm run clean && pnpm run build",
-    "build:package": "tsc -p tsconfig.json",
-    "build:extension-assets": "node -e \"const fs = require('node:fs'); fs.mkdirSync('dist/extension/offscreen', { recursive: true }); fs.copyFileSync('extension/manifest.json', 'dist/extension/manifest.json'); fs.copyFileSync('dist/bridge/translate.js', 'dist/extension/translate.js'); fs.copyFileSync('extension/offscreen/keepalive.html', 'dist/extension/offscreen/keepalive.html');\" && find dist/extension -exec touch -t 200001010000 {} + && cd dist && rm -f extension.zip && zip -X -qr extension.zip extension && cd .. && cp dist/extension.zip client/python/modcdp/extension.zip && cp dist/extension.zip client/go/extension.zip",
-    "build:python-readme": "mkdir -p client/python && if [ README.md -ef client/python/README.md ]; then :; else cp README.md client/python/README.md; fi",
+    "build:package": "tsc -p tsconfig.json && rm -rf dist/js/test",
+    "build:extension-assets": "node js/scripts/build-extension-assets.mjs",
+    "build:python-readme": "mkdir -p python && if [ README.md -ef python/README.md ]; then :; else cp README.md python/README.md; fi",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "pnpm exec prek run --all-files",
     "format": "pnpm exec prek run oxfmt --all-files",
     "format:check": "oxfmt --check .",
-    "demo:js": "pnpm run build && node dist/client/js/demo.js",
-    "demo:python": "pnpm run build && cd client/python && uv run python demo.py",
-    "demo:go": "pnpm run build && (cd client/go && go run ./demo)",
-    "demo:proxy:playwright": "pnpm run build && node dist/client/js/examples/playwright.js",
-    "demo:proxy:puppeteer": "pnpm run build && node dist/client/js/examples/puppeteer.js",
-    "proxy": "pnpm run build && node dist/bridge/proxy.js",
-    "test": "pnpm run build && node --test \"dist/test/*.test.js\"",
+    "demo:js": "pnpm run build && node dist/js/examples/demo.js",
+    "demo:python": "pnpm run build && cd python && uv run python examples/demo.py",
+    "demo:go": "pnpm run build && cd go && go run ./examples/demo",
+    "demo:proxy:playwright": "pnpm run build && node dist/js/examples/playwright.js",
+    "demo:proxy:puppeteer": "pnpm run build && node dist/js/examples/puppeteer.js",
+    "proxy": "pnpm run build && node dist/js/src/proxy/cli.js",
+    "test": "pnpm run build && vitest run --fileParallelism=false --maxWorkers=1",
+    "test:launchers": "vitest run js/test/test.LocalBrowserLauncher.ts js/test/test.RemoteBrowserLauncher.ts js/test/test.BrowserbaseBrowserLauncher.ts",
+    "pack:npm": "pnpm run build && npm pack --ignore-scripts",
     "prepare": "pnpm run build"
   },
   "dependencies": {
     "zod": "^4.4.1"
   },
   "devDependencies": {
+    "@eplightning/nats-server": "^2.12.5",
     "@j178/prek": "0.3.10",
     "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
@@ -76,7 +156,8 @@
     "oxlint": "^1.62.0",
     "playwright": "^1.59.1",
     "puppeteer-core": "^24.42.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "optionalDependencies": {
     "ws": "^8.18.0"
