@@ -31,12 +31,12 @@ import (
 	"time"
 
 	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
-	"github.com/pirate/ModCDP/go/modcdp/injector"
-	"github.com/pirate/ModCDP/go/modcdp/launcher"
-	"github.com/pirate/ModCDP/go/modcdp/router"
-	"github.com/pirate/ModCDP/go/modcdp/translate"
-	transportpkg "github.com/pirate/ModCDP/go/modcdp/transport"
-	"github.com/pirate/ModCDP/go/modcdp/types"
+	"github.com/browserbase/modcdp/go/modcdp/injector"
+	"github.com/browserbase/modcdp/go/modcdp/launcher"
+	"github.com/browserbase/modcdp/go/modcdp/router"
+	"github.com/browserbase/modcdp/go/modcdp/translate"
+	transportpkg "github.com/browserbase/modcdp/go/modcdp/transport"
+	"github.com/browserbase/modcdp/go/modcdp/types"
 )
 
 var (

@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	modcdp "github.com/pirate/ModCDP/go/modcdp"
+	modcdp "github.com/browserbase/modcdp/go/modcdp"
 	"golang.org/x/term"
 )
 

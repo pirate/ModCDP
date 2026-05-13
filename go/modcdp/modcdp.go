@@ -1,10 +1,10 @@
 package modcdp
 
 import (
-	"github.com/pirate/ModCDP/go/modcdp/client"
-	"github.com/pirate/ModCDP/go/modcdp/injector"
-	"github.com/pirate/ModCDP/go/modcdp/launcher"
-	"github.com/pirate/ModCDP/go/modcdp/transport"
+	"github.com/browserbase/modcdp/go/modcdp/client"
+	"github.com/browserbase/modcdp/go/modcdp/injector"
+	"github.com/browserbase/modcdp/go/modcdp/launcher"
+	"github.com/browserbase/modcdp/go/modcdp/transport"
 )
 
 type ModCDPClient = client.ModCDPClient

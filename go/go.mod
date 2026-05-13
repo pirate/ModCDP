@@ -1,4 +1,4 @@
-module github.com/pirate/ModCDP/go
+module github.com/browserbase/modcdp/go
 
 go 1.25.0
 

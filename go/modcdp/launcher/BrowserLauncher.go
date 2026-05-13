@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pirate/ModCDP/go/modcdp/types"
+	"github.com/browserbase/modcdp/go/modcdp/types"
 )
 
 type LaunchOptions = types.LaunchOptions

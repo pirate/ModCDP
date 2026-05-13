@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	. "github.com/pirate/ModCDP/go/modcdp/transport"
+	. "github.com/browserbase/modcdp/go/modcdp/transport"
 	"os"
 	"os/exec"
 	"path/filepath"

@@ -5,9 +5,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/pirate/ModCDP/go/modcdp/injector"
-	"github.com/pirate/ModCDP/go/modcdp/launcher"
-	"github.com/pirate/ModCDP/go/modcdp/types"
+	"github.com/browserbase/modcdp/go/modcdp/injector"
+	"github.com/browserbase/modcdp/go/modcdp/launcher"
+	"github.com/browserbase/modcdp/go/modcdp/types"
 )
 
 type ExtensionInjectorConfig = types.ExtensionInjectorConfig

@@ -1,8 +1,8 @@
 package injector_test
 
 import (
-	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
-	. "github.com/pirate/ModCDP/go/modcdp/injector"
+	modcdp "github.com/browserbase/modcdp/go/modcdp/client"
+	. "github.com/browserbase/modcdp/go/modcdp/injector"
 	"path/filepath"
 	"testing"
 )

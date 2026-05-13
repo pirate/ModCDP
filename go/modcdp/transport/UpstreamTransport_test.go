@@ -1,7 +1,7 @@
 package transport_test
 
 import (
-	. "github.com/pirate/ModCDP/go/modcdp/transport"
+	. "github.com/browserbase/modcdp/go/modcdp/transport"
 	"strings"
 	"testing"
 )

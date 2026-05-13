@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/browserbase/modcdp/go/modcdp/launcher"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/pirate/ModCDP/go/modcdp/launcher"
 )
 
 func TestAutoSessionRouterRejectsPendingExecutionContextWaitersWhenSessionDetaches(t *testing.T) {

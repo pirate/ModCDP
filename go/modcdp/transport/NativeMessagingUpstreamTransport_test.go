@@ -3,8 +3,8 @@ package transport_test
 import (
 	"encoding/json"
 	"fmt"
-	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
-	. "github.com/pirate/ModCDP/go/modcdp/transport"
+	modcdp "github.com/browserbase/modcdp/go/modcdp/client"
+	. "github.com/browserbase/modcdp/go/modcdp/transport"
 	"net"
 	"os"
 	"path/filepath"

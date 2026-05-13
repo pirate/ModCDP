@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/pirate/ModCDP/go/modcdp/launcher"
+	"github.com/browserbase/modcdp/go/modcdp/launcher"
 )
 
 type PipeUpstreamTransport struct {

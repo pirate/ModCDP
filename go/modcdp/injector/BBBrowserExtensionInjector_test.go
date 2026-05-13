@@ -2,7 +2,7 @@ package injector_test
 
 import (
 	"fmt"
-	modcdp "github.com/pirate/ModCDP/go/modcdp/client"
+	modcdp "github.com/browserbase/modcdp/go/modcdp/client"
 	"os"
 	"path/filepath"
 	"regexp"
