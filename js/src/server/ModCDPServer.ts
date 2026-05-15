@@ -7,6 +7,8 @@
 // when Chrome refuses Extensions.loadUnpacked.
 
 import type { cdp } from "../types/generated/cdp.js";
+import { commands as nativeCommandSchemas, events as nativeEventSchemas } from "../types/generated/zod.js";
+import { normalizeModCDPPayloadSchema } from "../types/modcdp.js";
 import type {
   CdpCommandMessage,
   CdpEventMessage,
@@ -32,6 +34,13 @@ export const DEFAULT_NATS_BRIDGE_RECONNECT_INTERVAL_MS = 2_000;
 export const DEFAULT_NATS_BRIDGE_SUBJECT_PREFIX = "modcdp.default";
 
 type MiddlewarePhase = "request" | "response" | "event";
+type ProtocolCommandSchema = {
+  params: { parse(value: unknown): ProtocolParams };
+  result: { parse(value: unknown): ProtocolResult };
+};
+type ProtocolEventSchema = {
+  parse(value: unknown): ProtocolPayload;
+};
 type ModCDPGlobalScope = typeof globalThis &
   Record<string, unknown> & {
     ModCDP?: {
@@ -81,12 +90,38 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
   const attachedDebuggees = new Set<string>();
   let runtime_types_promise: Promise<unknown> | null = null;
 
+  function nativeCommandSchema(method: string) {
+    return (nativeCommandSchemas as Record<string, ProtocolCommandSchema>)[method];
+  }
+
+  function nativeEventSchema(eventName: string) {
+    return (nativeEventSchemas as Record<string, ProtocolEventSchema>)[eventName];
+  }
+
+  function commandParamsSchema(method: string, command: ModCDPCustomCommandRegistration | null) {
+    return (
+      (command?.params_schema as ProtocolCommandSchema["params"] | null) ?? nativeCommandSchema(method)?.params ?? null
+    );
+  }
+
+  function commandResultSchema(method: string, command: ModCDPCustomCommandRegistration | null) {
+    return (
+      (command?.result_schema as ProtocolCommandSchema["result"] | null) ?? nativeCommandSchema(method)?.result ?? null
+    );
+  }
+
+  function eventPayloadSchema(eventName: string, event: ModCDPCustomEventRegistration | null) {
+    return (event?.event_schema as ProtocolEventSchema | null) ?? nativeEventSchema(eventName) ?? null;
+  }
+
   async function publishEvent(eventName: string, payload: ProtocolPayload = {}, cdpSessionId: string | null = null) {
     payload = await ModCDPServer.runMiddleware("event", eventName, payload, {
       cdpSessionId,
       event: { name: eventName, payload },
     });
     if (payload === undefined) return { event: eventName, emitted: false, reason: "middleware_dropped" };
+    const event = registryMatch(eventBindings, eventName);
+    payload = eventPayloadSchema(eventName, event)?.parse(payload) ?? payload;
 
     for (const listener of eventListeners) {
       try {
@@ -1010,9 +1045,6 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
           upstream_nats_subject_prefix: upstream.upstream_nats_subject_prefix ?? DEFAULT_NATS_BRIDGE_SUBJECT_PREFIX,
         });
       }
-      if (upstream.upstream_mode === "reversews" && upstream.upstream_reversews_url) {
-        this.startReverseBridge(upstream.upstream_reversews_url);
-      }
       if (server_routes) this.routes = { ...defaultRoutes, ...server_routes };
       else {
         this.routes = { ...defaultRoutes };
@@ -1040,14 +1072,20 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
         };
       }
       if (typeof handler !== "function") throw new Error(`Custom command ${name} was registered without a handler.`);
-      commandHandlers.set(name, { name, handler, params_schema, result_schema, expression });
+      commandHandlers.set(name, {
+        name,
+        handler,
+        params_schema: normalizeModCDPPayloadSchema(params_schema),
+        result_schema: normalizeModCDPPayloadSchema(result_schema),
+        expression,
+      });
       return { name, registered: true };
     },
 
     addCustomEvent({ name, event_schema = null }: ModCDPCustomEventRegistration) {
       name = normalizeModCDPName(name);
       if (!/^[^.]+\.[^.]+$/.test(name)) throw new Error("name must be in Domain.event form.");
-      eventBindings.set(name, { name, event_schema });
+      eventBindings.set(name, { name, event_schema: normalizeModCDPPayloadSchema(event_schema) });
       return { name, registered: true };
     },
 
@@ -1122,14 +1160,16 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       params = middlewareParams as ProtocolParams;
 
       const command = registryMatch(commandHandlers, method);
+      params = commandParamsSchema(method, command)?.parse(params) ?? params;
       let result;
       if (command) {
         result = await command.handler(params, cdpSessionId, method);
-        return this.runMiddleware("response", method, result, {
+        result = await this.runMiddleware("response", method, result, {
           cdpSessionId,
           request: { ...request, params },
           response: { result },
         });
+        return commandResultSchema(method, command)?.parse(result) ?? result;
       }
 
       let upstream = "chrome_debugger";
@@ -1162,11 +1202,12 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
       else if (upstream === "chrome_debugger") result = await this.sendChromeDebugger(method, params);
       else throw new Error(`No ModCDP command registered for ${method}.`);
 
-      return this.runMiddleware("response", method, result, {
+      result = await this.runMiddleware("response", method, result, {
         cdpSessionId,
         request: { ...request, params },
         response: { result },
       });
+      return commandResultSchema(method, null)?.parse(result) ?? result;
     },
 
     attachToSession(cdpSessionId: string | null = null) {
@@ -1189,6 +1230,7 @@ export function installModCDPServer(globalScope: ModCDPGlobalScope = globalThis 
     async emit(eventName: string, payload: ProtocolPayload = {}, cdpSessionId: string | null = null) {
       const event = registryMatch(eventBindings, eventName);
       if (!event) return { event: eventName, emitted: false, reason: "event_not_registered" };
+      payload = eventPayloadSchema(eventName, event)?.parse(payload) ?? payload;
       const customBinding = globalScope[CUSTOM_EVENT_BINDING_NAME];
       if (
         typeof customBinding !== "function" &&

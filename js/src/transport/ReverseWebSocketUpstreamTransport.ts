@@ -51,7 +51,7 @@ export class ReverseWebSocketUpstreamTransport extends UpstreamTransport {
   }
 
   getInjectorConfig() {
-    return { upstream_reversews_url: this.url };
+    return {};
   }
 
   private setBind(bind: string) {

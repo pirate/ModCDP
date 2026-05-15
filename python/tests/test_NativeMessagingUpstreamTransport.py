@@ -3,13 +3,21 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+import glob
 import os
+import re
 import socket
+import sys
+import tempfile
 from pathlib import Path
 from queue import Queue
 
 from modcdp import ModCDPClient
 from modcdp.transport.NativeMessagingUpstreamTransport import NativeMessagingUpstreamTransport
+
+ROOT = Path(__file__).resolve().parents[2]
+EXTENSION_PATH = ROOT / "dist" / "extension"
+NATIVE_MESSAGING_TEST_BROWSER_PATH: str | None = None
 
 
 class NativeMessagingUpstreamTransportTests(unittest.TestCase):
@@ -157,11 +165,24 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
 
     def test_installs_launch_profile_native_host_manifest_and_connects_to_real_extension(self) -> None:
         upstream_nativemessaging_host_name = "com.modcdp.bridge"
+        temp_profile_dir = tempfile.TemporaryDirectory(prefix="modcdp.native.")
         cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {
+                    "headless": True,
+                    "user_data_dir": temp_profile_dir.name,
+                    "cleanup_user_data_dir": True,
+                    # Native messaging is browser -> client only. After explicit CHROME_PATH
+                    # and CI /usr/bin/chromium, this test uses Chrome for Testing because
+                    # Canary rejects --load-extension in this local test path.
+                    "executable_path": extension_launch_flag_test_browser_path(),
+                },
+            },
             upstream={"upstream_mode": "nativemessaging", "upstream_nativemessaging_host_name": upstream_nativemessaging_host_name},
             injector={
                 "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "injector_trust_service_worker_target": True,
             },
@@ -174,8 +195,8 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertEqual(cdp.upstream_endpoint_kind, "modcdp_server")
             transport_url = cdp.transport.url if cdp.transport and cdp.transport.url else ""
             self.assertRegex(transport_url, rf"^native://{upstream_nativemessaging_host_name}@127\.0\.0\.1:\d+$")
-            profile_dir = cdp._launched_browser.get("profile_dir") if cdp._launched_browser else ""
-            self.assertTrue((Path(profile_dir) / "NativeMessagingHosts" / f"{upstream_nativemessaging_host_name}.json").exists())
+            launched_profile_dir = cdp._launched_browser.get("profile_dir") if cdp._launched_browser else ""
+            self.assertTrue((Path(launched_profile_dir) / "NativeMessagingHosts" / f"{upstream_nativemessaging_host_name}.json").exists())
             version = cdp.send("Browser.getVersion")
             self.assertIsInstance(version["product"], str)
             time.sleep(1.5)
@@ -183,6 +204,7 @@ class NativeMessagingUpstreamTransportTests(unittest.TestCase):
             self.assertIsInstance(second_version["product"], str)
         finally:
             cdp.close()
+            temp_profile_dir.cleanup()
 
 
 def _wait_until(predicate, timeout_s: float = 2.0) -> None:
@@ -192,6 +214,54 @@ def _wait_until(predicate, timeout_s: float = 2.0) -> None:
             return
         time.sleep(0.02)
     raise AssertionError("timed out waiting for condition")
+
+
+def extension_launch_flag_test_browser_path() -> str:
+    global NATIVE_MESSAGING_TEST_BROWSER_PATH
+    if NATIVE_MESSAGING_TEST_BROWSER_PATH is not None:
+        return NATIVE_MESSAGING_TEST_BROWSER_PATH
+    explicit_candidates = [
+        os.environ.get("CHROME_PATH"),
+        "/usr/bin/chromium" if sys.platform.startswith("linux") else None,
+    ]
+    for candidate in explicit_candidates:
+        if candidate and Path(candidate).exists():
+            NATIVE_MESSAGING_TEST_BROWSER_PATH = candidate
+            return candidate
+
+    home = Path.home()
+    if sys.platform == "darwin":
+        patterns = [
+            str(home / "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
+            str(home / "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium"),
+            str(home / "Library/Caches/puppeteer/chrome/mac*-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
+        ]
+    elif sys.platform.startswith("win"):
+        local_app_data = Path(os.environ.get("LOCALAPPDATA") or home / "AppData/Local")
+        patterns = [
+            str(local_app_data / "ms-playwright/chromium-*/chrome-win*/chrome.exe"),
+            str(home / ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe"),
+        ]
+    else:
+        patterns = [
+            str(home / ".cache/ms-playwright/chromium-*/chrome-linux*/chrome"),
+            "/opt/pw-browsers/chromium-*/chrome-linux*/chrome",
+            str(home / ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome"),
+        ]
+    candidates = sorted(
+        {candidate for pattern in patterns for candidate in glob.glob(pattern)},
+        key=lambda candidate: (_path_version(candidate), Path(candidate).stat().st_mtime),
+        reverse=True,
+    )
+    if candidates:
+        NATIVE_MESSAGING_TEST_BROWSER_PATH = candidates[0]
+        return candidates[0]
+    raise RuntimeError("Native messaging tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.")
+
+
+def _path_version(candidate: str) -> int:
+    numbers = [int(value) for value in re.findall(r"\d+", candidate)]
+    return max(numbers) if numbers else 0
 
 
 if __name__ == "__main__":

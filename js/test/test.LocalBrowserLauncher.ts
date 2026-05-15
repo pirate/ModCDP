@@ -27,7 +27,6 @@ describe("LocalBrowserLauncher", () => {
       const port = await LocalBrowserLauncher.freePort();
       const chrome = await new LocalBrowserLauncher({
         headless: true,
-        sandbox: process.platform !== "linux",
         chrome_ready_timeout_ms: 45_000,
         chrome_ready_poll_interval_ms: 50,
       }).launch({
@@ -82,7 +81,6 @@ describe("LocalBrowserLauncher", () => {
     async () => {
       const chrome = await new LocalBrowserLauncher().launch({
         headless: true,
-        sandbox: process.platform !== "linux",
         remote_debugging: "pipe",
         chrome_ready_timeout_ms: 45_000,
       });
@@ -115,7 +113,6 @@ describe("LocalBrowserLauncher", () => {
     async () => {
       const chrome = await new LocalBrowserLauncher().launch({
         headless: true,
-        sandbox: process.platform !== "linux",
         remote_debugging: "pipe",
         loopback_cdp: true,
         chrome_ready_timeout_ms: 45_000,
@@ -142,7 +139,6 @@ describe("LocalBrowserLauncher", () => {
       const userDataDir = await mkdtemp(path.join(tmpdir(), "modcdp-local-profile-"));
       const chrome = await new LocalBrowserLauncher({
         headless: true,
-        sandbox: process.platform !== "linux",
         chrome_ready_timeout_ms: 45_000,
       }).launch({
         user_data_dir: userDataDir,

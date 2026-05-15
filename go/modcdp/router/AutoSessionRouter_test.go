@@ -107,10 +107,8 @@ func TestAutoSessionRouterBoundsDetachedSessionGuardsAndClearsThemWhenSessionRea
 
 func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testing.T) {
 	headless := true
-	sandbox := false
 	chrome, err := launcher.NewLocalBrowserLauncher(launcher.LaunchOptions{
 		Headless: &headless,
-		Sandbox:  &sandbox,
 	}).Launch(launcher.LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)

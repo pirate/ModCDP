@@ -19,7 +19,7 @@ test("pipe upstream constructor, update, launcher config, and unconnected errors
   assert.equal(transport.update({ cdp_url: "pipe://1234" }), transport);
   assert.equal(transport.url, "pipe://1234");
   await assert.rejects(() => transport.connect(), /upstream\.upstream_mode=pipe requires/);
-  assert.throws(() => transport.send({ id: 1, method: "Browser.getVersion" }), /CDP pipe is not connected/);
+  assert.throws(() => transport.send({ id: 1, method: "Runtime.evaluate" }), /CDP pipe is not connected/);
 });
 
 test("pipe upstream resets connection state after pipe end and errors", async () => {
@@ -31,7 +31,7 @@ test("pipe upstream resets connection state after pipe end and errors", async ()
     transport.onClose((error) => closed.push(error));
 
     await transport.connect();
-    transport.send({ id: 1, method: "Browser.getVersion", params: {} });
+    transport.send({ id: 1, method: "Runtime.evaluate", params: { expression: "1" } });
 
     if (event_name === "end") pipe_read.emit("end");
     else if (event_name === "read_error") pipe_read.emit("error", new Error("read failed"));
@@ -39,7 +39,7 @@ test("pipe upstream resets connection state after pipe end and errors", async ()
 
     assert.equal(closed.length, 1);
     assert.throws(
-      () => transport.send({ id: 2, method: "Browser.getVersion", params: {} }),
+      () => transport.send({ id: 2, method: "Runtime.evaluate", params: { expression: "1" } }),
       /CDP pipe is not connected/,
     );
     await transport.close();
@@ -50,15 +50,16 @@ test("pipe upstream launches a real browser and uses a pid-scoped pipe URL", asy
   const cdp = new ModCDPClient({
     launcher: {
       launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
+      launcher_options: { headless: true },
     },
     upstream: { upstream_mode: "pipe" },
     injector: {
-      injector_mode: "auto",
+      injector_mode: "inject",
       injector_extension_path: EXTENSION_PATH,
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       injector_trust_service_worker_target: true,
     },
+    server: { server_routes: { "*.*": "chrome_debugger" } },
   });
 
   try {
@@ -67,8 +68,12 @@ test("pipe upstream launches a real browser and uses a pid-scoped pipe URL", asy
     assert.equal(cdp.upstream_endpoint_kind, "raw_cdp");
     assert.match(cdp.cdp_url ?? "", /^pipe:\/\/\d+$/);
     assert.equal(cdp.transport?.url, cdp.cdp_url);
-    const version = (await cdp.sendRaw("Browser.getVersion")) as Record<string, unknown>;
-    assert.equal(typeof version.product, "string");
+    await cdp.Mod.addCustomCommand("Custom.runtimeReadyState", {
+      expression:
+        "async () => await cdp.send('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true })",
+    });
+    const runtime = (await cdp.send("Custom.runtimeReadyState")) as { result?: { value?: unknown } };
+    assert.equal(runtime.result?.value, "complete");
   } finally {
     await cdp.close();
   }

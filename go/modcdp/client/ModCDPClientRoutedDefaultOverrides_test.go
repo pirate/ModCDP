@@ -60,25 +60,31 @@ async (payload, next) => {
 
 func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 	headless := true
-	sandbox := false
 	extensionPath, err := filepath.Abs("../../../dist/extension")
 	if err != nil {
 		t.Fatal(err)
 	}
-	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
-		Headless:  &headless,
-		Sandbox:   &sandbox,
-		ExtraArgs: []string{"--load-extension=" + extensionPath},
-	}).Launch(LaunchOptions{})
-	if err != nil {
+	owner := New(Options{
+		Launcher: LauncherConfig{
+			LauncherMode:    "local",
+			LauncherOptions: LaunchOptions{Headless: &headless},
+		},
+		Upstream: UpstreamConfig{UpstreamMode: "ws"},
+		Injector: InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorExtensionPath:            extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
+		},
+	})
+	if err := owner.Connect(); err != nil {
 		t.Fatal(err)
 	}
 	cdp := New(Options{
 		Launcher: LauncherConfig{LauncherMode: "remote"},
-		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: owner.CDPURL},
 		Injector: InjectorConfig{
-			InjectorMode:                     "auto",
-			InjectorExtensionPath:            extensionPath,
+			InjectorMode:                     "discover",
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},
@@ -90,24 +96,24 @@ func TestModCDPClientRoutedDefaultOverrides(t *testing.T) {
 			},
 		},
 		Server: &ServerConfig{
-			ServerLoopbackCDPURL: chrome.CDPURL,
+			ServerLoopbackCDPURL: owner.CDPURL,
 			ServerRoutes:         map[string]string{"*.*": "loopback_cdp"},
 		},
 	})
-	defer chrome.Close()
+	defer owner.Close()
 	defer cdp.Close()
 
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	if cdp.CDPURL != chrome.CDPURL {
-		t.Fatalf("CDPURL = %q, expected %q", cdp.CDPURL, chrome.CDPURL)
+	if cdp.CDPURL != owner.CDPURL {
+		t.Fatalf("CDPURL = %q, expected %q", cdp.CDPURL, owner.CDPURL)
 	}
-	if cdp.Server.ServerLoopbackCDPURL != chrome.CDPURL {
-		t.Fatalf("ServerLoopbackCDPURL = %q, expected %q", cdp.Server.ServerLoopbackCDPURL, chrome.CDPURL)
+	if cdp.Server.ServerLoopbackCDPURL != owner.CDPURL {
+		t.Fatalf("ServerLoopbackCDPURL = %q, expected %q", cdp.Server.ServerLoopbackCDPURL, owner.CDPURL)
 	}
 
-	rawTargets, err := cdp.sendMessage("Target.getTargets", map[string]any{}, "")
+	rawTargets, err := cdp.Send("Target.getTargets", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

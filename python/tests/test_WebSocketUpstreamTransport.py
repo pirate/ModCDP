@@ -68,7 +68,7 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
 
     def test_launches_real_browser_and_speaks_raw_cdp(self) -> None:
         cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True}},
             upstream={"upstream_mode": "ws"},
             injector={
                 "injector_mode": "auto",
@@ -113,7 +113,7 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             cdp.close()
 
     def test_resolves_real_http_cdp_endpoint_to_browser_websocket(self) -> None:
-        chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
+        chrome = LocalBrowserLauncher({"headless": True}).launch()
         transport = WebSocketUpstreamTransport({"cdp_url": chrome["cdp_url"]})
         received: Queue[dict] = Queue()
         transport.onRecv(lambda message: received.put(message))
@@ -130,7 +130,7 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
 
     def test_resolves_real_host_port_cdp_endpoint_to_browser_websocket(self) -> None:
         port = LocalBrowserLauncher.freePort()
-        chrome = LocalBrowserLauncher({"port": port, "headless": True, "sandbox": False}).launch()
+        chrome = LocalBrowserLauncher({"port": port, "headless": True}).launch()
         transport = WebSocketUpstreamTransport({"cdp_url": f"127.0.0.1:{port}"})
         received: Queue[dict] = Queue()
         transport.onRecv(lambda message: received.put(message))
@@ -146,7 +146,7 @@ class WebSocketUpstreamTransportTests(unittest.TestCase):
             chrome["close"]()
 
     def test_close_clears_connection_state(self) -> None:
-        chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
+        chrome = LocalBrowserLauncher({"headless": True}).launch()
         transport = WebSocketUpstreamTransport({"cdp_url": chrome["cdp_url"]})
 
         try:

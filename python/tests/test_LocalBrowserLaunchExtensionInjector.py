@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import unittest
+import time
+import tempfile
+import zipfile
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from modcdp.injector.ExtensionInjector import DEFAULT_MODCDP_EXTENSION_ID
 from modcdp.injector.LocalBrowserLaunchExtensionInjector import LocalBrowserLaunchExtensionInjector
-from modcdp.client.ModCDPClient import ModCDPClient
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,46 +16,35 @@ EXTENSION_PATH = ROOT / "dist" / "extension"
 
 
 class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
-    def test_loads_real_extension_during_local_launch(self) -> None:
-        cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
-            upstream={"upstream_mode": "ws"},
-            injector={
-                "injector_mode": "inject",
-                "injector_extension_path": str(EXTENSION_PATH),
-                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "injector_trust_service_worker_target": True,
-                "injector_service_worker_probe_timeout_ms": 30_000,
-            },
-            client={
-                "client_cdp_send_timeout_ms": 30_000,
-            },
-        )
+    def test_rejects_zip_entries_outside_extraction_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="modcdp-bad-zip-") as temp_dir:
+            zip_path = Path(temp_dir) / "extension.zip"
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.writestr("../evil.txt", "evil")
 
-        try:
-            cdp.connect()
-            self.assertEqual(cdp.connect_timing.get("injector_source") if cdp.connect_timing else None, "local_launch")
-            self.assertEqual(cdp.extension_id, DEFAULT_MODCDP_EXTENSION_ID)
-            self.assertRegex(cdp.ext_session_id or "", r"^.+$")
-            self.assertEqual(
-                cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),
-                f"chrome-extension://{DEFAULT_MODCDP_EXTENSION_ID}/modcdp/service_worker.js",
-            )
-        finally:
-            cdp.close()
+            injector = LocalBrowserLaunchExtensionInjector({"injector_extension_path": str(zip_path)})
+            try:
+                with self.assertRaisesRegex(RuntimeError, "escapes extension extraction directory"):
+                    injector.prepare()
+                self.assertFalse((Path(temp_dir) / "evil.txt").exists())
+            finally:
+                injector.close()
 
-    def test_prepares_launcher_config(self) -> None:
+    def test_prepares_unpacked_extension_directory_for_load_extension(self) -> None:
         injector = LocalBrowserLaunchExtensionInjector({"injector_extension_path": str(EXTENSION_PATH)})
         try:
             injector.prepare()
-            extra_args = injector.getLauncherConfig().get("extra_args") or []
-            self.assertEqual(len(extra_args), 1)
-            self.assertTrue(extra_args[0].startswith("--load-extension="))
+            unpacked_extension_path = injector.unpacked_extension_path
+            self.assertIsInstance(unpacked_extension_path, str)
+            unpacked_extension_path = cast(str, unpacked_extension_path)
+            self.assertNotEqual(unpacked_extension_path, str(EXTENSION_PATH))
+            self.assertTrue((Path(unpacked_extension_path) / "manifest.json").exists())
+            self.assertEqual(injector.getLauncherConfig(), {"extra_args": [f"--load-extension={unpacked_extension_path}"]})
             self.assertEqual(injector.options.get("injector_extension_id"), DEFAULT_MODCDP_EXTENSION_ID)
         finally:
             injector.close()
 
-    def test_prepares_default_packaged_extension_zip_when_path_is_omitted(self) -> None:
+    def test_prepares_default_extension_zip_for_load_extension(self) -> None:
         injector = LocalBrowserLaunchExtensionInjector()
         try:
             injector.prepare()
@@ -61,10 +52,36 @@ class LocalBrowserLaunchExtensionInjectorTests(unittest.TestCase):
             self.assertIsInstance(unpacked_extension_path, str)
             unpacked_extension_path = cast(str, unpacked_extension_path)
             self.assertTrue((Path(unpacked_extension_path) / "manifest.json").exists())
-            self.assertTrue(str(injector.options.get("injector_extension_path", "")).endswith("extension.zip"))
-            extra_args = injector.getLauncherConfig().get("extra_args") or []
-            self.assertEqual(extra_args, [f"--load-extension={unpacked_extension_path}"])
+            self.assertIn("modcdp-extension-", unpacked_extension_path)
+            self.assertEqual(injector.getLauncherConfig(), {"extra_args": [f"--load-extension={unpacked_extension_path}"]})
             self.assertEqual(injector.options.get("injector_extension_id"), DEFAULT_MODCDP_EXTENSION_ID)
+        finally:
+            injector.close()
+
+    def test_returns_immediately_when_launched_extension_target_is_absent(self) -> None:
+        methods: list[str] = []
+
+        def send(method: str, params: dict[str, Any] | None = None, session_id: str | None = None) -> dict[str, Any]:
+            methods.append(method)
+            if method == "Target.getTargets":
+                return {"targetInfos": []}
+            raise RuntimeError(f"unexpected {method}")
+
+        injector = LocalBrowserLaunchExtensionInjector(
+            cast(Any, {
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_trust_service_worker_target": True,
+                "send": send,
+            })
+        )
+        try:
+            injector.prepare()
+            started_at = time.perf_counter()
+            result = injector.inject()
+            elapsed_ms = (time.perf_counter() - started_at) * 1000
+            self.assertIsNone(result)
+            self.assertEqual(methods, ["Target.getTargets"])
+            self.assertLess(elapsed_ms, 200)
         finally:
             injector.close()
 

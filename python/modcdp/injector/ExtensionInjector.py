@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 import re
+import shutil
+import tempfile
 import threading
 import time
+import zipfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from queue import Empty, Queue
@@ -16,7 +22,6 @@ from ..types.modcdp import ProtocolParams, ProtocolResult, TargetInfo
 EXT_ID_FROM_URL_RE = re.compile(r"^chrome-extension://([a-z]+)/")
 DEFAULT_MODCDP_EXTENSION_ID = "mdedooklbnfejodmnhmkdpkaedafkehf"
 DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES = ["/modcdp/service_worker.js"]
-DEFAULT_MODCDP_WAKE_PATH = "/modcdp/wake.html"
 MODCDP_READY_EXPRESSION = (
     "Boolean(globalThis.ModCDP?.__ModCDPServerVersion >= 1 && globalThis.ModCDP?.handleCommand && globalThis.ModCDP?.addCustomEvent)"
 )
@@ -40,8 +45,6 @@ class ExtensionInjectorConfig(TypedDict, total=False):
     waitForExecutionContext: WaitForExecutionContext | None
     injector_extension_path: str | None
     injector_extension_id: str | None
-    injector_wake_path: str | None
-    injector_wake_url: str | None
     injector_service_worker_url_includes: list[str]
     injector_service_worker_url_suffixes: list[str]
     injector_trust_service_worker_target: bool
@@ -55,7 +58,6 @@ class ExtensionInjectorConfig(TypedDict, total=False):
     injector_target_session_poll_interval_ms: int
     injector_browserbase_api_key: str | None
     injector_browserbase_base_url: str | None
-    upstream_reversews_url: str | None
     upstream_nativemessaging_host_name: str | None
     upstream_nats_url: str | None
     upstream_nats_subject_prefix: str | None
@@ -64,6 +66,51 @@ class ExtensionInjectorConfig(TypedDict, total=False):
 def defaultModCDPExtensionPath() -> str | None:
     bundled_extension = Path(__file__).resolve().parent.parent / "extension.zip"
     return str(bundled_extension) if bundled_extension.exists() else None
+
+
+def prepareUnpackedExtension(extension_path: str) -> tuple[str, tempfile.TemporaryDirectory[str]]:
+    cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
+    try:
+        if extension_path.endswith(".zip"):
+            with zipfile.ZipFile(extension_path) as archive:
+                _extract_zip(archive, cleanup_dir.name)
+        else:
+            shutil.copytree(extension_path, cleanup_dir.name, dirs_exist_ok=True)
+        return _extension_root(cleanup_dir.name), cleanup_dir
+    except BaseException:
+        cleanup_dir.cleanup()
+        raise
+
+
+def extensionIdFromManifestKey(extension_path: str) -> str | None:
+    manifest_path = Path(extension_path) / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    manifest = json.loads(manifest_path.read_text())
+    key = manifest.get("key") if isinstance(manifest, dict) else None
+    if not isinstance(key, str) or not key.strip():
+        return None
+    digest = hashlib.sha256(base64.b64decode(key)).digest()[:16]
+    alphabet = "abcdefghijklmnop"
+    return "".join(alphabet[byte >> 4] + alphabet[byte & 0x0F] for byte in digest)
+
+
+def _extension_root(unpacked_path: str) -> str:
+    if (Path(unpacked_path) / "manifest.json").exists():
+        return unpacked_path
+    nested = Path(unpacked_path) / "extension"
+    if (nested / "manifest.json").exists():
+        return str(nested)
+    return unpacked_path
+
+
+def _extract_zip(archive: zipfile.ZipFile, destination: str) -> None:
+    root = Path(destination).resolve()
+    for member in archive.infolist():
+        target = (root / member.filename).resolve()
+        if target != root and root not in target.parents:
+            raise RuntimeError(f'zip entry "{member.filename}" escapes extension extraction directory')
+    archive.extractall(destination)
 
 
 def _defaulted(value: Any, fallback: int) -> int:
@@ -89,8 +136,6 @@ class ExtensionInjector:
             "waitForExecutionContext": None,
             "injector_extension_path": None,
             "injector_extension_id": None,
-            "injector_wake_path": DEFAULT_MODCDP_WAKE_PATH,
-            "injector_wake_url": None,
             "injector_service_worker_url_includes": [],
             "injector_service_worker_url_suffixes": [],
             "injector_trust_service_worker_target": False,
@@ -104,7 +149,6 @@ class ExtensionInjector:
             "injector_target_session_poll_interval_ms": DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS,
             "injector_browserbase_api_key": None,
             "injector_browserbase_base_url": None,
-            "upstream_reversews_url": None,
             "upstream_nativemessaging_host_name": None,
             "upstream_nats_url": None,
             "upstream_nats_subject_prefix": None,
@@ -232,35 +276,6 @@ class ExtensionInjector:
             if isinstance(target_id, str) and isinstance(target_type, str) and isinstance(target_url, str):
                 targets.append({"targetId": target_id, "type": target_type, "url": target_url})
         return targets
-
-    def _configuredWakeUrl(self) -> str | None:
-        wake_url = self.options.get("injector_wake_url")
-        if wake_url:
-            return wake_url
-        extension_id = self.options.get("injector_extension_id")
-        if not extension_id:
-            return None
-        wake_path = self.options.get("injector_wake_path")
-        wake_path = DEFAULT_MODCDP_WAKE_PATH if wake_path is None else wake_path
-        return f"chrome-extension://{extension_id}{wake_path if wake_path.startswith('/') else f'/{wake_path}'}"
-
-    def _wakeConfiguredExtension(self) -> bool:
-        wake_url = self._configuredWakeUrl()
-        if not wake_url or self.options.get("send") is None:
-            return False
-        try:
-            self._sendWithTimeout(
-                "Target.createTarget",
-                {
-                    "url": wake_url,
-                    "background": True,
-                    "hidden": True,
-                    "focus": False,
-                },
-            )
-            return True
-        except Exception:
-            return False
 
     def _probeTarget(
         self,

@@ -19,7 +19,6 @@ func TestRemoteBrowserLauncherConnectsToRealBrowserFromHTTPAndWebSocketCDPEndpoi
 	}
 	local, err := NewLocalBrowserLauncher(LaunchOptions{}).Launch(LaunchOptions{
 		Headless: boolPtr(true),
-		Sandbox:  boolPtr(false),
 		Port:     port,
 	})
 	if err != nil {

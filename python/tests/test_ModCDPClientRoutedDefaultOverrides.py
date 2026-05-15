@@ -5,7 +5,7 @@ from queue import Empty, Queue
 from typing import Any, cast
 import unittest
 
-from modcdp import LocalBrowserLauncher, ModCDPClient
+from modcdp import ModCDPClient
 
 
 HERE = Path(__file__).resolve().parent
@@ -71,19 +71,25 @@ def target_infos_from_result(result: Any) -> list[dict[str, Any]]:
 
 class ModCDPClientRoutedDefaultOverridesTests(unittest.TestCase):
     def test_service_worker_routed_standard_cdp_commands_and_events_can_be_transformed(self) -> None:
-        chrome = LocalBrowserLauncher(
-            {
-                "headless": True,
-                "sandbox": False,
-                "extra_args": [f"--load-extension={EXTENSION_PATH}"],
-            }
-        ).launch()
-        cdp = ModCDPClient(
-            launcher={"launcher_mode": "remote"},
-            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+        owner = ModCDPClient(
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {"headless": True},
+            },
+            upstream={"upstream_mode": "ws"},
             injector={
                 "injector_mode": "auto",
                 "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
+            },
+        )
+        owner.connect()
+        cdp = ModCDPClient(
+            launcher={"launcher_mode": "remote"},
+            upstream={"upstream_mode": "ws", "upstream_cdp_url": owner.cdp_url},
+            injector={
+                "injector_mode": "discover",
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "injector_trust_service_worker_target": True,
             },
@@ -94,17 +100,17 @@ class ModCDPClientRoutedDefaultOverridesTests(unittest.TestCase):
                     "Target.setDiscoverTargets": "service_worker",
                 }
             },
-            server={"server_loopback_cdp_url": chrome["cdp_url"], "server_routes": {"*.*": "loopback_cdp"}},
+            server={"server_loopback_cdp_url": owner.cdp_url, "server_routes": {"*.*": "loopback_cdp"}},
         )
 
         try:
             cdp.connect()
-            self.assertEqual(cdp.cdp_url, chrome["cdp_url"])
+            self.assertEqual(cdp.cdp_url, owner.cdp_url)
             self.assertIsNotNone(cdp.server)
             server = cast(dict[str, Any], cdp.server)
-            self.assertEqual(server["server_loopback_cdp_url"], chrome["cdp_url"])
+            self.assertEqual(server["server_loopback_cdp_url"], owner.cdp_url)
 
-            raw_targets = cdp._send_message("Target.getTargets", {})
+            raw_targets = cdp.send("Target.getTargets")
             raw_target_infos = target_infos_from_result(raw_targets)
             self.assertTrue(raw_target_infos)
             self.assertFalse(any("tabId" in target_info for target_info in raw_target_infos))
@@ -160,7 +166,7 @@ class ModCDPClientRoutedDefaultOverridesTests(unittest.TestCase):
             except Exception:
                 pass
             cdp.close()
-            chrome["close"]()
+            owner.close()
 
 
 if __name__ == "__main__":

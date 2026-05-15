@@ -121,7 +121,8 @@ function candidatePaths() {
             ),
           ]
         : ["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"];
-  return [process.env.CHROME_PATH, ...chromeForTestingCandidates(), ...canary, ...stock].filter(
+  const chromium = platform() === "linux" ? ["/usr/bin/chromium", "/usr/bin/chromium-browser"] : [];
+  return [process.env.CHROME_PATH, ...chromium, ...canary, ...chromeForTestingCandidates(), ...stock].filter(
     (candidate): candidate is string => Boolean(candidate),
   );
 }

@@ -25,7 +25,6 @@ func TestLocalBrowserLauncherClassHelpersMatchLocalLauncherSurface(t *testing.T)
 
 func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 	headless := true
-	sandbox := false
 	profileDir := t.TempDir()
 	port, err := freePort()
 	if err != nil {
@@ -33,7 +32,6 @@ func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 	}
 	launcher := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:                  &headless,
-		Sandbox:                   &sandbox,
 		ChromeReadyTimeoutMS:      45_000,
 		ChromeReadyPollIntervalMS: 50,
 	})
@@ -107,10 +105,8 @@ func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 
 func TestLocalBrowserLauncherLaunchesRealBrowserOverRemoteDebuggingPipe(t *testing.T) {
 	headless := true
-	sandbox := false
 	launcher := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
-		Sandbox:              &sandbox,
 		ChromeReadyTimeoutMS: 45_000,
 	})
 	chrome, err := launcher.Launch(LaunchOptions{RemoteDebugging: "pipe"})
@@ -159,11 +155,9 @@ func TestLocalBrowserLauncherLaunchesRealBrowserOverRemoteDebuggingPipe(t *testi
 
 func TestLocalBrowserLauncherLaunchesPipeBrowserWithAuxiliaryLoopbackOnlyWhenRequested(t *testing.T) {
 	headless := true
-	sandbox := false
 	loopbackCDP := true
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
-		Sandbox:              &sandbox,
 		ChromeReadyTimeoutMS: 45_000,
 	}).Launch(LaunchOptions{RemoteDebugging: "pipe", LoopbackCDP: &loopbackCDP})
 	if err != nil {
@@ -201,7 +195,6 @@ func TestLocalBrowserLauncherLaunchesPipeBrowserWithAuxiliaryLoopbackOnlyWhenReq
 
 func TestLocalBrowserLauncherCleansExplicitUserDataDirWhenRequested(t *testing.T) {
 	headless := true
-	sandbox := false
 	cleanupUserDataDir := true
 	profileDir, err := os.MkdirTemp("", "modcdp-go-local-profile-")
 	if err != nil {
@@ -209,7 +202,6 @@ func TestLocalBrowserLauncherCleansExplicitUserDataDirWhenRequested(t *testing.T
 	}
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
-		Sandbox:              &sandbox,
 		ChromeReadyTimeoutMS: 45_000,
 	}).Launch(LaunchOptions{
 		UserDataDir:        profileDir,

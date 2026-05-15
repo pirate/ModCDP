@@ -16,8 +16,6 @@ repo/
         pages/
           options.html
           options.ts
-          wake.html
-          wake.ts
           offscreen_keepalive.html
           offscreen_keepalive.ts
 

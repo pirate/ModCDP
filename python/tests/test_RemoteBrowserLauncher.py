@@ -17,7 +17,7 @@ class RemoteBrowserLauncherTests(unittest.TestCase):
     def test_connects_to_real_browser_from_http_and_websocket_cdp_endpoints(self) -> None:
         port = LocalBrowserLauncher.freePort()
         local = LocalBrowserLauncher().launch(
-            {"port": port, "headless": True, "sandbox": False, "chrome_ready_timeout_ms": 45_000}
+            {"port": port, "headless": True, "chrome_ready_timeout_ms": 45_000}
         )
         ws = None
         try:

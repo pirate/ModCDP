@@ -80,7 +80,6 @@ const UpstreamModeNATS = transport.UpstreamModeNATS
 const UpstreamEndpointKindRawCDP = transport.UpstreamEndpointKindRawCDP
 const UpstreamEndpointKindModCDPServer = transport.UpstreamEndpointKindModCDPServer
 const DefaultModCDPExtensionID = injector.DefaultModCDPExtensionID
-const DefaultModCDPWakePath = injector.DefaultModCDPWakePath
 const DefaultUpstreamReverseWSBind = transport.DefaultUpstreamReverseWSBind
 const DefaultUpstreamReverseWSWaitTimeoutMS = transport.DefaultUpstreamReverseWSWaitTimeoutMS
 const DefaultUpstreamNATSWaitTimeoutMS = transport.DefaultUpstreamNATSWaitTimeoutMS

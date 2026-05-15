@@ -20,7 +20,6 @@ describe("RemoteBrowserLauncher", () => {
       const local = await new LocalBrowserLauncher().launch({
         port: await LocalBrowserLauncher.freePort(),
         headless: true,
-        sandbox: process.platform !== "linux",
         chrome_ready_timeout_ms: 45_000,
       });
       let cdp: CdpSocket | null = null;
@@ -61,12 +60,10 @@ describe("RemoteBrowserLauncher", () => {
     const first = await new LocalBrowserLauncher().launch({
       port: await LocalBrowserLauncher.freePort(),
       headless: true,
-      sandbox: process.platform !== "linux",
     });
     const second = await new LocalBrowserLauncher().launch({
       port: await LocalBrowserLauncher.freePort(),
       headless: true,
-      sandbox: process.platform !== "linux",
     });
 
     try {

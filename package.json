@@ -1,6 +1,6 @@
 {
   "name": "modcdp",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pirate/modcdp.git"
@@ -159,6 +159,7 @@
     "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.0",
     "oxfmt": "^0.47.0",
     "oxlint": "^1.62.0",
     "playwright": "^1.59.1",

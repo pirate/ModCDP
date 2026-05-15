@@ -26,7 +26,7 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
   const cdp = new ModCDPClient({
     launcher: {
       launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
+      launcher_options: { headless: true },
     },
     upstream: { upstream_mode: "ws" },
     injector: {
@@ -43,9 +43,16 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
     assert.equal(cdp.upstream_endpoint_kind, "raw_cdp");
     assert.equal(cdp.connect_timing?.upstream_mode, "ws");
     assert.equal(cdp.connect_timing?.upstream_endpoint_kind, "raw_cdp");
+    const connect_timing = cdp.connect_timing as
+      | {
+          transport_connected_at: number;
+          transport_duration_ms: number;
+          transport_started_at: number;
+        }
+      | undefined;
     assert.equal(
-      cdp.connect_timing?.transport_duration_ms,
-      (cdp.connect_timing?.transport_connected_at ?? 0) - (cdp.connect_timing?.transport_started_at ?? 0),
+      connect_timing?.transport_duration_ms,
+      (connect_timing?.transport_connected_at ?? 0) - (connect_timing?.transport_started_at ?? 0),
     );
     assert.match(cdp.cdp_url ?? "", /^ws:\/\//);
     const version = (await cdp.sendRaw("Browser.getVersion")) as Record<string, unknown>;
@@ -74,7 +81,6 @@ test("ws upstream launches a real browser and speaks raw CDP", async () => {
 test("ws upstream resolves a bare host:port CDP endpoint to the browser websocket", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
-    sandbox: process.platform !== "linux",
   }).launch();
   const transport = new WebSocketUpstreamTransport({ cdp_url: `127.0.0.1:${chrome.port}` });
 
@@ -98,7 +104,6 @@ test("ws upstream resolves a bare host:port CDP endpoint to the browser websocke
 test("ws upstream close clears connection state", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
-    sandbox: process.platform !== "linux",
   }).launch();
   const transport = new WebSocketUpstreamTransport({ cdp_url: chrome.cdp_url });
 

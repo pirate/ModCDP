@@ -13,16 +13,6 @@ export class DiscoveredExtensionInjector extends ExtensionInjector {
       );
       if (waited) return { ...waited, source: "discovered" };
     }
-    const woke = await this.wakeConfiguredExtension();
-    if (woke) {
-      const waited = await this.waitForReadyServiceWorker(
-        this.options.injector_service_worker_probe_timeout_ms ?? 10_000,
-        {
-          matched_only: this.options.injector_trust_service_worker_target,
-        },
-      );
-      if (waited) return { ...waited, source: "discovered" };
-    }
     if (!this.options.injector_require_service_worker_target) return null;
     const waited = await this.waitForReadyServiceWorker(
       this.options.injector_service_worker_ready_timeout_ms ?? 60_000,

@@ -1242,8 +1242,6 @@ export function runProxyCli(args = process.argv.slice(2)) {
       injector_mode: String(argv["injector-mode"] || "auto") as InjectorOptions["injector_mode"],
       injector_extension_path,
       injector_extension_id: optionalStringArg(argv, "injector-extension-id"),
-      injector_wake_path: optionalStringArg(argv, "injector-wake-path"),
-      injector_wake_url: optionalStringArg(argv, "injector-wake-url"),
       injector_service_worker_url_includes: optionalStringListArg(argv, "injector-service-worker-url-includes"),
       injector_service_worker_url_suffixes: optionalStringListArg(argv, "injector-service-worker-url-suffixes"),
       injector_trust_service_worker_target: optionalBooleanArg(argv, "injector-trust-service-worker-target"),

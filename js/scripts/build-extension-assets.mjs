@@ -3,6 +3,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { build } from "esbuild";
 
 const root = process.cwd();
 const dist_extension = path.join(root, "dist", "extension");
@@ -18,28 +19,21 @@ const copy = (from, to) => {
   fs.copyFileSync(path.join(root, from), path.join(root, to));
 };
 
-const write = (to, contents) => {
-  fs.mkdirSync(path.dirname(path.join(root, to)), { recursive: true });
-  fs.writeFileSync(path.join(root, to), contents);
-};
-
 copy("extension/manifest.json", "dist/extension/manifest.json");
 copy("extension/src/pages/options.html", "dist/extension/options.html");
 copy("dist/extension/src/pages/options.js", "dist/extension/options.js");
-copy("extension/src/pages/wake.html", "dist/extension/modcdp/wake.html");
-copy("dist/extension/src/pages/wake.js", "dist/extension/modcdp/wake.js");
 copy("extension/src/pages/offscreen_keepalive.html", "dist/extension/offscreen/keepalive.html");
 copy("dist/extension/src/pages/offscreen_keepalive.js", "dist/extension/offscreen/offscreen_keepalive.js");
-copy("dist/js/src/server/ModCDPServer.js", "dist/extension/js/src/server/ModCDPServer.js");
-if (fs.existsSync(path.join(root, "dist/js/src/server/ModCDPServer.js.map"))) {
-  copy("dist/js/src/server/ModCDPServer.js.map", "dist/extension/js/src/server/ModCDPServer.js.map");
-}
-
-const service_worker = fs
-  .readFileSync(path.join(root, "dist/extension/src/service_worker.js"), "utf8")
-  .replace("../../js/src/server/ModCDPServer.js", "../js/src/server/ModCDPServer.js");
-write("dist/extension/modcdp/service_worker.js", service_worker);
-copy("dist/extension/src/service_worker.js.map", "dist/extension/modcdp/service_worker.js.map");
+await build({
+  entryPoints: [path.join(root, "extension/src/service_worker.ts")],
+  outfile: path.join(root, "dist/extension/modcdp/service_worker.js"),
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: ["chrome116"],
+  sourcemap: true,
+  logLevel: "silent",
+});
 fs.rmSync(path.join(dist_extension, "src"), { recursive: true, force: true });
 
 const fixed_date = new Date("2000-01-01T00:00:00Z");

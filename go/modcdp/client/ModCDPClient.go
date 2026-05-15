@@ -23,14 +23,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
+	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/v2/jsonschema"
 	"github.com/browserbase/modcdp/go/modcdp/injector"
 	"github.com/browserbase/modcdp/go/modcdp/launcher"
 	"github.com/browserbase/modcdp/go/modcdp/router"
@@ -110,7 +109,6 @@ var NewAutoSessionRouter = router.NewAutoSessionRouter
 
 var DefaultModCDPServiceWorkerURLSuffixes = injector.DefaultModCDPServiceWorkerURLSuffixes
 
-const DefaultModCDPWakePath = injector.DefaultModCDPWakePath
 const DefaultModCDPExtensionID = injector.DefaultModCDPExtensionID
 const DefaultUpstreamReverseWSBind = transportpkg.DefaultUpstreamReverseWSBind
 const DefaultUpstreamReverseWSWaitTimeoutMS = transportpkg.DefaultUpstreamReverseWSWaitTimeoutMS
@@ -238,8 +236,6 @@ type InjectorConfig struct {
 	InjectorMode                         string   `json:"injector_mode,omitempty"`
 	InjectorExtensionPath                string   `json:"injector_extension_path,omitempty"`
 	InjectorExtensionID                  string   `json:"injector_extension_id,omitempty"`
-	InjectorWakePath                     string   `json:"injector_wake_path,omitempty"`
-	InjectorWakeURL                      string   `json:"injector_wake_url,omitempty"`
 	InjectorServiceWorkerURLIncludes     []string `json:"injector_service_worker_url_includes,omitempty"`
 	InjectorServiceWorkerURLSuffixes     []string `json:"injector_service_worker_url_suffixes,omitempty"`
 	InjectorTrustServiceWorkerTarget     bool     `json:"injector_trust_service_worker_target,omitempty"`
@@ -563,6 +559,7 @@ func New(opts Options) *ModCDPClient {
 	if *client.Client.ClientHydrateAliases {
 		initCDPSurface(client)
 	}
+	client.hydrateNativeProtocolSchemas()
 	client.hydrateCustomSurface()
 	return client
 }
@@ -929,11 +926,6 @@ func (c *ModCDPClient) serverConfigureParams(customCommands []map[string]any, cu
 	if c.Upstream.UpstreamNATSSubjectPrefix != "" {
 		upstream["upstream_nats_subject_prefix"] = c.Upstream.UpstreamNATSSubjectPrefix
 	}
-	if c.transport != nil {
-		if reverseWSURL := c.transport.GetInjectorConfig().UpstreamReverseWSURL; reverseWSURL != "" {
-			upstream["upstream_reversews_url"] = reverseWSURL
-		}
-	}
 	return map[string]any{
 		"upstream": upstream,
 		"client": map[string]any{
@@ -970,6 +962,40 @@ func cloneSchema(schema map[string]any) map[string]any {
 		return nil
 	}
 	return normalized
+}
+
+func nativeResultSchema(schema map[string]any) map[string]any {
+	normalized := cloneSchema(schema)
+	allowNativeResultExtensions(normalized)
+	return normalized
+}
+
+func allowNativeResultExtensions(schema map[string]any) {
+	if schema == nil {
+		return
+	}
+	if schemaType, _ := schema["type"].(string); schemaType == "object" {
+		schema["additionalProperties"] = true
+		if properties, ok := schema["properties"].(map[string]any); ok {
+			for _, property := range properties {
+				if propertySchema, ok := property.(map[string]any); ok {
+					allowNativeResultExtensions(propertySchema)
+				}
+			}
+		}
+	}
+	if items, ok := schema["items"].(map[string]any); ok {
+		allowNativeResultExtensions(items)
+	}
+	for _, key := range []string{"anyOf", "oneOf", "allOf"} {
+		if schemas, ok := schema[key].([]any); ok {
+			for _, entry := range schemas {
+				if entrySchema, ok := entry.(map[string]any); ok {
+					allowNativeResultExtensions(entrySchema)
+				}
+			}
+		}
+	}
 }
 
 func resultUnwrapKeyFromSchema(schema map[string]any) string {
@@ -1146,8 +1172,7 @@ func (c *ModCDPClient) validateEventData(event string, data any) (any, bool) {
 		return data, true
 	}
 	if err := abxjsonschema.Validate(schema, data); err != nil {
-		fmt.Fprintf(os.Stderr, "[ModCDPClient] %s event did not match event_schema: %v\n", event, err)
-		return nil, false
+		panic(fmt.Errorf("%s event did not match event_schema: %w", event, err))
 	}
 	return data, true
 }
@@ -1497,8 +1522,6 @@ func (c *ModCDPClient) baseExtensionInjectorConfig(send SendCDP) ExtensionInject
 		},
 		InjectorExtensionPath:                c.Injector.InjectorExtensionPath,
 		InjectorExtensionID:                  c.Injector.InjectorExtensionID,
-		InjectorWakePath:                     firstNonEmptyString(c.Injector.InjectorWakePath, DefaultModCDPWakePath),
-		InjectorWakeURL:                      c.Injector.InjectorWakeURL,
 		InjectorServiceWorkerURLIncludes:     c.Injector.InjectorServiceWorkerURLIncludes,
 		InjectorServiceWorkerURLSuffixes:     c.Injector.InjectorServiceWorkerURLSuffixes,
 		InjectorTrustServiceWorkerTarget:     trustMatchedServiceWorker,

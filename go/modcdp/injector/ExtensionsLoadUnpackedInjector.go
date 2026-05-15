@@ -22,7 +22,7 @@ func (i *ExtensionsLoadUnpackedInjector) Prepare() error {
 	if i.UnpackedExtensionPath != "" {
 		return nil
 	}
-	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath, true)
+	unpackedPath, cleanupPath, err := prepareUnpackedExtension(extensionPath)
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,6 @@ func (i *ExtensionsLoadUnpackedInjector) Inject() (*ExtensionInjectionResult, er
 		return nil, fmt.Errorf("Extensions.loadUnpacked returned no extension id")
 	}
 	i.Options.InjectorExtensionID = extensionID
-	i.wakeConfiguredExtension()
 	swURLPrefix := "chrome-extension://" + extensionID + "/"
 	deadline := time.Now().Add(time.Duration(i.Options.InjectorServiceWorkerReadyTimeoutMS) * time.Millisecond)
 	for time.Now().Before(deadline) {

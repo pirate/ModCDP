@@ -3,9 +3,8 @@ import { test } from "vitest";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { LocalBrowserLauncher } from "../src/launcher/LocalBrowserLauncher.js";
 import { ModCDPClient } from "../src/client/ModCDPClient.js";
-import { commands, events } from "../src/types/generated/zod.js";
+import { events } from "../src/types/generated/zod.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
@@ -73,17 +72,27 @@ test(
   "service-worker routed standard CDP commands and events can be transformed",
   { timeout: DEFAULT_ROUTED_OVERRIDES_TEST_TIMEOUT_MS },
   async () => {
-    const chrome = await new LocalBrowserLauncher().launch({
-      headless: true,
-      sandbox: process.platform !== "linux",
-      extra_args: [`--load-extension=${EXTENSION_PATH}`],
-    });
-    const cdp = new ModCDPClient({
-      launcher: { launcher_mode: "remote" },
-      upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
+    const owner = new ModCDPClient({
+      launcher: {
+        launcher_mode: "local",
+        launcher_options: {
+          headless: true,
+        },
+      },
+      upstream: { upstream_mode: "ws" },
       injector: {
         injector_mode: "auto",
         injector_extension_path: EXTENSION_PATH,
+        injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
+        injector_trust_service_worker_target: true,
+      },
+    });
+    await owner.connect();
+    const cdp = new ModCDPClient({
+      launcher: { launcher_mode: "remote" },
+      upstream: { upstream_mode: "ws", upstream_cdp_url: owner.cdp_url },
+      injector: {
+        injector_mode: "discover",
         injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
         injector_trust_service_worker_target: true,
       },
@@ -95,17 +104,17 @@ test(
         },
       },
       server: {
-        server_loopback_cdp_url: chrome.cdp_url,
+        server_loopback_cdp_url: owner.cdp_url,
         server_routes: { "*.*": "loopback_cdp" },
       },
     });
 
     try {
       await cdp.connect();
-      assert.equal(cdp.cdp_url, chrome.cdp_url);
-      assert.equal(cdp.server.server_loopback_cdp_url, chrome.cdp_url);
+      assert.equal(cdp.cdp_url, owner.cdp_url);
+      assert.equal(cdp.server.server_loopback_cdp_url, owner.cdp_url);
 
-      const rawTargets = commands["Target.getTargets"].result.parse(await cdp._sendMessage("Target.getTargets"));
+      const rawTargets = await cdp.send("Target.getTargets");
       assert.ok(rawTargets.targetInfos?.length > 0, "expected raw Target.getTargets targetInfos");
       assert.equal(
         rawTargets.targetInfos.some((targetInfo) => Object.hasOwn(targetInfo, "tabId")),
@@ -187,7 +196,7 @@ test(
         await cdp.Target.setDiscoverTargets({ discover: false });
       } catch {}
       await cdp.close();
-      await chrome.close();
+      await owner.close();
     }
   },
 );

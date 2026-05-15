@@ -167,7 +167,14 @@ func TestModCDPClientDispatchesRootEventsBeforeExtensionSessionAttached(t *testi
 	cdp.handleEventMessage(map[string]any{
 		"method": "Target.targetCreated",
 		"params": map[string]any{
-			"targetInfo": map[string]any{"targetId": "target-1", "type": "page", "url": "about:blank"},
+			"targetInfo": map[string]any{
+				"targetId":        "target-1",
+				"type":            "page",
+				"title":           "about:blank",
+				"url":             "about:blank",
+				"attached":        false,
+				"canAccessOpener": false,
+			},
 		},
 	})
 
@@ -195,7 +202,14 @@ func TestModCDPClientEventDispatchSnapshotsHandlersWhenOnceRemovesItself(t *test
 	cdp.handleEventMessage(map[string]any{
 		"method": "Target.targetCreated",
 		"params": map[string]any{
-			"targetInfo": map[string]any{"targetId": "target-1", "type": "page", "url": "about:blank"},
+			"targetInfo": map[string]any{
+				"targetId":        "target-1",
+				"type":            "page",
+				"title":           "about:blank",
+				"url":             "about:blank",
+				"attached":        false,
+				"canAccessOpener": false,
+			},
 		},
 	})
 
@@ -215,7 +229,14 @@ func TestModCDPClientEventDispatchSnapshotsHandlersWhenOnceRemovesItself(t *test
 	cdp.handleEventMessage(map[string]any{
 		"method": "Target.targetCreated",
 		"params": map[string]any{
-			"targetInfo": map[string]any{"targetId": "target-2", "type": "page", "url": "about:blank"},
+			"targetInfo": map[string]any{
+				"targetId":        "target-2",
+				"type":            "page",
+				"title":           "about:blank",
+				"url":             "about:blank",
+				"attached":        false,
+				"canAccessOpener": false,
+			},
 		},
 	})
 
@@ -489,12 +510,10 @@ func TestModCDPClientOnlyExposesInjectorAttachAfterCDPSendIsAvailable(t *testing
 
 func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	headless := runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ""
-	sandbox := runtime.GOOS != "linux"
 	cdp := New(Options{
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(headless),
-				Sandbox:  boolPtr(sandbox),
 			},
 		},
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
@@ -518,7 +537,7 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	if cdp.ConnectTiming["injector_source"] != "local_launch" {
+	if cdp.ConnectTiming["injector_source"] != "local_launch" && cdp.ConnectTiming["injector_source"] != "extensions_load_unpacked" {
 		t.Fatalf("injector_source = %v", cdp.ConnectTiming["injector_source"])
 	}
 	if cdp.ExtensionID != DefaultModCDPExtensionID {
@@ -532,6 +551,24 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	}
 	if result != "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js" {
 		t.Fatalf("Mod.evaluate = %#v", result)
+	}
+	contextsRaw, err := cdp.Mod.Evaluate(map[string]any{
+		"expression": "chrome.runtime.getContexts({}).then((contexts) => contexts.map((context) => ({ type: context.contextType, url: context.documentUrl || context.origin || '' })))",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contexts, _ := contextsRaw.([]any)
+	foundOffscreen := false
+	for _, rawContext := range contexts {
+		context, _ := rawContext.(map[string]any)
+		if context["type"] == "OFFSCREEN_DOCUMENT" &&
+			context["url"] == "chrome-extension://"+DefaultModCDPExtensionID+"/offscreen/keepalive.html" {
+			foundOffscreen = true
+		}
+	}
+	if !foundOffscreen {
+		t.Fatalf("expected offscreen keepalive context, got %#v", contextsRaw)
 	}
 	directTargetRaw, err := cdp.Send("Target.createTarget", map[string]any{"url": "about:blank#direct-session-routing"})
 	if err != nil {
@@ -624,15 +661,8 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 
 func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) {
 	headless := true
-	sandbox := false
-	extensionPath, err := filepath.Abs("../../../dist/extension")
-	if err != nil {
-		t.Fatal(err)
-	}
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
-		Headless:  &headless,
-		Sandbox:   &sandbox,
-		ExtraArgs: []string{"--load-extension=" + extensionPath},
+		Headless: &headless,
 	}).Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -646,15 +676,23 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer rawConn.Close()
+	extensionPath, err := filepath.Abs("../../../dist/extension")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cdp := New(Options{
 		Launcher: LauncherConfig{LauncherMode: "remote"},
 		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
 		Injector: InjectorConfig{
-			InjectorMode:                     "discover",
-			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			InjectorTrustServiceWorkerTarget: true,
+			InjectorMode:                        "inject",
+			InjectorExtensionPath:               extensionPath,
+			InjectorServiceWorkerURLSuffixes:    []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget:    true,
+			InjectorServiceWorkerReadyTimeoutMS: 5_000,
+			InjectorServiceWorkerProbeTimeoutMS: 5_000,
 		},
+		Client: ClientConfig{ClientRoutes: map[string]string{"*.*": "direct_cdp"}},
 	})
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
@@ -695,7 +733,6 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
 			},
 		},
 		Upstream: UpstreamConfig{
@@ -715,16 +752,16 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	var localInjector *LocalBrowserLaunchExtensionInjector
+	var loadUnpackedInjector *ExtensionsLoadUnpackedInjector
 	for _, injector := range cdp.extensionInjectors {
-		if typed, ok := injector.(*LocalBrowserLaunchExtensionInjector); ok {
-			localInjector = typed
+		if typed, ok := injector.(*ExtensionsLoadUnpackedInjector); ok {
+			loadUnpackedInjector = typed
 		}
 	}
-	if localInjector == nil {
-		t.Fatal("expected LocalBrowserLaunchExtensionInjector")
+	if loadUnpackedInjector == nil {
+		t.Fatal("expected ExtensionsLoadUnpackedInjector")
 	}
-	unpackedExtensionPath := localInjector.UnpackedExtensionPath
+	unpackedExtensionPath := loadUnpackedInjector.UnpackedExtensionPath
 	if unpackedExtensionPath == extensionPath {
 		t.Fatalf("UnpackedExtensionPath = %q", unpackedExtensionPath)
 	}
@@ -760,7 +797,6 @@ func TestModCDPClientCloseClearsTopLevelConnectionState(t *testing.T) {
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
 			},
 		},
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
@@ -842,9 +878,7 @@ func TestCustomEventSchemasValidatePayloads(t *testing.T) {
 	if _, ok := cdp.validateEventData("Custom.changed", map[string]any{"targetId": "target-1"}); !ok {
 		t.Fatal("expected valid event payload")
 	}
-	if _, ok := cdp.validateEventData("Custom.changed", map[string]any{"targetId": 1}); ok {
-		t.Fatal("expected invalid event payload")
-	}
+	expectPanic(t, func() { cdp.validateEventData("Custom.changed", map[string]any{"targetId": 1}) })
 }
 
 func TestTypedCDPSurfaceInitializesAndEncodesParams(t *testing.T) {

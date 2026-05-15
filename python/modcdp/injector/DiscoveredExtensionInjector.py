@@ -21,14 +21,6 @@ class DiscoveredExtensionInjector(ExtensionInjector):
             )
             if waited:
                 return {**waited, "source": "discovered"}
-        woke = self._wakeConfiguredExtension()
-        if woke:
-            waited = self._waitForReadyServiceWorker(
-                _timeout(self.options.get("injector_service_worker_probe_timeout_ms"), DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS),
-                matched_only=bool(self.options.get("injector_trust_service_worker_target")),
-            )
-            if waited:
-                return {**waited, "source": "discovered"}
         if not self.options.get("injector_require_service_worker_target"):
             return None
         waited = self._waitForReadyServiceWorker(

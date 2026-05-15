@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import redirect_stderr
-from io import StringIO
 from queue import Queue
 import unittest
 from pathlib import Path
@@ -27,7 +25,7 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
         client = ModCDPClient(
             launcher={
                 "launcher_mode": "local",
-                "launcher_options": {"headless": True, "sandbox": False},
+                "launcher_options": {"headless": True},
             },
             upstream={"upstream_mode": "ws"},
             injector={
@@ -68,7 +66,7 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
         client = ModCDPClient(
             launcher={
                 "launcher_mode": "local",
-                "launcher_options": {"headless": True, "sandbox": False},
+                "launcher_options": {"headless": True},
             },
             upstream={"upstream_mode": "ws"},
             injector={
@@ -117,8 +115,8 @@ class ModCDPClientCustomFlatNamespaceTests(unittest.TestCase):
 
         self.assertEqual(result, {"name": "Custom.schemaOnly", "registered": True})
         self.assertEqual(client._validate_event_payload("Custom.schemaOnly", {"ok": True}), {"ok": True})
-        with redirect_stderr(StringIO()):
-            self.assertIsNone(client._validate_event_payload("Custom.schemaOnly", {"ok": True, "extra": True}))
+        with self.assertRaises(ValueError):
+            client._validate_event_payload("Custom.schemaOnly", {"ok": True, "extra": True})
 
 
 if __name__ == "__main__":

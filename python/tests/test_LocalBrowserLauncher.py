@@ -20,7 +20,6 @@ class LocalBrowserLauncherTests(unittest.TestCase):
             chrome = LocalBrowserLauncher(
                 {
                     "headless": True,
-                    "sandbox": False,
                     "chrome_ready_timeout_ms": 45_000,
                     "chrome_ready_poll_interval_ms": 50,
                 }
@@ -48,7 +47,6 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         chrome = LocalBrowserLauncher(
             {
                 "headless": True,
-                "sandbox": False,
                 "chrome_ready_timeout_ms": 45_000,
             }
         ).launch({"user_data_dir": user_data_dir, "cleanup_user_data_dir": True})
@@ -63,7 +61,6 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         chrome = LocalBrowserLauncher(
             {
                 "headless": True,
-                "sandbox": False,
                 "remote_debugging": "pipe",
                 "chrome_ready_timeout_ms": 45_000,
             }
@@ -88,7 +85,6 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         chrome = LocalBrowserLauncher(
             {
                 "headless": True,
-                "sandbox": False,
                 "remote_debugging": "pipe",
                 "loopback_cdp": True,
                 "chrome_ready_timeout_ms": 45_000,

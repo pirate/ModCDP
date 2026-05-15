@@ -12,19 +12,25 @@ func TestBorrowedExtensionInjectorBootstrapsModCDPInsideLiveExtensionServiceWork
 	if err != nil {
 		t.Fatal(err)
 	}
-	chrome, err := modcdp.NewLocalBrowserLauncher(modcdp.LaunchOptions{
-		Headless:  boolPtr(true),
-		Sandbox:   boolPtr(false),
-		ExtraArgs: []string{"--load-extension=" + extensionPath},
-	}).Launch(modcdp.LaunchOptions{})
-	if err != nil {
+	headless := true
+	owner := modcdp.New(modcdp.Options{
+		Launcher: modcdp.LauncherConfig{LauncherMode: "local", LauncherOptions: modcdp.LaunchOptions{Headless: &headless}},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
+		Injector: modcdp.InjectorConfig{
+			InjectorMode:                     "auto",
+			InjectorExtensionPath:            extensionPath,
+			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget: true,
+		},
+	})
+	defer owner.Close()
+
+	if err := owner.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	defer chrome.Close()
-
 	cdp := modcdp.New(modcdp.Options{
 		Launcher: modcdp.LauncherConfig{LauncherMode: "remote"},
-		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
+		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: owner.CDPURL},
 		Injector: modcdp.InjectorConfig{
 			InjectorMode:                     "borrow",
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
@@ -42,12 +48,13 @@ func TestBorrowedExtensionInjectorBootstrapsModCDPInsideLiveExtensionServiceWork
 	if cdp.ExtensionID != DefaultModCDPExtensionID {
 		t.Fatalf("ExtensionID = %q", cdp.ExtensionID)
 	}
-	result, err := cdp.Send("Target.getTargets", map[string]any{})
+	result, err := cdp.Mod.Evaluate(map[string]any{
+		"expression": "chrome.runtime.getURL('modcdp/service_worker.js')",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	targetInfos, _ := result.(map[string]any)["targetInfos"].([]any)
-	if len(targetInfos) == 0 {
-		t.Fatalf("Target.getTargets = %#v", result)
+	if result != "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js" {
+		t.Fatalf("Mod.evaluate = %#v", result)
 	}
 }

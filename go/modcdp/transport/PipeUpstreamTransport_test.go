@@ -4,8 +4,8 @@ import (
 	modcdp "github.com/browserbase/modcdp/go/modcdp/client"
 	. "github.com/browserbase/modcdp/go/modcdp/transport"
 	"os"
+	"path/filepath"
 	"regexp"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -25,7 +25,7 @@ func TestPipeUpstreamTransportConstructorUpdateLauncherConfigAndUnconnectedError
 	if err := transport.Connect(); err == nil {
 		t.Fatal("expected Connect to require pipe handles")
 	}
-	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err == nil {
+	if err := transport.Send(map[string]any{"id": 1, "method": "Runtime.evaluate"}); err == nil {
 		t.Fatal("expected Send to require a connected pipe")
 	}
 }
@@ -54,7 +54,7 @@ func TestPipeUpstreamTransportResetsConnectionStateAfterPipeCloses(t *testing.T)
 	if err := transport.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	if err := transport.Send(map[string]any{"id": 1, "method": "Browser.getVersion"}); err != nil {
+	if err := transport.Send(map[string]any{"id": 1, "method": "Runtime.evaluate", "params": map[string]any{"expression": "1"}}); err != nil {
 		t.Fatal(err)
 	}
 	_ = pipeReadWriter.Close()
@@ -63,27 +63,30 @@ func TestPipeUpstreamTransportResetsConnectionStateAfterPipeCloses(t *testing.T)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for pipe close")
 	}
-	if err := transport.Send(map[string]any{"id": 2, "method": "Browser.getVersion"}); err == nil {
+	if err := transport.Send(map[string]any{"id": 2, "method": "Runtime.evaluate", "params": map[string]any{"expression": "1"}}); err == nil {
 		t.Fatal("expected send to fail after pipe close")
 	}
 }
 
 func TestPipeUpstreamTransportLaunchesRealBrowserAndUsesPIDScopedPipeURL(t *testing.T) {
-	headless := runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ""
-	sandbox := runtime.GOOS != "linux"
+	extensionPath, err := filepath.Abs("../../../dist/extension")
+	if err != nil {
+		t.Fatal(err)
+	}
 	cdp := modcdp.New(modcdp.Options{
 		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
 			LauncherOptions: modcdp.LaunchOptions{
-				Headless: boolPtr(headless),
-				Sandbox:  boolPtr(sandbox),
+				Headless: boolPtr(true),
 			},
 		},
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "pipe"},
 		Injector: modcdp.InjectorConfig{
-			InjectorMode:                     "auto",
+			InjectorMode:                     "inject",
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},
+		Server: &modcdp.ServerConfig{ServerRoutes: map[string]string{"*.*": "chrome_debugger"}},
 	})
 	defer cdp.Close()
 
@@ -106,11 +109,22 @@ func TestPipeUpstreamTransportLaunchesRealBrowserAndUsesPIDScopedPipeURL(t *test
 	if pipeTransport.URL != cdp.CDPURL {
 		t.Fatalf("pipe transport URL = %q, CDPURL = %q", pipeTransport.URL, cdp.CDPURL)
 	}
-	version, err := cdp.SendRaw("Browser.getVersion", map[string]any{})
+	if _, err := cdp.Mod.AddCustomCommand(modcdp.CustomCommand{
+		Name:       "Custom.runtimeReadyState",
+		Expression: "async () => await cdp.send('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true })",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := cdp.Send("Custom.runtimeReadyState", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := version["product"].(string); !ok {
-		t.Fatalf("Browser.getVersion product = %#v", version["product"])
+	runtimeMap, ok := runtime.(map[string]any)
+	if !ok {
+		t.Fatalf("Custom.runtimeReadyState = %#v", runtime)
+	}
+	runtimeResult, _ := runtimeMap["result"].(map[string]any)
+	if runtimeResult["value"] != "complete" {
+		t.Fatalf("Runtime.evaluate result = %#v", runtime)
 	}
 }

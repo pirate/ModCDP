@@ -7,7 +7,12 @@ import (
 	modcdp "github.com/browserbase/modcdp/go/modcdp/client"
 	. "github.com/browserbase/modcdp/go/modcdp/transport"
 	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,19 +21,19 @@ import (
 	"github.com/gobwas/ws/wsutil"
 )
 
-func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesWaitTimeoutAndInjectorConfig(t *testing.T) {
+func TestReverseWebSocketUpstreamTransportConfigOwnsBindUpdatesAndWaitTimeout(t *testing.T) {
 	transport := NewReverseWebSocketUpstreamTransport(ReverseWebSocketUpstreamTransportOptions{UpstreamReverseWSBind: "127.0.0.1:29292", UpstreamReverseWSWaitTimeoutMS: 10})
 	if transport.URL != "ws://127.0.0.1:29292" {
 		t.Fatalf("URL = %q", transport.URL)
 	}
-	if transport.GetInjectorConfig().UpstreamReverseWSURL != "ws://127.0.0.1:29292" {
+	if !reflect.DeepEqual(transport.GetInjectorConfig(), ExtensionInjectorConfig{}) {
 		t.Fatalf("injector config = %#v", transport.GetInjectorConfig())
 	}
 	transport.Update(map[string]any{"upstream_reversews_bind": "127.0.0.1:29293", "upstream_reversews_wait_timeout_ms": 5})
 	if transport.URL != "ws://127.0.0.1:29293" {
 		t.Fatalf("URL after update = %q", transport.URL)
 	}
-	if transport.GetInjectorConfig().UpstreamReverseWSURL != "ws://127.0.0.1:29293" {
+	if !reflect.DeepEqual(transport.GetInjectorConfig(), ExtensionInjectorConfig{}) {
 		t.Fatalf("injector config after update = %#v", transport.GetInjectorConfig())
 	}
 	transport.Update(map[string]any{"upstream_reversews_bind": "http://127.0.0.1:29294"})
@@ -214,23 +219,30 @@ func waitForReversePeerDisconnect(t *testing.T, transport *ReverseWebSocketUpstr
 	t.Fatal("timed out waiting for reverse peer disconnect")
 }
 
-func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionAndRoutesCDPThroughLoopback(t *testing.T) {
+func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionAndRoutesCDPThroughChromeDebugger(t *testing.T) {
+	extensionPath, err := filepath.Abs(filepath.Join("..", "..", "..", "dist", "extension"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	headless := runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ""
-	sandbox := runtime.GOOS != "linux"
 	cdp := modcdp.New(modcdp.Options{
 		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
 			LauncherOptions: modcdp.LaunchOptions{
 				Headless: boolPtr(headless),
-				Sandbox:  boolPtr(sandbox),
+				// Reversews is browser -> client only. After explicit CHROME_PATH and
+				// CI /usr/bin/chromium, these tests use Chrome for Testing because
+				// Canary rejects --load-extension in this local test path.
+				ExecutablePath: reverseWSTestBrowserPath(t),
 			},
 		},
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "reversews"},
 		Injector: modcdp.InjectorConfig{
-			InjectorMode:                     "auto",
-			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
-			InjectorTrustServiceWorkerTarget: true,
+			InjectorExtensionPath:               extensionPath,
+			InjectorMode:                        "auto",
+			InjectorServiceWorkerURLSuffixes:    []string{"/modcdp/service_worker.js"},
+			InjectorTrustServiceWorkerTarget:    true,
+			InjectorServiceWorkerProbeTimeoutMS: 1000,
 		},
-		Server: &modcdp.ServerConfig{ServerRoutes: map[string]string{"*.*": "loopback_cdp"}},
 	})
 	defer cdp.Close()
 
@@ -247,30 +259,137 @@ func TestReverseWebSocketUpstreamTransportAcceptsRealExtensionReverseConnectionA
 	if !ok {
 		t.Fatalf("transport = %T", cdp.Transport())
 	}
+	if transport.URL != "ws://127.0.0.1:29292" {
+		t.Fatalf("transport URL = %q", transport.URL)
+	}
 	if transport.PeerInfo["extension_id"] != DefaultModCDPExtensionID {
 		t.Fatalf("extension_id = %#v", transport.PeerInfo["extension_id"])
 	}
-	result, err := cdp.Send("Browser.getVersion", map[string]any{})
+	result, err := cdp.Send("Runtime.evaluate", map[string]any{"expression": "location.href", "returnByValue": true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	version, ok := result.(map[string]any)
+	evaluated, ok := result.(map[string]any)
 	if !ok {
-		t.Fatalf("Browser.getVersion result = %#v", result)
+		t.Fatalf("Runtime.evaluate result = %#v", result)
 	}
-	if _, ok := version["product"].(string); !ok {
-		t.Fatalf("Browser.getVersion product = %#v", version["product"])
+	evaluatedResult, _ := evaluated["result"].(map[string]any)
+	if evaluatedResult["value"] != "about:blank" {
+		t.Fatalf("Runtime.evaluate value = %#v", evaluatedResult["value"])
 	}
 	time.Sleep(1500 * time.Millisecond)
-	secondResult, err := cdp.Send("Browser.getVersion", map[string]any{})
+	secondResult, err := cdp.Send("Runtime.evaluate", map[string]any{"expression": "document.readyState", "returnByValue": true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondVersion, ok := secondResult.(map[string]any)
+	secondEvaluated, ok := secondResult.(map[string]any)
 	if !ok {
-		t.Fatalf("second Browser.getVersion result = %#v", secondResult)
+		t.Fatalf("second Runtime.evaluate result = %#v", secondResult)
 	}
-	if _, ok := secondVersion["product"].(string); !ok {
-		t.Fatalf("second Browser.getVersion product = %#v", secondVersion["product"])
+	secondEvaluatedResult, _ := secondEvaluated["result"].(map[string]any)
+	if secondEvaluatedResult["value"] != "complete" {
+		t.Fatalf("second Runtime.evaluate value = %#v", secondEvaluatedResult["value"])
 	}
+}
+
+func reverseWSTestBrowserPath(t *testing.T) string {
+	t.Helper()
+	explicitCandidates := []string{os.Getenv("CHROME_PATH")}
+	if runtime.GOOS == "linux" {
+		explicitCandidates = append(explicitCandidates, "/usr/bin/chromium")
+	}
+	for _, candidate := range explicitCandidates {
+		if candidate == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = "."
+	}
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = filepath.Join(home, "AppData", "Local")
+	}
+	var patterns []string
+	switch runtime.GOOS {
+	case "darwin":
+		patterns = []string{
+			filepath.Join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac*", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+			filepath.Join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac*", "Chromium.app", "Contents", "MacOS", "Chromium"),
+			filepath.Join(home, "Library", "Caches", "puppeteer", "chrome", "mac*-*", "chrome-mac*", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+		}
+	case "windows":
+		patterns = []string{
+			filepath.Join(localAppData, "ms-playwright", "chromium-*", "chrome-win*", "chrome.exe"),
+			filepath.Join(home, ".cache", "puppeteer", "chrome", "win*-*", "chrome.exe"),
+		}
+	default:
+		patterns = []string{
+			filepath.Join(home, ".cache", "ms-playwright", "chromium-*", "chrome-linux*", "chrome"),
+			filepath.Join("/opt", "pw-browsers", "chromium-*", "chrome-linux*", "chrome"),
+			filepath.Join(home, ".cache", "puppeteer", "chrome", "linux-*", "chrome-linux*", "chrome"),
+		}
+	}
+	var candidates []string
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		candidates = append(candidates, matches...)
+	}
+	candidates = newestChromeForTestingFirst(candidates)
+	if len(candidates) > 0 {
+		return candidates[0]
+	}
+	t.Fatal("Reversews tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.")
+	return ""
+}
+
+func newestChromeForTestingFirst(candidates []string) []string {
+	seen := map[string]bool{}
+	deduped := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		deduped = append(deduped, candidate)
+	}
+	sort.SliceStable(deduped, func(i, j int) bool {
+		leftVersion := maxPathNumber(deduped[i])
+		rightVersion := maxPathNumber(deduped[j])
+		if leftVersion != rightVersion {
+			return leftVersion > rightVersion
+		}
+		leftStat, leftErr := os.Stat(deduped[i])
+		rightStat, rightErr := os.Stat(deduped[j])
+		var leftMtime, rightMtime time.Time
+		if leftErr == nil {
+			leftMtime = leftStat.ModTime()
+		}
+		if rightErr == nil {
+			rightMtime = rightStat.ModTime()
+		}
+		if !leftMtime.Equal(rightMtime) {
+			return leftMtime.After(rightMtime)
+		}
+		return deduped[i] < deduped[j]
+	})
+	return deduped
+}
+
+func maxPathNumber(value string) int {
+	maxValue := 0
+	for _, raw := range regexp.MustCompile(`\d+`).FindAllString(value, -1) {
+		number, err := strconv.Atoi(raw)
+		if err == nil && number > maxValue {
+			maxValue = number
+		}
+	}
+	return maxValue
 }

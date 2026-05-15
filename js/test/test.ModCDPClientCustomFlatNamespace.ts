@@ -5,6 +5,14 @@ import { test } from "vitest";
 import { z } from "zod";
 
 import { ModCDPClient, type ModCDPClientInstance } from "../src/client/ModCDPClient.js";
+import { installModCDPServer } from "../src/server/ModCDPServer.js";
+import type {
+  ModCDPCustomCommandRegistration,
+  ModCDPCustomEventRegistration,
+  ProtocolParams,
+  ProtocolPayload,
+  ProtocolResult,
+} from "../src/types/modcdp.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
@@ -16,7 +24,7 @@ test("custom commands install flat namespace methods through a real service work
   const cdp = new ModCDPClient({
     launcher: {
       launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
+      launcher_options: { headless: true },
     },
     upstream: { upstream_mode: "ws" },
     injector: {
@@ -56,7 +64,7 @@ test("custom events validate raw string handlers through a real service worker",
   const cdp = new ModCDPClient({
     launcher: {
       launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
+      launcher_options: { headless: true },
     },
     upstream: { upstream_mode: "ws" },
     injector: {
@@ -179,4 +187,33 @@ test("constructor custom command and event schemas validate nested payloads", ()
   assert.throws(() => event_schemas.get("Custom.ready")?.parse({ url: "http://example.com", ready: true }));
   assert.deepEqual(event_schemas.get("Custom.count")?.parse({ value: 3 }), { value: 3 });
   assert.throws(() => event_schemas.get("Custom.count")?.parse({ value: 0 }));
+});
+
+test("service worker server validates registered custom command and event schemas", async () => {
+  const scope = {} as typeof globalThis;
+  const server = installModCDPServer(scope) as unknown as {
+    addCustomCommand(registration: ModCDPCustomCommandRegistration): ProtocolResult;
+    addCustomEvent(registration: ModCDPCustomEventRegistration): ProtocolResult;
+    handleCommand(method: string, params?: ProtocolParams, cdpSessionId?: string | null): Promise<ProtocolResult>;
+    emit(eventName: string, payload?: ProtocolPayload, cdpSessionId?: string | null): Promise<ProtocolResult>;
+  };
+
+  server.addCustomCommand({
+    name: "Custom.double",
+    params_schema: z.object({ value: z.number() }),
+    result_schema: z.object({ value: z.number() }),
+    handler: async (params: { value: number }) => ({ value: params.value * 2 }),
+  });
+  assert.deepEqual(await server.handleCommand("Custom.double", { value: 2 }), { value: 4 });
+  await assert.rejects(() => server.handleCommand("Custom.double", { value: "2" }));
+
+  server.addCustomCommand({
+    name: "Custom.badResult",
+    result_schema: z.object({ ok: z.boolean() }),
+    handler: async () => ({ ok: "yes" }),
+  });
+  await assert.rejects(() => server.handleCommand("Custom.badResult", {}));
+
+  server.addCustomEvent({ name: "Custom.ready", event_schema: z.object({ ok: z.boolean() }) });
+  await assert.rejects(() => server.emit("Custom.ready", { ok: "yes" }));
 });

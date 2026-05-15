@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
+	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/v2/jsonschema"
 )
 
 func TestCustomCommandsInstallFlatNamespaceThroughRealServiceWorker(t *testing.T) {
@@ -24,7 +24,6 @@ func TestCustomCommandsInstallFlatNamespaceThroughRealServiceWorker(t *testing.T
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
 			},
 		},
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
@@ -84,7 +83,6 @@ func TestCustomEventsValidateRawStringHandlersThroughRealServiceWorker(t *testin
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
 			},
 		},
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
@@ -236,7 +234,15 @@ func TestTypedCustomEventRegistrationAndHandler(t *testing.T) {
 	if got := <-seen; got != "ok" {
 		t.Fatalf("unexpected typed event data %q", got)
 	}
-	if _, ok := cdp.validateEventData("Custom.someEvent", map[string]any{"data": 123}); ok {
-		t.Fatal("expected typed event schema to reject wrong data type")
-	}
+	expectPanic(t, func() { cdp.validateEventData("Custom.someEvent", map[string]any{"data": 123}) })
+}
+
+func expectPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	fn()
 }
