@@ -11,7 +11,9 @@ test("protocol validation covers native methods, native events, custom methods, 
       "Custom.echo": { params: { text: string }; result: { ok: boolean } };
       "Target.getTargets": {
         params: cdp.types.ts.Target.GetTargetsParams;
-        result: cdp.types.ts.Target.GetTargetsResult & { targetInfos: Array<cdp.types.ts.Target.TargetInfo & { tabId?: number }> };
+        result: cdp.types.ts.Target.GetTargetsResult & {
+          targetInfos: Array<cdp.types.ts.Target.TargetInfo & { tabId?: number }>;
+        };
       };
     },
     { "Custom.ready": { ok: boolean } }
@@ -40,15 +42,24 @@ test("protocol validation covers native methods, native events, custom methods, 
     // @ts-expect-error Runtime.evaluate params require expression.
     const badRuntimeParams: cdp.types.ts.Runtime.EvaluateParams = {};
     void badRuntimeParams;
-    // @ts-expect-error Target.targetCreated targetInfo.targetId is a string.
-    const badNativeEvent: cdp.types.ts.Target.TargetCreatedEvent = { targetInfo: { ...nativeEvent.targetInfo, targetId: 1 } };
+    const badNativeEvent: cdp.types.ts.Target.TargetCreatedEvent = {
+      targetInfo: {
+        ...nativeEvent.targetInfo,
+        // @ts-expect-error Target.targetCreated targetInfo.targetId is a string.
+        targetId: 1,
+      },
+    };
     void badNativeEvent;
     // @ts-expect-error Custom.echo requires text.
     client.Custom.echo({ id: "wrong" });
     // @ts-expect-error Custom.echo returns ok as boolean.
     const badCustomResult: Awaited<ReturnType<CustomClient["Custom"]["echo"]>> = { ok: "yes" };
     void badCustomResult;
-    await client.Mod.addMiddleware({ name: client.Target.getTargets, phase: client.RESPONSE, expression: "async (value, next) => next(value)" });
+    await client.Mod.addMiddleware({
+      name: client.Target.getTargets,
+      phase: client.RESPONSE,
+      expression: "async (value, next) => next(value)",
+    });
   }
 
   assert.deepEqual(client.command_params_schemas.get("Runtime.evaluate")?.parse(runtimeParams), runtimeParams);
@@ -93,7 +104,10 @@ test("protocol validation covers native methods, native events, custom methods, 
     targetInfos: [{ ...nativeEvent.targetInfo, tabId: 7 }],
   };
   assert.deepEqual(client.command_result_schemas.get("Target.getTargets")?.parse(extendedTargets), extendedTargets);
-  assert.deepEqual(client.event_schemas.get("Target.targetCreated")?.parse({ targetInfo: { ...nativeEvent.targetInfo, tabId: 7 } }), {
-    targetInfo: { ...nativeEvent.targetInfo, tabId: 7 },
-  });
+  assert.deepEqual(
+    client.event_schemas.get("Target.targetCreated")?.parse({ targetInfo: { ...nativeEvent.targetInfo, tabId: 7 } }),
+    {
+      targetInfo: { ...nativeEvent.targetInfo, tabId: 7 },
+    },
+  );
 });
