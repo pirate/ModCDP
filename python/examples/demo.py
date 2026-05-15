@@ -149,6 +149,7 @@ def main():
         else:
             cdp_url = None
             launch_options: dict[str, object] = {
+                "chrome_ready_timeout_ms": 60_000,
                 "headless": sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
                 "sandbox": not sys.platform.startswith("linux"),
             }

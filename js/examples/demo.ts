@@ -239,6 +239,7 @@ async function main() {
   } else {
     cdp_url = null;
     launch_options = {
+      chrome_ready_timeout_ms: 60_000,
       headless: process.platform === "linux" && !process.env.DISPLAY,
       sandbox: process.platform !== "linux",
     };

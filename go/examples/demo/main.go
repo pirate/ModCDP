@@ -199,9 +199,10 @@ func main() {
 			headless = true
 		}
 		launchOptions = modcdp.LaunchOptions{
-			ExecutablePath: chromePath,
-			Headless:       &headless,
-			Sandbox:        &sandbox,
+			ExecutablePath:       chromePath,
+			ChromeReadyTimeoutMS: 60_000,
+			Headless:             &headless,
+			Sandbox:              &sandbox,
 		}
 	}
 
