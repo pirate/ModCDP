@@ -26,6 +26,7 @@ let browser: Awaited<ReturnType<typeof puppeteer.connect>> | null = null;
 
 try {
   chrome = await new LocalBrowserLauncher().launch({
+    chrome_ready_timeout_ms: 60_000,
     headless: process.platform === "linux" && !process.env.DISPLAY,
     sandbox: process.platform !== "linux",
     extra_args: [`--load-extension=${extension_path}`],
