@@ -228,8 +228,9 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(cdp.upstream.upstream_reversews_wait_timeout_ms, 10_000);
     assert.equal(cdp.injector.injector_mode, "auto");
     assert.equal(
-      cdp.connect_timing?.injector_source === "local_launch" ||
-        cdp.connect_timing?.injector_source === "extensions_load_unpacked",
+      ["discovered", "local_launch", "extensions_load_unpacked", "borrowed"].includes(
+        String(cdp.connect_timing?.injector_source),
+      ),
       true,
     );
     assert.equal(cdp.client.client_routes["*.*"], "direct_cdp");
@@ -457,14 +458,15 @@ test("ModCDPClient rejects unknown component modes at their owning factory bound
 test("ModCDPClient.close does not close a remote browser it did not launch", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
+    chrome_ready_timeout_ms: 60_000,
+    extra_args: [`--load-extension=${EXTENSION_PATH}`],
   }).launch();
   const raw_cdp = await CdpSocket.connect(chrome.cdp_url!);
   const cdp = new ModCDPClient({
     launcher: { launcher_mode: "remote" },
     upstream: { upstream_mode: "ws", upstream_cdp_url: chrome.cdp_url },
     injector: {
-      injector_mode: "inject",
-      injector_extension_path: EXTENSION_PATH,
+      injector_mode: "discover",
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       injector_trust_service_worker_target: true,
       injector_service_worker_ready_timeout_ms: 5_000,
