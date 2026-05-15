@@ -224,26 +224,35 @@ def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_rea
     if sys.platform.startswith("win"):
         raise RuntimeError("remote_debugging='pipe' is not supported by the Python launcher on Windows.")
 
-    os.set_inheritable(child_read, True)
-    os.set_inheritable(child_write, True)
-
-    def setup_pipe_fds() -> None:
+    extra_parent_fds: list[int] = []
+    if child_read == 4:
+        child_read = os.dup(child_read)
+        extra_parent_fds.append(child_read)
+    if child_write == 3:
+        child_write = os.dup(child_write)
+        extra_parent_fds.append(child_write)
+    if child_read != 3:
         os.dup2(child_read, 3)
+    if child_write != 4:
         os.dup2(child_write, 4)
-        if child_read not in (3, 4):
-            os.close(child_read)
-        if child_write not in (3, 4):
-            os.close(child_write)
-
-    return subprocess.Popen(
-        [executable_path, *args],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        pass_fds=(child_read, child_write),
-        preexec_fn=setup_pipe_fds,
-        start_new_session=True,
-    )
+    os.set_inheritable(3, True)
+    os.set_inheritable(4, True)
+    try:
+        return subprocess.Popen(
+            [executable_path, *args],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            pass_fds=(3, 4),
+            start_new_session=True,
+        )
+    finally:
+        if child_read != 3:
+            os.close(3)
+        if child_write != 4:
+            os.close(4)
+        for fd in extra_parent_fds:
+            os.close(fd)
 
 
 class _ChromeProcess(Protocol):
