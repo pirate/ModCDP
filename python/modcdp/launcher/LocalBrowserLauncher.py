@@ -85,6 +85,10 @@ class LocalBrowserLauncher(BrowserLauncher):
             child_read, parent_write = os.pipe()
             parent_read = _move_fd_if_needed(parent_read, {3, 4})
             parent_write = _move_fd_if_needed(parent_write, {3, 4})
+            if child_read == 4:
+                child_read = _move_fd_if_needed(child_read, {4})
+            if child_write == 3:
+                child_write = _move_fd_if_needed(child_write, {3})
             process = _spawn_chrome_with_pipe_fds(executable_path, args, child_read, child_write)
             os.close(child_read)
             os.close(child_write)
@@ -224,13 +228,6 @@ def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_rea
     if sys.platform.startswith("win"):
         raise RuntimeError("remote_debugging='pipe' is not supported by the Python launcher on Windows.")
 
-    extra_parent_fds: list[int] = []
-    if child_read == 4:
-        child_read = os.dup(child_read)
-        extra_parent_fds.append(child_read)
-    if child_write == 3:
-        child_write = os.dup(child_write)
-        extra_parent_fds.append(child_write)
     if child_read != 3:
         os.dup2(child_read, 3)
     if child_write != 4:
@@ -251,8 +248,6 @@ def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_rea
             os.close(3)
         if child_write != 4:
             os.close(4)
-        for fd in extra_parent_fds:
-            os.close(fd)
 
 
 class _ChromeProcess(Protocol):
