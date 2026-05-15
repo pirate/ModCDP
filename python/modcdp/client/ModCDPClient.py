@@ -13,24 +13,23 @@ Synchronous (blocking) API; upstream transports own their read loops.
 
 import asyncio
 import inspect
-import sys
 import threading
 import time
 from collections.abc import Mapping, Sequence
 from queue import Queue, Empty
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
 from ..router.AutoSessionRouter import AutoSessionRouter
 from ..types.jsonschema import type_adapter_from_json_schema
-from ..types.generated.cdp import AwaitableDict, CDPEvent, CDPSurfaceMixin, cdp_event_name, install_cdp_surface
+from ..types.generated import cdp as generated_cdp
+from ..types.generated.cdp import AwaitableDict, CDPEvent, CDPModel, CDPParams, CDPSurfaceMixin, cdp_event_name, install_cdp_surface
 from ..launcher.BrowserbaseBrowserLauncher import BrowserbaseBrowserLauncher
 from ..injector.BBBrowserExtensionInjector import BBBrowserExtensionInjector
 from ..injector.BorrowedExtensionInjector import BorrowedExtensionInjector
 from ..injector.DiscoveredExtensionInjector import DiscoveredExtensionInjector
 from ..injector.ExtensionInjector import (
-    DEFAULT_MODCDP_WAKE_PATH,
     DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
     ExtensionInjector,
     ExtensionInjectorConfig,
@@ -120,7 +119,13 @@ class _ModDomain:
     def __init__(self, client: "ModCDPClient") -> None:
         self._client = client
 
-    def evaluate(self, *, expression: str, params: Mapping[str, Any] | None = None, cdpSessionId: str | None = None):
+    def evaluate(
+        self,
+        *,
+        expression: str,
+        params: Mapping[str, Any] | None = None,
+        cdpSessionId: str | None = None,
+    ) -> AwaitableDict | AwaitableValue:
         payload: dict[str, Any] = {"expression": expression}
         if params is not None:
             payload["params"] = dict(params)
@@ -135,7 +140,7 @@ class _ModDomain:
         params_schema: Any | None = None,
         result_schema: Any | None = None,
         expression: str | None = None,
-    ):
+    ) -> AwaitableDict | AwaitableValue:
         payload: dict[str, Any] = {"name": name}
         if params_schema is not None:
             payload["params_schema"] = params_schema
@@ -145,22 +150,28 @@ class _ModDomain:
             payload["expression"] = expression
         return self._client._send_command("Mod.addCustomCommand", payload)
 
-    def addCustomEvent(self, name: str, *, event_schema: Any | None = None):
+    def addCustomEvent(self, name: str, *, event_schema: Any | None = None) -> AwaitableDict | AwaitableValue:
         payload: dict[str, Any] = {"name": name}
         if event_schema is not None:
             payload["event_schema"] = event_schema
         return self._client._send_command("Mod.addCustomEvent", payload)
 
-    def addMiddleware(self, *, phase: str, expression: str, name: str | None = None):
+    def addMiddleware(
+        self,
+        *,
+        phase: Literal["request", "response", "event"],
+        expression: str,
+        name: str | None = None,
+    ) -> AwaitableDict | AwaitableValue:
         payload: dict[str, Any] = {"phase": phase, "expression": expression}
         if name is not None:
             payload["name"] = name
         return self._client._send_command("Mod.addMiddleware", payload)
 
-    def configure(self, **params: Any):
+    def configure(self, **params: Any) -> AwaitableDict | AwaitableValue:
         return self._client._send_command("Mod.configure", params)
 
-    def ping(self, **params: Any):
+    def ping(self, **params: Any) -> AwaitableDict | AwaitableValue:
         return self._client._send_command("Mod.ping", params)
 
 MODCDP_READY_EXPRESSION = (
@@ -265,8 +276,6 @@ class ModCDPClient(CDPSurfaceMixin):
             "injector_mode": injector_mode,
             "injector_extension_path": injector_input.get("injector_extension_path"),
             "injector_extension_id": injector_input.get("injector_extension_id"),
-            "injector_wake_path": _defaulted(injector_input.get("injector_wake_path"), DEFAULT_MODCDP_WAKE_PATH),
-            "injector_wake_url": injector_input.get("injector_wake_url"),
             "injector_service_worker_url_includes": list(cast(Sequence[str], injector_input.get("injector_service_worker_url_includes") or [])),
             "injector_service_worker_url_suffixes": list(
                 cast(
@@ -354,6 +363,7 @@ class ModCDPClient(CDPSurfaceMixin):
         self._launched_browser: Any | None = None
         self._extension_injectors: list[ExtensionInjector] = []
         self._cdp = _RawCDP(self)
+        self._hydrate_native_protocol_schemas()
         self._hydrate_custom_surface()
 
     def connect(self) -> "ModCDPClient":
@@ -592,7 +602,6 @@ class ModCDPClient(CDPSurfaceMixin):
 
     def _server_configure_params(self) -> ModCDPServerConfig:
         server = dict(self.server or {})
-        transport_injector_config = self.transport.getInjectorConfig() if self.transport is not None else {}
         server_routes = server.pop("server_routes", None)
         server_loopback_cdp_url = server.pop("server_loopback_cdp_url", None)
         server_browser_token = server.pop("server_browser_token", None)
@@ -624,11 +633,6 @@ class ModCDPClient(CDPSurfaceMixin):
         return cast(ModCDPServerConfig, {
             "upstream": {
                 "upstream_mode": self.upstream.get("upstream_mode"),
-                **(
-                    {"upstream_reversews_url": transport_injector_config.get("upstream_reversews_url")}
-                    if transport_injector_config.get("upstream_reversews_url")
-                    else {}
-                ),
                 **({"upstream_nats_url": self.upstream.get("upstream_nats_url")} if self.upstream.get("upstream_nats_url") else {}),
                 **(
                     {"upstream_nats_subject_prefix": self.upstream.get("upstream_nats_subject_prefix")}
@@ -871,8 +875,6 @@ class ModCDPClient(CDPSurfaceMixin):
             "waitForExecutionContext": self.auto_sessions.waitForExecutionContext,
             "injector_extension_path": cast(str | None, self.injector.get("injector_extension_path")),
             "injector_extension_id": cast(str | None, self.injector.get("injector_extension_id")),
-            "injector_wake_path": cast(str | None, self.injector.get("injector_wake_path")),
-            "injector_wake_url": cast(str | None, self.injector.get("injector_wake_url")),
             "injector_service_worker_url_includes": cast(list[str], self.injector["injector_service_worker_url_includes"]),
             "injector_service_worker_url_suffixes": cast(list[str], self.injector["injector_service_worker_url_suffixes"]),
             "injector_trust_service_worker_target": trust_service_worker_target,
@@ -933,6 +935,35 @@ class ModCDPClient(CDPSurfaceMixin):
             if isinstance(event, str):
                 continue
             self._register_custom_event(cast(ProtocolParams, event))
+
+    def _hydrate_native_protocol_schemas(self) -> None:
+        with self._schema_lock:
+            for domain_name, domain_class in vars(generated_cdp).items():
+                if not domain_name.endswith("Domain") or not isinstance(domain_class, type):
+                    continue
+                domain = domain_name.removesuffix("Domain")
+                nested_classes = {
+                    name: value
+                    for name, value in vars(domain_class).items()
+                    if isinstance(value, type) and issubclass(value, CDPModel)
+                }
+                for class_name, params_class in nested_classes.items():
+                    if issubclass(params_class, CDPEvent):
+                        event_name = getattr(params_class, "cdp_event_name", None)
+                        if isinstance(event_name, str):
+                            self._event_schemas[event_name] = TypeAdapter(params_class)
+                        continue
+                    if not class_name.startswith("_") or not class_name.endswith("Params"):
+                        continue
+                    command_base = class_name[1:-6]
+                    result_class = nested_classes.get(f"_{command_base}Result")
+                    if result_class is None:
+                        continue
+                    method = f"{domain}.{command_base[:1].lower()}{command_base[1:]}"
+                    if issubclass(params_class, CDPParams):
+                        self._command_params_schemas[method] = TypeAdapter(params_class)
+                    self._command_result_schemas[method] = TypeAdapter(result_class)
+                    self._command_result_model_schemas.add(method)
 
     def _register_custom_command(self, params: ProtocolParams) -> None:
         name = params.get("name")
@@ -996,10 +1027,14 @@ class ModCDPClient(CDPSurfaceMixin):
         if adapter is None:
             return params
         try:
-            validated = adapter.validate_python(dict(params))
+            validated = adapter.validate_python(dict(params), strict=True)
         except ValidationError as e:
             raise ValueError(f"{method} params did not match params_schema: {e}") from e
-        jsonable = to_jsonable_python(validated)
+        jsonable = (
+            validated.model_dump(mode="json", exclude_none=True, by_alias=True)
+            if isinstance(validated, BaseModel)
+            else to_jsonable_python(validated)
+        )
         if not isinstance(jsonable, Mapping):
             raise ValueError(f"{method} params_schema must validate to a JSON object")
         return cast(ProtocolParams, dict(jsonable))
@@ -1010,9 +1045,11 @@ class ModCDPClient(CDPSurfaceMixin):
         if adapter is None:
             return result
         try:
-            validated = adapter.validate_python(result)
+            validated = adapter.validate_python(result, strict=True)
         except ValidationError as e:
             raise ValueError(f"{method} result did not match result_schema: {e}") from e
+        if isinstance(validated, CDPModel):
+            return cast(JsonValue, validated.model_dump(mode="json", exclude_none=True, by_alias=True))
         if method in self._command_result_model_schemas and isinstance(validated, BaseModel):
             fields = list(type(validated).model_fields)
             if len(fields) == 1:
@@ -1023,22 +1060,29 @@ class ModCDPClient(CDPSurfaceMixin):
     def _validate_event_payload(self, event: str, payload: ProtocolPayload) -> Any | None:
         with self._schema_lock:
             adapter = self._event_schemas.get(event)
-        if adapter is None:
+            event_class = self._event_classes.get(event)
+        if adapter is None and event_class is None:
             return dict(payload)
+        if adapter is None and event_class is not None:
+            try:
+                return cast(ProtocolPayload, event_class.model_validate(dict(payload)).model_dump(mode="json", exclude_none=True, by_alias=True))
+            except ValidationError as e:
+                raise ValueError(f"{event} event did not match native event schema: {e}") from e
+        assert adapter is not None
         try:
-            validated = adapter.validate_python(dict(payload))
+            validated = adapter.validate_python(dict(payload), strict=True)
         except ValidationError as direct_error:
             if set(payload.keys()) != {"value"}:
-                print(f"[ModCDPClient] event {event} did not match event_schema: {direct_error}", file=sys.stderr)
-                return None
+                raise ValueError(f"{event} event did not match event_schema: {direct_error}") from direct_error
             try:
-                validated = adapter.validate_python(payload["value"])
+                validated = adapter.validate_python(payload["value"], strict=True)
             except ValidationError as value_error:
-                print(f"[ModCDPClient] event {event} did not match event_schema: {value_error}", file=sys.stderr)
-                return None
+                raise ValueError(f"{event} event did not match event_schema: {value_error}") from value_error
             if event in self._event_model_schemas:
                 return cast(ProtocolPayload, validated)
             return {"value": cast(JsonValue, to_jsonable_python(validated))}
+        if isinstance(validated, CDPModel):
+            return cast(ProtocolPayload, validated.model_dump(mode="json", exclude_none=True, by_alias=True))
         if event in self._event_model_schemas:
             return cast(ProtocolPayload, validated)
         jsonable = to_jsonable_python(validated)

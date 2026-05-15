@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 
 from modcdp import ModCDPClient
 from modcdp.transport.PipeUpstreamTransport import PipeUpstreamTransport
+
+ROOT = Path(__file__).resolve().parents[2]
+EXTENSION_PATH = ROOT / "dist" / "extension"
 
 
 class PipeUpstreamTransportTests(unittest.TestCase):
@@ -19,7 +23,7 @@ class PipeUpstreamTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, r"upstream\.upstream_mode=pipe requires"):
             transport.connect()
         with self.assertRaisesRegex(RuntimeError, "CDP pipe is not connected"):
-            transport.send({"id": 1, "method": "Browser.getVersion"})
+            transport.send({"id": 1, "method": "Runtime.evaluate"})
 
     def test_resets_connection_state_after_pipe_closes(self) -> None:
         read_fd, read_writer_fd = os.pipe()
@@ -34,24 +38,26 @@ class PipeUpstreamTransportTests(unittest.TestCase):
 
         try:
             transport.connect()
-            transport.send({"id": 1, "method": "Browser.getVersion", "params": {}})
+            transport.send({"id": 1, "method": "Runtime.evaluate", "params": {"expression": "1"}})
             pipe_read_writer.close()
             self.assertTrue(_wait_for(lambda: len(closed) == 1))
             with self.assertRaisesRegex(RuntimeError, "CDP pipe is not connected"):
-                transport.send({"id": 2, "method": "Browser.getVersion", "params": {}})
+                transport.send({"id": 2, "method": "Runtime.evaluate", "params": {"expression": "1"}})
         finally:
             transport.close()
             pipe_write_reader.close()
 
     def test_launches_real_browser_and_uses_pid_scoped_pipe_url(self) -> None:
         cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "sandbox": False}},
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True}},
             upstream={"upstream_mode": "pipe"},
             injector={
-                "injector_mode": "auto",
+                "injector_mode": "inject",
+                "injector_extension_path": str(EXTENSION_PATH),
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "injector_trust_service_worker_target": True,
             },
+            server={"server_routes": {"*.*": "chrome_debugger"}},
         )
 
         try:
@@ -60,8 +66,12 @@ class PipeUpstreamTransportTests(unittest.TestCase):
             self.assertEqual(cdp.upstream_endpoint_kind, "raw_cdp")
             self.assertRegex(cdp.cdp_url or "", r"^pipe://\d+$")
             self.assertEqual(cdp.transport.url if cdp.transport else None, cdp.cdp_url)
-            version = cdp.sendRaw("Browser.getVersion")
-            self.assertIsInstance(version["product"], str)
+            cdp.Mod.addCustomCommand(
+                "Custom.runtimeReadyState",
+                expression="async () => await cdp.send('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true })",
+            )
+            runtime = cdp.send("Custom.runtimeReadyState")
+            self.assertEqual(runtime["result"]["value"], "complete")
         finally:
             cdp.close()
 

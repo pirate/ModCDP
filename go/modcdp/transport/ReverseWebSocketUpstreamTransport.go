@@ -112,7 +112,7 @@ func (t *ReverseWebSocketUpstreamTransport) Send(message map[string]any) error {
 }
 
 func (t *ReverseWebSocketUpstreamTransport) GetInjectorConfig() ExtensionInjectorConfig {
-	return ExtensionInjectorConfig{UpstreamReverseWSURL: t.URL}
+	return ExtensionInjectorConfig{}
 }
 
 func (t *ReverseWebSocketUpstreamTransport) WaitForPeer() error {

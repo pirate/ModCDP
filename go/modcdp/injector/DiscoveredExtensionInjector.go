@@ -30,15 +30,6 @@ func (i *DiscoveredExtensionInjector) Inject() (*ExtensionInjectionResult, error
 			return waited, err
 		}
 	}
-	if i.wakeConfiguredExtension() {
-		waited, err := i.waitForReadyServiceWorker(i.Options.InjectorServiceWorkerProbeTimeoutMS, i.Options.InjectorTrustServiceWorkerTarget)
-		if err != nil || waited != nil {
-			if waited != nil {
-				waited.Source = "discovered"
-			}
-			return waited, err
-		}
-	}
 	if !i.Options.InjectorRequireServiceWorkerTarget {
 		return nil, nil
 	}

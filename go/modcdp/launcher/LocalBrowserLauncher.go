@@ -359,6 +359,7 @@ func candidatePaths() []string {
 
 	var canary []string
 	var stock []string
+	var chromium []string
 	switch runtime.GOOS {
 	case "darwin":
 		canary = []string{"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"}
@@ -367,12 +368,14 @@ func candidatePaths() []string {
 		canary = append([]string{filepath.Join(localAppData, "Google", "Chrome SxS", "Application", "chrome.exe")}, joinAll(programFiles, "Google", "Chrome SxS", "Application", "chrome.exe")...)
 		stock = append(joinAll(programFiles, "Google", "Chrome", "Application", "chrome.exe"), filepath.Join(localAppData, "Google", "Chrome", "Application", "chrome.exe"))
 	default:
+		chromium = []string{"/usr/bin/chromium", "/usr/bin/chromium-browser"}
 		canary = []string{"/usr/bin/google-chrome-canary", "/usr/bin/google-chrome-unstable", "/opt/google/chrome-unstable/chrome"}
 		stock = []string{"/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"}
 	}
 
-	result := append([]string{}, chromeForTestingCandidates()...)
+	result := append([]string{}, chromium...)
 	result = append(result, canary...)
+	result = append(result, chromeForTestingCandidates()...)
 	result = append(result, stock...)
 	return result
 }

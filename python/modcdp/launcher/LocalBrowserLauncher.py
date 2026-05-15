@@ -205,9 +205,11 @@ def _candidate_paths() -> list[str]:
             str(local_app_data / "Google/Chrome/Application/chrome.exe"),
         ]
     else:
+        chromium = ["/usr/bin/chromium", "/usr/bin/chromium-browser"]
         canary = ["/usr/bin/google-chrome-canary", "/usr/bin/google-chrome-unstable", "/opt/google/chrome-unstable/chrome"]
         stock = ["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"]
-    return [*_chrome_for_testing_candidates(), *canary, *stock]
+        return [*chromium, *canary, *_chrome_for_testing_candidates(), *stock]
+    return [*canary, *_chrome_for_testing_candidates(), *stock]
 
 
 def _move_fd_if_needed(fd: int, reserved: set[int]) -> int:

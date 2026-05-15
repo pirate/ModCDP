@@ -220,17 +220,31 @@ func waitForNativePeerDisconnect(t *testing.T, transport *NativeMessagingUpstrea
 func TestNativeMessagingUpstreamTransportInstallsLaunchProfileManifestAndConnectsToRealExtension(t *testing.T) {
 	nativeHostName := "com.modcdp.bridge"
 	headless := runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ""
-	sandbox := runtime.GOOS != "linux"
+	extensionPath, err := filepath.Abs(filepath.Join("..", "..", "..", "dist", "extension"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileDir, err := os.MkdirTemp("", "modcdp.native.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(profileDir)
 	cdp := modcdp.New(modcdp.Options{
 		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
 			LauncherOptions: modcdp.LaunchOptions{
-				Headless: boolPtr(headless),
-				Sandbox:  boolPtr(sandbox),
+				Headless:           boolPtr(headless),
+				UserDataDir:        profileDir,
+				CleanupUserDataDir: boolPtr(true),
+				// Native messaging is browser -> client only. After explicit CHROME_PATH
+				// and CI /usr/bin/chromium, this test uses Chrome for Testing because
+				// Canary rejects --load-extension in this local test path.
+				ExecutablePath: reverseWSTestBrowserPath(t),
 			},
 		},
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "nativemessaging", UpstreamNativeMessagingHostName: nativeHostName},
 		Injector: modcdp.InjectorConfig{
 			InjectorMode:                     "auto",
+			InjectorExtensionPath:            extensionPath,
 			InjectorServiceWorkerURLSuffixes: []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget: true,
 		},

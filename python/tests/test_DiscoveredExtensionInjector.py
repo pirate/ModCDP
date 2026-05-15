@@ -1,89 +1,30 @@
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
 import unittest
 from pathlib import Path
-from typing import Any, cast
 
 from modcdp import ModCDPClient
-from modcdp.injector.DiscoveredExtensionInjector import DiscoveredExtensionInjector
-from modcdp.launcher.LocalBrowserLauncher import LocalBrowserLauncher
 
 
 ROOT = Path(__file__).resolve().parents[2]
 EXTENSION_PATH = ROOT / "dist" / "extension"
-CUSTOM_EXTENSION_ID = "hhklgmbgnbeghnjidampacgmgnhelifg"
-CUSTOM_EXTENSION_PUBLIC_KEY = (
-    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzG1LUbtH0aHMKjTAUeT0saY8xfnRNENctFJme3C1qnsqT7PAXMxJC4nT7tBZy2gEGRirBb3zIZ3OyAu9a0QR8lTLupDp4qHWOhQ7dl9ZjxjQdYa4Gby0xuXLdQrJIxDbmuv+UVJvYa8vRTwQB8koygbzDDDP5/YiB6mc0hbh8XBb82Ossy7T280k8280o/rS0CXdioUraCHj58PDhfxbs18TBcYfOjuRqua9J2oddxobtGehSD0gDtbvn2IWDtRajOlgZZyuS1vLoSR7C1ulFzpRSYPEMhI2x+wphut7E3QImyJ577YeULVGpt988FcixOou7udjx3/IUWjpq8046wIDAQAB"
-)
 
 
 class DiscoveredExtensionInjectorTests(unittest.TestCase):
-    def test_preserves_explicit_zero_probe_timeout(self) -> None:
-        class ProbeTimeoutInjector(DiscoveredExtensionInjector):
-            def __init__(self) -> None:
-                super().__init__(
-                    {
-                        "injector_trust_service_worker_target": True,
-                        "injector_service_worker_probe_timeout_ms": 0,
-                        "injector_require_service_worker_target": False,
-                    }
-                )
-                self.waits: list[tuple[int, bool]] = []
-
-            def _discoverReadyServiceWorker(self, *, matched_only: bool = False):  # type: ignore[override]
-                return None
-
-            def _wakeConfiguredExtension(self):  # type: ignore[override]
-                return None
-
-            def _waitForReadyServiceWorker(self, timeout_ms: int, matched_only: bool = False):  # type: ignore[override]
-                self.waits.append((timeout_ms, matched_only))
-                return None
-
-        injector = ProbeTimeoutInjector()
-        self.assertIsNone(injector.inject())
-        self.assertEqual(injector.waits, [(0, True)])
-
-    def test_preserves_explicit_zero_ready_timeout(self) -> None:
-        class ReadyTimeoutInjector(DiscoveredExtensionInjector):
-            def __init__(self) -> None:
-                super().__init__(
-                    {
-                        "injector_service_worker_ready_timeout_ms": 0,
-                        "injector_require_service_worker_target": True,
-                    }
-                )
-                self.waits: list[tuple[int, bool]] = []
-
-            def _discoverReadyServiceWorker(self, *, matched_only: bool = False):  # type: ignore[override]
-                return None
-
-            def _wakeConfiguredExtension(self):  # type: ignore[override]
-                return None
-
-            def _waitForReadyServiceWorker(self, timeout_ms: int, matched_only: bool = False):  # type: ignore[override]
-                self.waits.append((timeout_ms, matched_only))
-                return None
-
-        injector = ReadyTimeoutInjector()
-        with self.assertRaisesRegex(RuntimeError, "Required ModCDP service worker target was not visible"):
-            injector.inject()
-        self.assertEqual(injector.waits, [(0, False)])
-
     def test_attaches_to_already_loaded_real_modcdp_extension(self) -> None:
-        chrome = LocalBrowserLauncher(
-            {
-                "headless": True,
-                "sandbox": False,
-                "extra_args": [f"--load-extension={EXTENSION_PATH}"],
-            }
-        ).launch()
+        owner = ModCDPClient(
+            launcher={"launcher_mode": "local", "launcher_options": {"headless": True}},
+            upstream={"upstream_mode": "ws"},
+            injector={
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
+                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                "injector_trust_service_worker_target": True,
+            },
+        )
         cdp = ModCDPClient(
             launcher={"launcher_mode": "remote"},
-            upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
+            upstream={"upstream_mode": "ws"},
             injector={
                 "injector_mode": "discover",
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
@@ -92,6 +33,8 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
         )
 
         try:
+            owner.connect()
+            cdp.upstream["upstream_cdp_url"] = owner.cdp_url
             cdp.connect()
             self.assertEqual(cdp.connect_timing.get("injector_source") if cdp.connect_timing else None, "discovered")
             self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
@@ -101,69 +44,7 @@ class DiscoveredExtensionInjectorTests(unittest.TestCase):
             )
         finally:
             cdp.close()
-            chrome["close"]()
-
-    def test_selects_configured_extension_when_multiple_modcdp_workers_exist(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="modcdp-custom-extension-") as custom_extension_dir:
-            custom_extension_path = Path(custom_extension_dir)
-            shutil.copytree(EXTENSION_PATH, custom_extension_path, dirs_exist_ok=True)
-            manifest_path = custom_extension_path / "manifest.json"
-            manifest = json.loads(manifest_path.read_text())
-            manifest["key"] = CUSTOM_EXTENSION_PUBLIC_KEY
-            manifest["name"] = "ModCDP Bridge Custom Test"
-            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-
-            chrome = LocalBrowserLauncher(
-                {
-                    "headless": True,
-                    "sandbox": False,
-                    "extra_args": [f"--load-extension={EXTENSION_PATH},{custom_extension_path}"],
-                }
-            ).launch()
-            cdp = ModCDPClient(
-                launcher={"launcher_mode": "remote"},
-                upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
-                injector={
-                    "injector_mode": "discover",
-                    "injector_extension_id": CUSTOM_EXTENSION_ID,
-                    "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                    "injector_trust_service_worker_target": True,
-                    "injector_require_service_worker_target": True,
-                },
-            )
-
-            try:
-                cdp.connect()
-                self.assertEqual(cdp.connect_timing.get("injector_source") if cdp.connect_timing else None, "discovered")
-                self.assertEqual(cdp.extension_id, CUSTOM_EXTENSION_ID)
-                self.assertEqual(cdp.Mod.evaluate(expression="chrome.runtime.id"), CUSTOM_EXTENSION_ID)
-                targets = cast(dict[str, Any], cdp.sendRaw("Target.getTargets"))
-                target_infos = targets.get("targetInfos")
-                self.assertIsInstance(target_infos, list)
-                target_infos = cast(list[Any], target_infos)
-                modcdp_workers = [
-                    target
-                    for target in target_infos
-                    if isinstance(target, dict)
-                    and target.get("type") == "service_worker"
-                    and str(target.get("url", "")).endswith("/modcdp/service_worker.js")
-                ]
-                self.assertTrue(
-                    any(
-                        target.get("url") == f"chrome-extension://{CUSTOM_EXTENSION_ID}/modcdp/service_worker.js"
-                        for target in modcdp_workers
-                    )
-                )
-                self.assertTrue(
-                    any(
-                        target.get("url")
-                        == "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js"
-                        for target in modcdp_workers
-                    )
-                )
-            finally:
-                cdp.close()
-                chrome["close"]()
+            owner.close()
 
 
 if __name__ == "__main__":

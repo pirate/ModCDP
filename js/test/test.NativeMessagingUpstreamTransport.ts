@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
+import { homedir, platform, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
@@ -11,6 +13,7 @@ import { ModCDPClient } from "../src/client/ModCDPClient.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_PATH = path.resolve(HERE, "..", "..", "dist", "extension");
+const NATIVE_MESSAGING_TEST_BROWSER_PATH = extensionLaunchFlagTestBrowserPath();
 const upstreamNativeMessagingHostName = (label: string) => `com.modcdp.test.${label}.${process.pid}`;
 
 test("nativemessaging upstream config owns manifest, host, wait timeout, loopback, and injector config", async () => {
@@ -161,10 +164,19 @@ test("nativemessaging upstream accepts a replacement peer after disconnect", asy
 
 test("nativemessaging upstream installs the launch-profile native host manifest and connects to a real extension", async () => {
   const upstream_nativemessaging_host_name = "com.modcdp.bridge";
+  const profile_dir = await mkdtemp(path.join(tmpdir(), "modcdp.native."));
   const native_client = new ModCDPClient({
     launcher: {
       launcher_mode: "local",
-      launcher_options: { headless: true, sandbox: process.platform !== "linux" },
+      launcher_options: {
+        headless: true,
+        user_data_dir: profile_dir,
+        cleanup_user_data_dir: true,
+        // Native messaging is browser -> client only. After explicit CHROME_PATH
+        // and CI /usr/bin/chromium, this test uses Chrome for Testing because
+        // Canary rejects --load-extension in this local test path.
+        executable_path: NATIVE_MESSAGING_TEST_BROWSER_PATH,
+      },
     },
     upstream: {
       upstream_mode: "nativemessaging",
@@ -204,6 +216,7 @@ test("nativemessaging upstream installs the launch-profile native host manifest 
     assert.equal(typeof second_version.product, "string");
   } finally {
     await native_client.close();
+    await rm(profile_dir, { recursive: true, force: true });
   }
 }, 90_000);
 
@@ -214,4 +227,90 @@ async function waitFor(predicate: () => boolean, timeout_ms = 2_000) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error("Timed out waiting for condition");
+}
+
+function extensionLaunchFlagTestBrowserPath() {
+  const explicit_candidates = [process.env.CHROME_PATH, platform() === "linux" ? "/usr/bin/chromium" : null].filter(
+    (candidate): candidate is string => Boolean(candidate),
+  );
+  for (const candidate of explicit_candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  const home = homedir();
+  const patterns =
+    platform() === "darwin"
+      ? [
+          path.join(
+            home,
+            "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+          ),
+          path.join(home, "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium"),
+          path.join(
+            home,
+            "Library/Caches/puppeteer/chrome/mac*-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+          ),
+        ]
+      : platform() === "win32"
+        ? [
+            path.join(
+              process.env.LOCALAPPDATA || path.join(home, "AppData/Local"),
+              "ms-playwright/chromium-*/chrome-win*/chrome.exe",
+            ),
+            path.join(home, ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe"),
+          ]
+        : [
+            path.join(home, ".cache/ms-playwright/chromium-*/chrome-linux*/chrome"),
+            "/opt/pw-browsers/chromium-*/chrome-linux*/chrome",
+            path.join(home, ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome"),
+          ];
+  const candidates = newestFirst(patterns.flatMap(expandGlob));
+  if (candidates[0]) return candidates[0];
+  throw new Error("Native messaging tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.");
+}
+
+function expandGlob(pattern: string) {
+  const normalized = path.normalize(pattern);
+  const { root } = path.parse(normalized);
+  const parts = normalized.slice(root.length).split(path.sep).filter(Boolean);
+  let candidates = [root || "."];
+  for (const part of parts) {
+    const has_wildcard = part.includes("*");
+    const matcher = has_wildcard ? wildcardToRegExp(part) : null;
+    const next: string[] = [];
+    for (const base of candidates) {
+      if (!existsSync(base)) continue;
+      if (!has_wildcard) {
+        const candidate = path.join(base, part);
+        if (existsSync(candidate)) next.push(candidate);
+        continue;
+      }
+      for (const child of readdirSync(base)) {
+        if (matcher!.test(child)) next.push(path.join(base, child));
+      }
+    }
+    candidates = next;
+  }
+  return candidates.filter((candidate) => existsSync(candidate));
+}
+
+function wildcardToRegExp(value: string) {
+  return new RegExp(`^${value.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+}
+
+function newestFirst(candidates: string[]) {
+  return [...new Set(candidates)].sort((a, b) => {
+    const left = scorePath(a);
+    const right = scorePath(b);
+    return right.version - left.version || right.mtime - left.mtime || a.localeCompare(b);
+  });
+}
+
+function scorePath(candidate: string) {
+  const numbers = candidate.match(/\d+/g)?.map(Number) ?? [];
+  const version = numbers.length > 0 ? Math.max(...numbers) : 0;
+  let mtime = 0;
+  try {
+    mtime = statSync(candidate).mtimeMs;
+  } catch {}
+  return { version, mtime };
 }

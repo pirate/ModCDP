@@ -62,7 +62,7 @@ class AutoSessionRouterTests(unittest.TestCase):
         self.assertEqual(router.execution_contexts[recent_session_id], 43)
 
     def test_tracks_real_target_sessions_and_execution_contexts(self) -> None:
-        chrome = LocalBrowserLauncher({"headless": True, "sandbox": False}).launch()
+        chrome = LocalBrowserLauncher({"headless": True}).launch()
         ws = create_connection(str(chrome["cdp_url"]), timeout=10)
         lock = threading.Lock()
         next_id = 0

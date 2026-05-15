@@ -20,6 +20,6 @@
     "useUnknownInCatchVariables": false,
     "verbatimModuleSyntax": true
   },
-  "include": ["js/src/**/*.ts", "js/examples/**/*.ts", "extension/src/**/*.ts"],
+  "include": ["js/src/**/*.ts", "js/examples/**/*.ts", "js/test/**/*.ts", "extension/src/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }

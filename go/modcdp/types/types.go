@@ -39,8 +39,6 @@ type ExtensionInjectorConfig struct {
 	WaitForExecutionContext              WaitForExecutionContext `json:"-"`
 	InjectorExtensionPath                string                  `json:"injector_extension_path,omitempty"`
 	InjectorExtensionID                  string                  `json:"injector_extension_id,omitempty"`
-	InjectorWakePath                     string                  `json:"injector_wake_path,omitempty"`
-	InjectorWakeURL                      string                  `json:"injector_wake_url,omitempty"`
 	InjectorServiceWorkerURLIncludes     []string                `json:"injector_service_worker_url_includes,omitempty"`
 	InjectorServiceWorkerURLSuffixes     []string                `json:"injector_service_worker_url_suffixes,omitempty"`
 	InjectorTrustServiceWorkerTarget     bool                    `json:"injector_trust_service_worker_target,omitempty"`
@@ -54,7 +52,6 @@ type ExtensionInjectorConfig struct {
 	InjectorTargetSessionPollIntervalMS  int                     `json:"injector_target_session_poll_interval_ms,omitempty"`
 	InjectorBrowserbaseAPIKey            string                  `json:"injector_browserbase_api_key,omitempty"`
 	InjectorBrowserbaseBaseURL           string                  `json:"injector_browserbase_base_url,omitempty"`
-	UpstreamReverseWSURL                 string                  `json:"upstream_reversews_url,omitempty"`
 	UpstreamNativeMessagingHostName      string                  `json:"upstream_nativemessaging_host_name,omitempty"`
 	UpstreamNATSURL                      string                  `json:"upstream_nats_url,omitempty"`
 	UpstreamNATSSubjectPrefix            string                  `json:"upstream_nats_subject_prefix,omitempty"`

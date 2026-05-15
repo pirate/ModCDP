@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/jsonschema"
+	abxjsonschema "github.com/ArchiveBox/abxbus/abxbus-go/v2/jsonschema"
 )
 
 func TestPayloadSchemaNormalizationAcceptsEmptyJSONSchemaObjects(t *testing.T) {

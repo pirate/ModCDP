@@ -49,7 +49,7 @@ class ReverseWebSocketUpstreamTransport(UpstreamTransport):
         return self
 
     def getInjectorConfig(self) -> dict[str, Any]:
-        return {"upstream_reversews_url": self.url}
+        return {}
 
     def _setBind(self, bind: str) -> None:
         parsed = urlparse(bind if "://" in bind else f"ws://{bind}")

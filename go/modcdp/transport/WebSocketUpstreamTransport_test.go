@@ -37,7 +37,6 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 		Launcher: modcdp.LauncherConfig{LauncherMode: "local",
 			LauncherOptions: modcdp.LaunchOptions{
 				Headless: boolPtr(true),
-				Sandbox:  boolPtr(false),
 			},
 		},
 		Upstream: modcdp.UpstreamConfig{UpstreamMode: "ws"},
@@ -115,7 +114,6 @@ func TestWebSocketUpstreamTransportLaunchesRealBrowserAndSpeaksRawCDP(t *testing
 func TestWebSocketUpstreamTransportResolvesRealHTTPCDPEndpointToBrowserWebSocket(t *testing.T) {
 	chrome, err := modcdp.NewLocalBrowserLauncher(modcdp.LaunchOptions{
 		Headless: boolPtr(true),
-		Sandbox:  boolPtr(false),
 	}).Launch(modcdp.LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +159,6 @@ func TestWebSocketUpstreamTransportResolvesRealHTTPCDPEndpointToBrowserWebSocket
 func TestWebSocketUpstreamTransportCloseClearsConnectionState(t *testing.T) {
 	chrome, err := modcdp.NewLocalBrowserLauncher(modcdp.LaunchOptions{
 		Headless: boolPtr(true),
-		Sandbox:  boolPtr(false),
 	}).Launch(modcdp.LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)

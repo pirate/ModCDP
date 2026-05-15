@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import tempfile
 import time
-import zipfile
-import shutil
-from pathlib import Path
 
-from ..injector.ExtensionInjector import DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS, DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS, ExtensionInjector, ExtensionInjectionResult, defaultModCDPExtensionPath
+from ..injector.ExtensionInjector import DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS, DEFAULT_SERVICE_WORKER_PROBE_TIMEOUT_MS, DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS, ExtensionInjector, ExtensionInjectionResult, defaultModCDPExtensionPath, prepareUnpackedExtension
 
 
 class ExtensionsLoadUnpackedInjector(ExtensionInjector):
@@ -21,16 +18,7 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
             super().prepare()
             return
         self.options["injector_extension_path"] = extension_path
-        if not extension_path.endswith(".zip"):
-            self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
-            shutil.copytree(extension_path, self.cleanup_dir.name, dirs_exist_ok=True)
-            self.unpacked_extension_path = _extension_root(self.cleanup_dir.name)
-            super().prepare()
-            return
-        self.cleanup_dir = tempfile.TemporaryDirectory(prefix="modcdp-extension-")
-        with zipfile.ZipFile(extension_path) as archive:
-            archive.extractall(self.cleanup_dir.name)
-        self.unpacked_extension_path = _extension_root(self.cleanup_dir.name)
+        self.unpacked_extension_path, self.cleanup_dir = prepareUnpackedExtension(extension_path)
         super().prepare()
 
     def inject(self) -> ExtensionInjectionResult | None:
@@ -51,7 +39,6 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
         if not isinstance(extension_id, str) or not extension_id:
             raise RuntimeError(f"Extensions.loadUnpacked returned no extension id (got {load_result})")
         self.options["injector_extension_id"] = extension_id
-        self._wakeConfiguredExtension()
 
         sw_url_prefix = f"chrome-extension://{extension_id}/"
         deadline = time.monotonic() + (self.options.get("injector_service_worker_ready_timeout_ms") or DEFAULT_SERVICE_WORKER_READY_TIMEOUT_MS) / 1000
@@ -74,12 +61,3 @@ class ExtensionsLoadUnpackedInjector(ExtensionInjector):
         if self.cleanup_dir:
             self.cleanup_dir.cleanup()
             self.cleanup_dir = None
-
-
-def _extension_root(unpacked_path: str) -> str:
-    if (Path(unpacked_path) / "manifest.json").exists():
-        return unpacked_path
-    nested = Path(unpacked_path) / "extension"
-    if (nested / "manifest.json").exists():
-        return str(nested)
-    return unpacked_path

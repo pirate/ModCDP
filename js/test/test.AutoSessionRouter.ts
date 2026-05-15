@@ -66,7 +66,6 @@ test("AutoSessionRouter bounds detached session guards and clears them when a se
 test("AutoSessionRouter tracks real target sessions and execution contexts", async () => {
   const chrome = await new LocalBrowserLauncher({
     headless: true,
-    sandbox: process.platform !== "linux",
   }).launch();
   const ws = new WebSocket(chrome.cdp_url!);
   await once(ws, "open");

@@ -3,7 +3,7 @@ module github.com/browserbase/modcdp/go
 go 1.25.0
 
 require (
-	github.com/ArchiveBox/abxbus/abxbus-go v0.0.0-20260508073455-c5b79a4483f1
+	github.com/ArchiveBox/abxbus/abxbus-go/v2 v2.5.2
 	github.com/gobwas/ws v1.4.0
 	golang.org/x/term v0.6.0
 )

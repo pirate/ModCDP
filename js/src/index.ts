@@ -9,7 +9,6 @@ export { NoopBrowserLauncher } from "./launcher/NoopBrowserLauncher.js";
 export {
   DEFAULT_MODCDP_EXTENSION_ID,
   DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
-  DEFAULT_MODCDP_WAKE_PATH,
   ExtensionInjector,
   defaultModCDPExtensionPath,
 } from "./injector/ExtensionInjector.js";

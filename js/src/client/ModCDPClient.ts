@@ -14,6 +14,7 @@ import type { z } from "zod";
 
 import { createCdpAliases, type CdpAliases } from "../types/generated/aliases.js";
 export type { CdpAliases } from "../types/generated/aliases.js";
+import { commands as nativeCommandSchemas, events as nativeEventSchemas } from "../types/generated/zod.js";
 import {
   CUSTOM_EVENT_BINDING_NAME,
   DEFAULT_CLIENT_ROUTES,
@@ -69,7 +70,6 @@ export const DEFAULT_SERVICE_WORKER_POLL_INTERVAL_MS = 100;
 export const DEFAULT_TARGET_SESSION_POLL_INTERVAL_MS = 20;
 export const DEFAULT_WS_CONNECT_ERROR_SETTLE_TIMEOUT_MS = 250;
 export const DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES = ["/modcdp/service_worker.js"];
-export const DEFAULT_MODCDP_WAKE_PATH = "/modcdp/wake.html";
 export const DEFAULT_UPSTREAM_REVERSEWS_BIND = "127.0.0.1:29292";
 export const DEFAULT_UPSTREAM_REVERSEWS_WAIT_TIMEOUT_MS = 10_000;
 export const DEFAULT_UPSTREAM_NATIVEMESSAGING_WAIT_TIMEOUT_MS = 10_000;
@@ -106,8 +106,6 @@ export type InjectorOptions = {
   injector_mode?: InjectorMode;
   injector_extension_path?: string | null;
   injector_extension_id?: string | null;
-  injector_wake_path?: string | null;
-  injector_wake_url?: string | null;
   injector_service_worker_url_includes?: string[];
   injector_service_worker_url_suffixes?: string[] | null;
   injector_trust_service_worker_target?: boolean;
@@ -158,6 +156,10 @@ type ModCDPEventNameInput = string | symbol | (z.ZodType & ModCDPNamedValue);
 type ModCDPEventPayload<TEvent extends z.ZodType> = TEvent extends z.ZodType<infer TPayload> ? TPayload : never;
 type ModCDPClientCustomCommandParams = Omit<ModCDPAddCustomCommandParams, "expression"> & {
   expression?: string | null;
+};
+type ProtocolCommandSchema = {
+  params: z.ZodType;
+  result: z.ZodType;
 };
 
 export type ModCDPCommandSpec<Params = unknown, Result = unknown> = {
@@ -265,8 +267,6 @@ function normalizeClientOptions({
       injector_mode,
       injector_extension_path: injector.injector_extension_path ?? null,
       injector_extension_id: injector.injector_extension_id ?? null,
-      injector_wake_path: injector.injector_wake_path ?? DEFAULT_MODCDP_WAKE_PATH,
-      injector_wake_url: injector.injector_wake_url ?? null,
       injector_service_worker_url_includes: injector.injector_service_worker_url_includes ?? [],
       injector_service_worker_url_suffixes:
         injector.injector_service_worker_url_suffixes ?? DEFAULT_MODCDP_SERVICE_WORKER_URL_SUFFIXES,
@@ -466,6 +466,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
       on: (event_name: string | symbol, listener: (...args: unknown[]) => void) => this.on(event_name, listener),
       once: (event_name: string | symbol, listener: (...args: unknown[]) => void) => this.once(event_name, listener),
     };
+    this._hydrateNativeProtocolSchemas();
     void this._hydrateCdpAliases();
     this._hydrateCustomSurface();
   }
@@ -579,7 +580,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
           completed_at: Date.now(),
           duration_ms: Date.now() - started_at,
         };
-        return { name, registered: true };
+        return this.command_result_schemas.get(method)?.parse({ name, registered: true }) ?? { name, registered: true };
       }
       command_params = {
         ...parsed,
@@ -600,7 +601,7 @@ export class ModCDPClient extends ModCDPEventEmitter {
           completed_at: Date.now(),
           duration_ms: Date.now() - started_at,
         };
-        return { name, registered: true };
+        return this.command_result_schemas.get(method)?.parse({ name, registered: true }) ?? { name, registered: true };
       }
       command_params = { ...parsed, name, event_schema: null };
     }
@@ -684,6 +685,30 @@ export class ModCDPClient extends ModCDPEventEmitter {
     }
   }
 
+  _hydrateNativeProtocolSchemas() {
+    for (const [method, schema] of Object.entries(nativeCommandSchemas) as [string, ProtocolCommandSchema][]) {
+      this.command_params_schemas.set(method, schema.params);
+      this.command_result_schemas.set(method, schema.result);
+    }
+    this.command_params_schemas.set("Mod.evaluate", Mod.EvaluateParams);
+    this.command_result_schemas.set("Mod.evaluate", Mod.EvaluateResponse);
+    this.command_params_schemas.set("Mod.addCustomCommand", Mod.AddCustomCommandParams);
+    this.command_result_schemas.set("Mod.addCustomCommand", Mod.AddCustomCommandResponse);
+    this.command_params_schemas.set("Mod.addCustomEvent", Mod.AddCustomEventParams);
+    this.command_result_schemas.set("Mod.addCustomEvent", Mod.AddCustomEventResponse);
+    this.command_params_schemas.set("Mod.addMiddleware", Mod.AddMiddlewareParams);
+    this.command_result_schemas.set("Mod.addMiddleware", Mod.AddMiddlewareResponse);
+    this.command_params_schemas.set("Mod.configure", Mod.ConfigureParams);
+    this.command_result_schemas.set("Mod.configure", Mod.ConfigureResponse);
+    this.command_params_schemas.set("Mod.ping", Mod.PingParams);
+    this.command_result_schemas.set("Mod.ping", Mod.PingResponse);
+
+    for (const [event, schema] of Object.entries(nativeEventSchemas) as [string, z.ZodType][]) {
+      this.event_schemas.set(event, schema);
+    }
+    this.event_schemas.set("Mod.pong", Mod.PongEvent);
+  }
+
   _normalizePayloadSchema(schema: unknown) {
     return normalizeModCDPPayloadSchema(Mod.PayloadSchemaSpec.parse(schema));
   }
@@ -695,18 +720,18 @@ export class ModCDPClient extends ModCDPEventEmitter {
     else this.command_result_unwrap_keys.delete(name);
   }
 
+  _parseEventPayload(method: string, data: unknown) {
+    return this.event_schemas.get(method)?.parse(data) ?? data;
+  }
+
   _serviceWorkerUrlSuffixes() {
     return this.injector.injector_service_worker_url_suffixes;
   }
 
   _serverConfigureParams(): ModCDPConfigureParams {
-    const transport_injector_config = this.transport?.getInjectorConfig?.() ?? {};
     return {
       upstream: {
         upstream_mode: this.upstream.upstream_mode,
-        ...(transport_injector_config.upstream_reversews_url
-          ? { upstream_reversews_url: transport_injector_config.upstream_reversews_url }
-          : {}),
         ...(this.upstream.upstream_nats_url ? { upstream_nats_url: this.upstream.upstream_nats_url } : {}),
         ...(this.upstream.upstream_nats_subject_prefix
           ? {
@@ -932,8 +957,6 @@ export class ModCDPClient extends ModCDPEventEmitter {
         this.auto_sessions.waitForExecutionContext(session_id, { timeout_ms }),
       injector_extension_path: this.injector.injector_extension_path,
       injector_extension_id: this.injector.injector_extension_id,
-      injector_wake_path: this.injector.injector_wake_path,
-      injector_wake_url: this.injector.injector_wake_url,
       injector_service_worker_url_includes: this.injector.injector_service_worker_url_includes,
       injector_service_worker_url_suffixes: service_worker_url_suffixes,
       injector_trust_service_worker_target: trust_service_worker_target,
@@ -1206,15 +1229,17 @@ export class ModCDPClient extends ModCDPEventEmitter {
         this.ext_session_id,
       );
       if (u) {
-        this.auto_sessions.recordProtocolEvent(u.event, u.data, u.sessionId);
-        this.emit(u.event, this.event_schemas.get(u.event)?.parse(u.data) ?? u.data, u.sessionId);
+        const payload = this._parseEventPayload(u.event, u.data);
+        this.auto_sessions.recordProtocolEvent(u.event, payload as ProtocolPayload, u.sessionId);
+        this.emit(u.event, payload, u.sessionId);
       }
       return;
     }
     if (event.method) {
       const data = event.params || {};
-      this.auto_sessions.recordProtocolEvent(event.method, data, event.sessionId || null);
-      this.emit(event.method, this.event_schemas.get(event.method)?.parse(data) ?? data, event.sessionId || null);
+      const payload = this._parseEventPayload(event.method, data);
+      this.auto_sessions.recordProtocolEvent(event.method, payload as ProtocolPayload, event.sessionId || null);
+      this.emit(event.method, payload, event.sessionId || null);
     }
   }
 
