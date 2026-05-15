@@ -193,7 +193,7 @@ class ModCDPClientTests(unittest.TestCase):
             launcher={"launcher_mode": "local", "launcher_options": {"headless": True, "chrome_ready_timeout_ms": 60_000}},
             upstream={"upstream_mode": "ws"},
             injector={
-                "injector_mode": "inject",
+                "injector_mode": "auto",
                 "injector_extension_path": str(EXTENSION_PATH),
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "injector_trust_service_worker_target": True,
@@ -209,7 +209,7 @@ class ModCDPClientTests(unittest.TestCase):
             cdp.connect()
             self.assertIn(
                 cdp.connect_timing.get("injector_source") if cdp.connect_timing else None,
-                ("local_launch", "extensions_load_unpacked"),
+                ("discovered", "local_launch", "extensions_load_unpacked", "borrowed"),
             )
             self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
             self.assertEqual(
