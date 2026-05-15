@@ -38,7 +38,7 @@ func TestExtensionInjectorOwnsSharedInjectorConfig(t *testing.T) {
 
 func TestExtensionInjectorBaseInjectReportsTheClassName(t *testing.T) {
 	injector := NewExtensionInjector(ExtensionInjectorConfig{})
-	if _, err := injector.Inject(); err == nil || !strings.Contains(err.Error(), "ExtensionInjector.inject is not implemented") {
+	if _, err := injector.Inject(); err == nil || !strings.Contains(err.Error(), "ExtensionInjector.Inject is not implemented") {
 		t.Fatalf("Inject error = %v", err)
 	}
 }

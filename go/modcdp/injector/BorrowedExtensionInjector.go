@@ -166,9 +166,11 @@ func modcdpServerPathFromExtensionPath(extensionPath string) (string, error) {
 	if extensionPath != "" {
 		candidates = append(candidates, filepath.Join(extensionPath, "ModCDPServer.js"))
 		candidates = append(candidates, filepath.Join(extensionPath, "js", "src", "server", "ModCDPServer.js"))
+		candidates = append(candidates, filepath.Join(filepath.Dir(extensionPath), "js", "src", "server", "ModCDPServer.js"))
 	}
 	if _, file, _, ok := runtime.Caller(0); ok {
 		for dir := filepath.Dir(file); ; dir = filepath.Dir(dir) {
+			candidates = append(candidates, filepath.Join(dir, "dist", "js", "src", "server", "ModCDPServer.js"))
 			candidates = append(candidates, filepath.Join(dir, "dist", "extension", "js", "src", "server", "ModCDPServer.js"))
 			candidates = append(candidates, filepath.Join(dir, "dist", "extension", "ModCDPServer.js"))
 			if parent := filepath.Dir(dir); parent == dir {

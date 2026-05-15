@@ -117,6 +117,7 @@ def bootstrap_modcdp_server_expression() -> str:
 def modcdp_server_source() -> str:
     candidates: list[Path] = []
     for parent in Path(__file__).resolve().parents:
+        candidates.append(parent / "dist" / "js" / "src" / "server" / "ModCDPServer.js")
         candidates.append(parent / "dist" / "extension" / "js" / "src" / "server" / "ModCDPServer.js")
         candidates.append(parent / "dist" / "extension" / "ModCDPServer.js")
         candidates.append(parent / "ModCDPServer.js")
