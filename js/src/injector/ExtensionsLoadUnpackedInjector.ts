@@ -10,8 +10,7 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
   private cleanup: (() => Promise<void>) | null = null;
 
   async prepare() {
-    const extension_path =
-      this.options.injector_extension_path ?? defaultModCDPExtensionPath();
+    const extension_path = this.options.injector_extension_path ?? defaultModCDPExtensionPath();
     if (this.unpacked_extension_path) {
       await super.prepare();
       return;
@@ -31,13 +30,8 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
         path: extension_path,
       })) as Record<string, unknown>;
     } catch (error) {
-      const load_error =
-        error instanceof Error ? error : new Error(String(error));
-      if (
-        /Method not available|Method.*not.*found|wasn't found/i.test(
-          load_error.message,
-        )
-      ) {
+      const load_error = error instanceof Error ? error : new Error(String(error));
+      if (/Method not available|Method.*not.*found|wasn't found/i.test(load_error.message)) {
         this.last_error = load_error;
         return null;
       }
@@ -49,31 +43,21 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
 
     const extension_id = load_result.id || load_result.extensionId;
     if (typeof extension_id !== "string" || !extension_id) {
-      throw new Error(
-        `Extensions.loadUnpacked returned no extension id (got ${JSON.stringify(load_result)})`,
-      );
+      throw new Error(`Extensions.loadUnpacked returned no extension id (got ${JSON.stringify(load_result)})`);
     }
     this.options.injector_extension_id = extension_id;
 
     const sw_url_prefix = `chrome-extension://${extension_id}/`;
-    const deadline =
-      Date.now() +
-      (this.options.injector_service_worker_ready_timeout_ms ?? 60_000);
+    const deadline = Date.now() + (this.options.injector_service_worker_ready_timeout_ms ?? 60_000);
     while (Date.now() < deadline) {
       const target_infos = await this.targetInfos();
       const target = target_infos.find(
-        (candidate) =>
-          candidate.type === "service_worker" &&
-          candidate.url.startsWith(sw_url_prefix),
+        (candidate) => candidate.type === "service_worker" && candidate.url.startsWith(sw_url_prefix),
       ) as TargetInfo | undefined;
       if (target) {
-        const probed = await this.probeTarget(
-          target,
-          this.options.injector_service_worker_probe_timeout_ms,
-          {
-            allow_attach: true,
-          },
-        );
+        const probed = await this.probeTarget(target, this.options.injector_service_worker_probe_timeout_ms, {
+          allow_attach: true,
+        });
         if (probed)
           return {
             ...probed,
@@ -81,16 +65,9 @@ export class ExtensionsLoadUnpackedInjector extends ExtensionInjector {
             extension_id,
           };
       }
-      await new Promise((resolve) =>
-        setTimeout(
-          resolve,
-          this.options.injector_service_worker_poll_interval_ms ?? 100,
-        ),
-      );
+      await new Promise((resolve) => setTimeout(resolve, this.options.injector_service_worker_poll_interval_ms ?? 100));
     }
-    throw new Error(
-      `Timed out waiting for service worker target for extension ${extension_id}.`,
-    );
+    throw new Error(`Timed out waiting for service worker target for extension ${extension_id}.`);
   }
 
   async close() {

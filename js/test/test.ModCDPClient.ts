@@ -72,17 +72,9 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(cdp._launcherOptions().user_data_dir, "/tmp/profile");
   assert.equal(cdp.upstream.upstream_nats_wait_timeout_ms, 345);
   assert.equal(cdp.upstream.upstream_reversews_wait_timeout_ms, 456);
-  assert.equal(
-    cdp.upstream.upstream_nativemessaging_manifest,
-    "/tmp/native-host.json",
-  );
-  assert.deepEqual(cdp.upstream.upstream_nativemessaging_manifests, [
-    "/tmp/native-host-extra.json",
-  ]);
-  assert.equal(
-    cdp.upstream.upstream_nativemessaging_host_name,
-    "com.modcdp.custom",
-  );
+  assert.equal(cdp.upstream.upstream_nativemessaging_manifest, "/tmp/native-host.json");
+  assert.deepEqual(cdp.upstream.upstream_nativemessaging_manifests, ["/tmp/native-host-extra.json"]);
+  assert.equal(cdp.upstream.upstream_nativemessaging_host_name, "com.modcdp.custom");
   assert.equal(cdp.upstream.upstream_nativemessaging_wait_timeout_ms, 567);
   assert.equal(cdp.upstream.upstream_ws_connect_error_settle_timeout_ms, 321);
   assert.equal(cdp.injector.injector_execution_context_timeout_ms, 4321);
@@ -103,22 +95,16 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(params.client.client_routes["*.*"], "direct_cdp");
   assert.equal(params.server.server_browser_token, "token-1");
   assert.equal(params.server.server_cdp_send_timeout_ms, 9876);
-  assert.equal(
-    params.server.server_loopback_execution_context_timeout_ms,
-    8765,
-  );
+  assert.equal(params.server.server_loopback_execution_context_timeout_ms, 8765);
   assert.equal(params.server.server_ws_connect_error_settle_timeout_ms, 7654);
 });
 
 test("ModCDPClient dispatches root events before extension session is attached", () => {
   const cdp = new ModCDPClient();
   const seen: string[] = [];
-  cdp.on(
-    "Target.targetCreated",
-    (payload: { targetInfo?: { targetId?: string } }) => {
-      seen.push(String(payload.targetInfo?.targetId));
-    },
-  );
+  cdp.on("Target.targetCreated", (payload: { targetInfo?: { targetId?: string } }) => {
+    seen.push(String(payload.targetInfo?.targetId));
+  });
 
   cdp._onRecv({
     method: "Target.targetCreated",
@@ -252,10 +238,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     const service_worker_url = await cdp.Mod.evaluate({
       expression: "chrome.runtime.getURL('modcdp/service_worker.js')",
     });
-    assert.equal(
-      service_worker_url,
-      `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`,
-    );
+    assert.equal(service_worker_url, `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`);
     const contexts = (await cdp.Mod.evaluate({
       expression:
         "chrome.runtime.getContexts({}).then((contexts) => contexts.map((context) => ({ type: context.contextType, url: context.documentUrl || context.origin || '' })))",
@@ -292,10 +275,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       };
       cdp.on("Mod.pong", listener);
     });
-    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<
-      string,
-      unknown
-    >;
+    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<string, unknown>;
     const pong_payload = await pong;
     assert.equal(ping_result.ok, true);
     assert.equal(pong_payload.sent_at, sent_at);
@@ -303,9 +283,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(pong_payload.from, "extension-service-worker");
   } finally {
     if (direct_session_target_id) {
-      await cdp
-        .send("Target.closeTarget", { targetId: direct_session_target_id })
-        .catch(() => ({}));
+      await cdp.send("Target.closeTarget", { targetId: direct_session_target_id }).catch(() => ({}));
     }
     await cdp.close();
   }
@@ -320,10 +298,7 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
   });
 
   assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, []);
-  assert.deepEqual(
-    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
-    [],
-  );
+  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, []);
 }, 60_000);
 
 function reversewsTestBrowserPath() {
@@ -415,13 +390,10 @@ function scorePath(candidate: string) {
 test("ModCDPClient defaults service worker suffix config to the ModCDP worker", async () => {
   const cdp = new ModCDPClient();
 
-  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, [
+  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, ["/modcdp/service_worker.js"]);
+  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, [
     "/modcdp/service_worker.js",
   ]);
-  assert.deepEqual(
-    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
-    ["/modcdp/service_worker.js"],
-  );
 });
 
 test("ModCDPClient preserves explicit null server config", () => {
@@ -544,8 +516,7 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
   try {
     await cdp.connect();
     const injector = cdp._injectors.find(
-      (candidate) =>
-        candidate.constructor.name === "ExtensionsLoadUnpackedInjector",
+      (candidate) => candidate.constructor.name === "ExtensionsLoadUnpackedInjector",
     ) as unknown as { unpacked_extension_path?: string | null } | undefined;
     const unpacked_extension_path = injector?.unpacked_extension_path;
     assert.equal(typeof unpacked_extension_path, "string");
@@ -594,8 +565,5 @@ test("ModCDPClient.close clears top-level connection state", async () => {
   await cdp.close();
 
   assert.equal(cdp.transport, null);
-  await assert.rejects(
-    () => cdp.sendRaw("Browser.getVersion"),
-    /ModCDP upstream is not connected/,
-  );
+  await assert.rejects(() => cdp.sendRaw("Browser.getVersion"), /ModCDP upstream is not connected/);
 }, 60_000);

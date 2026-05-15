@@ -22,28 +22,28 @@ class BorrowedExtensionInjectorTests(unittest.TestCase):
                 "injector_trust_service_worker_target": True,
             },
         )
-        cdp = ModCDPClient(
-            launcher={"launcher_mode": "remote"},
-            upstream={"upstream_mode": "ws"},
-            injector={
-                "injector_mode": "borrow",
-                "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
-                "injector_trust_service_worker_target": True,
-            },
-        )
-
         try:
             owner.connect()
-            cdp.upstream["upstream_cdp_url"] = owner.cdp_url
-            cdp.connect()
-            self.assertEqual(cdp.connect_timing.get("injector_source") if cdp.connect_timing else None, "borrowed")
-            self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
-            self.assertEqual(
-                cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),
-                "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js",
+            cdp = ModCDPClient(
+                launcher={"launcher_mode": "remote"},
+                upstream={"upstream_mode": "ws", "upstream_cdp_url": owner.cdp_url},
+                injector={
+                    "injector_mode": "borrow",
+                    "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
+                    "injector_trust_service_worker_target": True,
+                },
             )
+            try:
+                cdp.connect()
+                self.assertEqual(cdp.connect_timing.get("injector_source") if cdp.connect_timing else None, "borrowed")
+                self.assertEqual(cdp.extension_id, "mdedooklbnfejodmnhmkdpkaedafkehf")
+                self.assertEqual(
+                    cdp.Mod.evaluate(expression="chrome.runtime.getURL('modcdp/service_worker.js')"),
+                    "chrome-extension://mdedooklbnfejodmnhmkdpkaedafkehf/modcdp/service_worker.js",
+                )
+            finally:
+                cdp.close()
         finally:
-            cdp.close()
             owner.close()
 
 
