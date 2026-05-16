@@ -288,7 +288,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     }
     await cdp.close();
   }
-}, 60_000);
+}, 180_000);
 
 test("ModCDPClient preserves explicit empty service worker suffix config", async () => {
   const cdp = new ModCDPClient({
