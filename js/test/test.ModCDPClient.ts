@@ -300,7 +300,7 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
 
   assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, []);
   assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, []);
-}, 180_000);
+}, 60_000);
 
 function reversewsTestBrowserPath() {
   const explicit_candidates = [process.env.CHROME_PATH, platform() === "linux" ? "/usr/bin/chromium" : null].filter(
@@ -486,7 +486,7 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
     await cdp.close();
     await chrome.close();
   }
-}, 60_000);
+}, 180_000);
 
 test("ModCDPClient.close keeps injector files until after launched browser shutdown", async () => {
   const cdp = new ModCDPClient({
