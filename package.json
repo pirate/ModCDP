@@ -1,6 +1,6 @@
 {
   "name": "modcdp",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pirate/modcdp.git"
@@ -8,6 +8,8 @@
   "files": [
     "js/scripts/**/*.mjs",
     "dist/**/*",
+    "dist/extension/**/*",
+    "dist/js/**/*",
     "dist/extension.zip",
     "extension/src/**/*.ts",
     "extension/src/pages/**/*",
@@ -132,7 +134,7 @@
     "clean": "rm -rf dist",
     "build": "pnpm run build:package && pnpm run build:extension-assets && pnpm run build:python-readme",
     "build:clean": "pnpm run clean && pnpm run build",
-    "build:package": "tsc -p tsconfig.json && rm -rf dist/js/test",
+    "build:package": "tsc -p tsconfig.json && rm -rf dist/js/test && rm -f dist/.gitignore",
     "build:extension-assets": "node js/scripts/build-extension-assets.mjs",
     "build:python-readme": "mkdir -p python && if [ README.md -ef python/README.md ]; then :; else cp README.md python/README.md; fi",
     "typecheck": "tsc -p tsconfig.json --noEmit",

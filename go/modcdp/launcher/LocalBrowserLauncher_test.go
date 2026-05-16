@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,7 +24,7 @@ func TestLocalBrowserLauncherClassHelpersMatchLocalLauncherSurface(t *testing.T)
 	}
 }
 
-func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
+func TestLocalBrowserLauncherLaunchesRealBrowserOverChosenCDPPortAndHonorsLaunchOptions(t *testing.T) {
 	headless := true
 	profileDir := t.TempDir()
 	port, err := freePort()
@@ -100,6 +101,36 @@ func TestLocalBrowserLauncherLaunchesRealBrowserAndSpeaksCDP(t *testing.T) {
 	}
 	if response.Result.ProtocolVersion == "" {
 		t.Fatal("expected protocolVersion")
+	}
+	if err := wsutil.WriteClientText(conn, []byte(`{"id":2,"method":"SystemInfo.getInfo","params":{}}`)); err != nil {
+		t.Fatal(err)
+	}
+	systemInfoBody, err := wsutil.ReadServerText(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var systemInfoResponse struct {
+		ID     int `json:"id"`
+		Result struct {
+			CommandLine string `json:"commandLine"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(systemInfoBody, &systemInfoResponse); err != nil {
+		t.Fatal(err)
+	}
+	if systemInfoResponse.ID != 2 {
+		t.Fatalf("unexpected SystemInfo.getInfo response id %d", systemInfoResponse.ID)
+	}
+	command := systemInfoResponse.Result.CommandLine
+	if !strings.Contains(command, "--window-size=900,700") {
+		t.Fatalf("expected browser command to include --window-size=900,700: %s", command)
+	}
+	if runtime.GOOS == "linux" {
+		if !strings.Contains(command, "--no-sandbox") {
+			t.Fatalf("expected Linux browser command to include --no-sandbox: %s", command)
+		}
+	} else if strings.Contains(command, "--no-sandbox") {
+		t.Fatalf("expected browser command not to include --no-sandbox: %s", command)
 	}
 }
 

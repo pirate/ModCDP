@@ -75,7 +75,8 @@ class LocalBrowserLauncher(BrowserLauncher):
         default_headless = sys.platform.startswith("linux") and not os.environ.get("DISPLAY")
         if merged.get("headless", default_headless):
             args.append("--headless=new")
-        if merged.get("sandbox", False) is False:
+        default_sandbox = not sys.platform.startswith("linux")
+        if merged.get("sandbox", default_sandbox) is False:
             args.append("--no-sandbox")
         args.extend(list(merged.get("args") or []))
         args.extend(list(merged.get("extra_args") or []))
@@ -85,10 +86,8 @@ class LocalBrowserLauncher(BrowserLauncher):
             child_read, parent_write = os.pipe()
             parent_read = _move_fd_if_needed(parent_read, {3, 4})
             parent_write = _move_fd_if_needed(parent_write, {3, 4})
-            if child_read == 4:
-                child_read = _move_fd_if_needed(child_read, {4})
-            if child_write == 3:
-                child_write = _move_fd_if_needed(child_write, {3})
+            child_read = _move_fd_to(child_read, 3)
+            child_write = _move_fd_to(child_write, 4)
             process = _spawn_chrome_with_pipe_fds(executable_path, args, child_read, child_write)
             os.close(child_read)
             os.close(child_write)
@@ -224,61 +223,23 @@ def _move_fd_if_needed(fd: int, reserved: set[int]) -> int:
     return moved
 
 
-class _SpawnedProcess:
-    def __init__(self, pid: int) -> None:
-        self.pid = pid
-        self.returncode: int | None = None
-
-    def terminate(self) -> None:
-        self._signal(signal.SIGTERM)
-
-    def kill(self) -> None:
-        self._signal(signal.SIGKILL)
-
-    def wait(self, timeout: float | None = None) -> int:
-        deadline = None if timeout is None else time.monotonic() + timeout
-        while True:
-            try:
-                waited_pid, status = os.waitpid(self.pid, os.WNOHANG)
-            except ChildProcessError:
-                if self.returncode is None:
-                    self.returncode = 0
-                return self.returncode
-            if waited_pid == self.pid:
-                self.returncode = os.waitstatus_to_exitcode(status)
-                return self.returncode
-            if deadline is not None and time.monotonic() >= deadline:
-                assert timeout is not None
-                raise subprocess.TimeoutExpired([str(self.pid)], timeout)
-            time.sleep(0.05)
-
-    def _signal(self, sig: int) -> None:
-        if self.returncode is not None:
-            return
-        try:
-            os.kill(self.pid, sig)
-        except ProcessLookupError:
-            self.returncode = 0
+def _move_fd_to(fd: int, target: int) -> int:
+    if fd == target:
+        return fd
+    os.dup2(fd, target)
+    os.close(fd)
+    return target
 
 
 def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_read: int, child_write: int) -> _ChromeProcess:
-    if not hasattr(os, "posix_spawn"):
-        raise RuntimeError("remote_debugging='pipe' requires os.posix_spawn support in the Python client.")
-    devnull = os.open(os.devnull, os.O_RDWR)
-    file_actions: list[tuple[int, int] | tuple[int, int, int]] = [
-        (os.POSIX_SPAWN_DUP2, devnull, 0),
-        (os.POSIX_SPAWN_DUP2, devnull, 1),
-        (os.POSIX_SPAWN_DUP2, devnull, 2),
-        (os.POSIX_SPAWN_DUP2, child_read, 3),
-        (os.POSIX_SPAWN_DUP2, child_write, 4),
-    ]
-    for fd in {devnull, child_read, child_write} - {0, 1, 2, 3, 4}:
-        file_actions.append((os.POSIX_SPAWN_CLOSE, fd))
-    try:
-        pid = os.posix_spawn(executable_path, [executable_path, *args], os.environ, file_actions=file_actions, setsid=True)
-        return _SpawnedProcess(pid)
-    finally:
-        os.close(devnull)
+    return subprocess.Popen(
+        [executable_path, *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        pass_fds=(child_read, child_write),
+        start_new_session=not sys.platform.startswith("win"),
+    )
 
 
 class _ChromeProcess(Protocol):

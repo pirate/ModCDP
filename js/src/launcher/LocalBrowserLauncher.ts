@@ -261,7 +261,7 @@ export class LocalBrowserLauncher extends BrowserLauncher {
       port,
       user_data_dir,
       headless = process.platform === "linux" && !process.env.DISPLAY,
-      sandbox = false,
+      sandbox = process.platform !== "linux",
       args = [],
       extra_args = [],
       remote_debugging = "port",

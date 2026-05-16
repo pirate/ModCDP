@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,7 +16,7 @@ class LocalBrowserLauncherTests(unittest.TestCase):
         self.assertIsInstance(LocalBrowserLauncher.findChromeBinary(), str)
         self.assertIsInstance(LocalBrowserLauncher.freePort(), int)
 
-    def test_launches_real_browser_and_speaks_cdp(self) -> None:
+    def test_launches_real_browser_over_chosen_cdp_port_and_honors_launch_options(self) -> None:
         with tempfile.TemporaryDirectory(prefix="modcdp-python-local-profile-") as user_data_dir:
             chrome = LocalBrowserLauncher(
                 {
@@ -36,6 +37,16 @@ class LocalBrowserLauncherTests(unittest.TestCase):
                 self.assertEqual(version["id"], 1)
                 self.assertIn("Chrome", version["result"]["product"])
                 self.assertIsInstance(version["result"]["protocolVersion"], str)
+                ws.send(json.dumps({"id": 2, "method": "SystemInfo.getInfo", "params": {}}))
+                system_info = json.loads(ws.recv())
+                self.assertEqual(system_info["id"], 2)
+                command_line = system_info["result"]["commandLine"]
+                self.assertIsInstance(command_line, str)
+                self.assertIn("--window-size=900,700", command_line)
+                if sys.platform.startswith("linux"):
+                    self.assertIn("--no-sandbox", command_line)
+                else:
+                    self.assertNotIn("--no-sandbox", command_line)
             finally:
                 ws.close()
                 chrome["close"]()

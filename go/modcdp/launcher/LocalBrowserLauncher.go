@@ -102,7 +102,11 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 	if headless {
 		args = append(args, "--headless=new")
 	}
-	if options.Sandbox == nil || !*options.Sandbox {
+	sandbox := runtime.GOOS != "linux"
+	if options.Sandbox != nil {
+		sandbox = *options.Sandbox
+	}
+	if !sandbox {
 		args = append(args, "--no-sandbox")
 	}
 	args = append(args, options.Args...)
