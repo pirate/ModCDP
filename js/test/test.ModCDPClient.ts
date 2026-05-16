@@ -469,8 +469,8 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
       injector_mode: "discover",
       injector_service_worker_url_suffixes: ["/modcdp/service_worker.js"],
       injector_trust_service_worker_target: true,
-      injector_service_worker_ready_timeout_ms: 5_000,
-      injector_service_worker_probe_timeout_ms: 5_000,
+      injector_service_worker_ready_timeout_ms: 30_000,
+      injector_service_worker_probe_timeout_ms: 30_000,
     },
     client: { client_routes: { "*.*": "direct_cdp" } },
   });

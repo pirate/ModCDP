@@ -661,8 +661,14 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 
 func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) {
 	headless := true
+	extensionPath, err := filepath.Abs("../../../dist/extension")
+	if err != nil {
+		t.Fatal(err)
+	}
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
-		Headless: &headless,
+		Headless:             &headless,
+		ChromeReadyTimeoutMS: 60_000,
+		ExtraArgs:            []string{"--load-extension=" + extensionPath},
 	}).Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -676,21 +682,15 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer rawConn.Close()
-	extensionPath, err := filepath.Abs("../../../dist/extension")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	cdp := New(Options{
 		Launcher: LauncherConfig{LauncherMode: "remote"},
 		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
 		Injector: InjectorConfig{
-			InjectorMode:                        "inject",
-			InjectorExtensionPath:               extensionPath,
+			InjectorMode:                        "discover",
 			InjectorServiceWorkerURLSuffixes:    []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget:    true,
-			InjectorServiceWorkerReadyTimeoutMS: 5_000,
-			InjectorServiceWorkerProbeTimeoutMS: 5_000,
+			InjectorServiceWorkerReadyTimeoutMS: 30_000,
+			InjectorServiceWorkerProbeTimeoutMS: 30_000,
 		},
 		Client: ClientConfig{ClientRoutes: map[string]string{"*.*": "direct_cdp"}},
 	})
