@@ -29,23 +29,18 @@ const compact = (value: unknown) => {
 };
 const trimLog = (log: any[]) => (log.length = Math.min(log.length, 80));
 const routeFor = (method: string) => {
-  if (method.startsWith("Mod.") || method.startsWith("Custom."))
-    return "service_worker";
+  if (method.startsWith("Mod.") || method.startsWith("Custom.")) return "service_worker";
   const routes = (bridge.routes ?? {}) as Record<string, string>;
   const route =
     routes[method] ??
     Object.entries(routes)
-      .filter(
-        ([pattern]) =>
-          pattern.endsWith(".*") && method.startsWith(pattern.slice(0, -1)),
-      )
+      .filter(([pattern]) => pattern.endsWith(".*") && method.startsWith(pattern.slice(0, -1)))
       .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ??
     routes["*.*"] ??
     "chrome_debugger";
   if (route === "loopback_cdp") return "loopback";
   if (route === "chrome_debugger") return "debugger";
-  if (route === "auto")
-    return bridge.loopback_cdp_url ? "loopback" : "debugger";
+  if (route === "auto") return bridge.loopback_cdp_url ? "loopback" : "debugger";
   return route;
 };
 const upstreamServer = (id: string) =>
@@ -56,8 +51,7 @@ const upstreamServer = (id: string) =>
 const configuredClient = (params: unknown, session_id?: string | null) => {
   const at = new Date().toISOString();
   const id =
-    (session_id && client_id_by_config_session.get(session_id)) ||
-    `downstream_client_${next_downstream_client_id++}`;
+    (session_id && client_id_by_config_session.get(session_id)) || `downstream_client_${next_downstream_client_id++}`;
   if (session_id) client_id_by_config_session.set(session_id, id);
   active_downstream_client_id = id;
   const configure = compact(params);
@@ -107,20 +101,12 @@ const downstreamClient = (session_id?: string | null) => {
   });
   return { at, client_id, client, session };
 };
-const logTraffic = (
-  direction: "command" | "event",
-  name: string,
-  payload: unknown,
-  session_id?: string | null,
-) => {
+const logTraffic = (direction: "command" | "event", name: string, payload: unknown, session_id?: string | null) => {
   const { at, client_id, client, session } = downstreamClient(session_id);
   const upstream = routeFor(name);
   const from = direction === "command" ? client_id : upstream;
   const to = direction === "command" ? upstream : client_id;
-  const route_path =
-    from === "service_worker" || to === "service_worker"
-      ? [from, to]
-      : [from, "service_worker", to];
+  const route_path = from === "service_worker" || to === "service_worker" ? [from, to] : [from, "service_worker", to];
   const entry: any = {
     id: `log_${next_log_id++}`,
     at,
@@ -133,16 +119,13 @@ const logTraffic = (
   };
   direction === "event" ? client.events++ : client.commands++;
   direction === "event" ? session.events++ : session.commands++;
-  direction === "event"
-    ? (session.last_event = name)
-    : (session.last_command = name);
+  direction === "event" ? (session.last_event = name) : (session.last_command = name);
   client.last_seen = at;
   session.last_seen = at;
   client.log ??= client.recent ?? [];
   client.log.unshift(entry);
   trimLog(client.log);
-  const endpointLog =
-    upstream === "service_worker" ? self_log : upstreamServer(upstream).log;
+  const endpointLog = upstream === "service_worker" ? self_log : upstreamServer(upstream).log;
   endpointLog.unshift(entry);
   trimLog(endpointLog);
   return entry;
@@ -151,11 +134,7 @@ const logTraffic = (
 if (bridge) {
   const handleCommand = bridge.handleCommand?.bind(bridge);
   if (handleCommand) {
-    bridge.handleCommand = async (
-      method: string,
-      params?: unknown,
-      session_id?: string | null,
-    ) => {
+    bridge.handleCommand = async (method: string, params?: unknown, session_id?: string | null) => {
       if (method === "Mod.configure") configuredClient(params, session_id);
       const entry = logTraffic("command", method, params, session_id);
       try {
@@ -170,9 +149,8 @@ if (bridge) {
       }
     };
   }
-  bridge.addEventListener?.(
-    (event: string, _payload: unknown, session_id?: string | null) =>
-      logTraffic("event", event, _payload, session_id),
+  bridge.addEventListener?.((event: string, _payload: unknown, session_id?: string | null) =>
+    logTraffic("event", event, _payload, session_id),
   );
   for (const [method, key] of [
     ["startReverseBridge", "reverse"],
@@ -237,17 +215,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       loopback_cdp_url: bridge.loopback_cdp_url,
       browser_token: bridge.browser_token ? "set" : null,
       cdp_send_timeout_ms: bridge.cdp_send_timeout_ms,
-      loopback_execution_context_timeout_ms:
-        bridge.loopback_execution_context_timeout_ms,
-      ws_connect_error_settle_timeout_ms:
-        bridge.ws_connect_error_settle_timeout_ms,
+      loopback_execution_context_timeout_ms: bridge.loopback_execution_context_timeout_ms,
+      ws_connect_error_settle_timeout_ms: bridge.ws_connect_error_settle_timeout_ms,
       native_bridge_attempts: bridge.native_bridge_attempts,
       native_bridge_connected: bridge.native_bridge_connected,
       native_bridge_last_error: bridge.native_bridge_last_error,
     },
-    ...(Object.keys(self_transports).length
-      ? { transports: self_transports }
-      : {}),
+    ...(Object.keys(self_transports).length ? { transports: self_transports } : {}),
     custom: {
       commands: [...self_custom.commands],
       events: [...self_custom.events],

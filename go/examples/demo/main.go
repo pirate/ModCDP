@@ -222,7 +222,7 @@ func main() {
 	var (
 		eventsMu            sync.Mutex
 		targetCreatedEvents []modcdp.TargetTargetCreatedEvent
-		foregroundEvents    []map[string]any
+		pageTargetEvents    []map[string]any
 	)
 	cdp.Target.On.TargetCreated(func(event modcdp.TargetTargetCreatedEvent) {
 		fmt.Printf("Target.targetCreated -> %s\n", event.TargetID())
@@ -434,34 +434,21 @@ func main() {
 	})
 	fmt.Println("Custom.demoEvent ->", demoEvent)
 
-	foregroundEventRegistrationRaw, err := cdp.Mod.AddCustomEvent(modcdp.CustomEvent{Name: "Custom.foregroundTargetChanged"})
+	pageTargetEventRegistrationRaw, err := cdp.Mod.AddCustomEvent(modcdp.CustomEvent{Name: "Custom.pageTargetUpdated"})
 	if err != nil {
-		log.Fatalf("Mod.addCustomEvent Custom.foregroundTargetChanged: %v", err)
+		log.Fatalf("Mod.addCustomEvent Custom.pageTargetUpdated: %v", err)
 	}
-	foregroundEventRegistration := mustMap(foregroundEventRegistrationRaw, "Mod.addCustomEvent Custom.foregroundTargetChanged")
-	if foregroundEventRegistration["registered"] != true {
-		log.Fatalf("unexpected foreground event registration: %v", foregroundEventRegistration)
+	pageTargetEventRegistration := mustMap(pageTargetEventRegistrationRaw, "Mod.addCustomEvent Custom.pageTargetUpdated")
+	if pageTargetEventRegistration["registered"] != true {
+		log.Fatalf("unexpected page target event registration: %v", pageTargetEventRegistration)
 	}
-	cdp.On("Custom.foregroundTargetChanged", func(p any) {
+	cdp.On("Custom.pageTargetUpdated", func(p any) {
 		event, _ := p.(map[string]any)
-		fmt.Printf("Custom.foregroundTargetChanged -> %v\n", event)
+		fmt.Printf("Custom.pageTargetUpdated -> %v\n", event)
 		eventsMu.Lock()
-		foregroundEvents = append(foregroundEvents, event)
+		pageTargetEvents = append(pageTargetEvents, event)
 		eventsMu.Unlock()
 	})
-	if _, err := cdp.Mod.Evaluate(map[string]any{
-		"expression": `async () => {
-          chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-            const targets = await chrome.debugger.getTargets();
-            const target = targets.find(target => target.type === "page" && target.tabId === tabId);
-            const tab = await chrome.tabs.get(tabId).catch(() => null);
-            await cdp.emit("Custom.foregroundTargetChanged", { tabId, targetId: target?.id ?? null, url: target?.url ?? tab?.url ?? null });
-          });
-          return true;
-        }`,
-	}); err != nil {
-		log.Fatal(err)
-	}
 
 	if _, err := cdp.Target.SetDiscoverTargets(modcdp.TargetSetDiscoverTargetsParams{Discover: true}); err != nil {
 		log.Fatal(err)
@@ -498,49 +485,67 @@ func main() {
 	}
 	fmt.Println("normal event matched ->", createdTargetID)
 
-	if _, err := cdp.Target.ActivateTarget(modcdp.TargetActivateTargetParams{TargetID: modcdp.TargetTargetID(createdTargetID)}); err != nil {
-		log.Fatalf("Target.activateTarget: %v", err)
-	}
-	deadline = time.Now().Add(3 * time.Second)
-	var foreground map[string]any
-	for time.Now().Before(deadline) {
-		eventsMu.Lock()
-		for _, event := range foregroundEvents {
-			if event["targetId"] == createdTargetID {
-				foreground = event
-				break
-			}
-		}
-		eventsMu.Unlock()
-		if foreground != nil {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if foreground == nil {
-		log.Fatalf("expected Custom.foregroundTargetChanged for %s", createdTargetID)
-	}
-
 	tabFromTargetRaw, err := cdp.Send("Custom.TabIdFromTargetId", map[string]any{"targetId": createdTargetID})
 	if err != nil {
 		log.Fatalf("Custom.TabIdFromTargetId: %v", err)
 	}
 	tabFromTarget, _ := tabFromTargetRaw.(map[string]any)
-	foregroundTabID, _ := foreground["tabId"].(float64)
-	tabID, _ := tabFromTarget["tabId"].(float64)
-	if tabID != foregroundTabID {
-		log.Fatalf("unexpected Custom.TabIdFromTargetId result: %v", tabFromTarget)
-	}
 	b, _ = json.Marshal(tabFromTarget)
 	fmt.Println("Custom.TabIdFromTargetId ->", string(b))
 
-	targetFromTabRaw, err := cdp.Send("Custom.targetIdFromTabId", map[string]any{"tabId": foreground["tabId"]})
+	if _, err := cdp.Target.ActivateTarget(modcdp.TargetActivateTargetParams{TargetID: modcdp.TargetTargetID(createdTargetID)}); err != nil {
+		log.Fatalf("Target.activateTarget: %v", err)
+	}
+	pageTargetEmitRaw, err := cdp.Mod.Evaluate(map[string]any{
+		"params": map[string]any{"targetId": createdTargetID},
+		"expression": `async ({ targetId }) => {
+          const targets = await chrome.debugger.getTargets();
+          const target = targets.find(target => target.id === targetId);
+          if (!target?.id) throw new Error(` + "`target ${targetId} not found`" + `);
+          await cdp.emit("Custom.pageTargetUpdated", { targetId: target.id, url: target.url ?? null });
+          return { emitted: true, targetId: target.id };
+        }`,
+	})
+	if err != nil {
+		log.Fatalf("Custom.pageTargetUpdated emit: %v", err)
+	}
+	pageTargetEmit := mustMap(pageTargetEmitRaw, "Custom.pageTargetUpdated emit")
+	if pageTargetEmit["emitted"] != true || pageTargetEmit["targetId"] != createdTargetID {
+		log.Fatalf("unexpected Custom.pageTargetUpdated emit result: %v", pageTargetEmit)
+	}
+	deadline = time.Now().Add(3 * time.Second)
+	var pageTarget map[string]any
+	for time.Now().Before(deadline) {
+		eventsMu.Lock()
+		for _, event := range pageTargetEvents {
+			if event["targetId"] == createdTargetID {
+				pageTarget = event
+				break
+			}
+		}
+		eventsMu.Unlock()
+		if pageTarget != nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if pageTarget == nil {
+		log.Fatalf("expected Custom.pageTargetUpdated for %s", createdTargetID)
+	}
+
+	pageTargetTabID, _ := pageTarget["tabId"].(float64)
+	tabID, _ := tabFromTarget["tabId"].(float64)
+	if tabID != pageTargetTabID {
+		log.Fatalf("unexpected Custom.TabIdFromTargetId result: %v", tabFromTarget)
+	}
+
+	targetFromTabRaw, err := cdp.Send("Custom.targetIdFromTabId", map[string]any{"tabId": pageTarget["tabId"]})
 	if err != nil {
 		log.Fatalf("Custom.targetIdFromTabId: %v", err)
 	}
 	targetFromTab, _ := targetFromTabRaw.(map[string]any)
 	middlewareTabID, _ := targetFromTab["tabId"].(float64)
-	if targetFromTab["targetId"] != createdTargetID || middlewareTabID != foregroundTabID {
+	if targetFromTab["targetId"] != createdTargetID || middlewareTabID != pageTargetTabID {
 		log.Fatalf("unexpected Custom.targetIdFromTabId/middleware result: %v", targetFromTab)
 	}
 	b, _ = json.Marshal(targetFromTab)

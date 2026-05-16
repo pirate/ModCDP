@@ -15,8 +15,7 @@ function crc32(data: Buffer) {
   let crc = 0xffffffff;
   for (const byte of data) {
     crc ^= byte;
-    for (let bit = 0; bit < 8; bit++)
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -58,10 +57,7 @@ test("LocalBrowserLaunchExtensionInjector rejects zip entries outside extraction
   });
 
   try {
-    await assert.rejects(
-      () => injector.prepare(),
-      /escapes extension extraction directory/,
-    );
+    await assert.rejects(() => injector.prepare(), /escapes extension extraction directory/);
     assert.equal(existsSync(path.join(temp_dir, "evil.txt")), false);
   } finally {
     await injector.close();
@@ -76,22 +72,15 @@ test("LocalBrowserLaunchExtensionInjector prepares an unpacked extension directo
 
   try {
     await injector.prepare();
-    const unpacked_extension_path = (
-      injector as unknown as { unpacked_extension_path?: string | null }
-    ).unpacked_extension_path;
+    const unpacked_extension_path = (injector as unknown as { unpacked_extension_path?: string | null })
+      .unpacked_extension_path;
     assert.equal(typeof unpacked_extension_path, "string");
     assert.notEqual(unpacked_extension_path, EXTENSION_PATH);
-    assert.equal(
-      existsSync(path.join(unpacked_extension_path!, "manifest.json")),
-      true,
-    );
+    assert.equal(existsSync(path.join(unpacked_extension_path!, "manifest.json")), true);
     assert.deepEqual(injector.getLauncherConfig(), {
       extra_args: [`--load-extension=${unpacked_extension_path}`],
     });
-    assert.equal(
-      injector.options.injector_extension_id,
-      DEFAULT_MODCDP_EXTENSION_ID,
-    );
+    assert.equal(injector.options.injector_extension_id, DEFAULT_MODCDP_EXTENSION_ID);
   } finally {
     await injector.close();
   }
@@ -102,22 +91,15 @@ test("LocalBrowserLaunchExtensionInjector prepares the default extension zip for
 
   try {
     await injector.prepare();
-    const unpacked_extension_path = (
-      injector as unknown as { unpacked_extension_path?: string | null }
-    ).unpacked_extension_path;
+    const unpacked_extension_path = (injector as unknown as { unpacked_extension_path?: string | null })
+      .unpacked_extension_path;
     assert.equal(typeof unpacked_extension_path, "string");
     assert.match(unpacked_extension_path!, /modcdp-extension-/);
-    assert.equal(
-      existsSync(path.join(unpacked_extension_path!, "manifest.json")),
-      true,
-    );
+    assert.equal(existsSync(path.join(unpacked_extension_path!, "manifest.json")), true);
     assert.deepEqual(injector.getLauncherConfig(), {
       extra_args: [`--load-extension=${unpacked_extension_path}`],
     });
-    assert.equal(
-      injector.options.injector_extension_id,
-      DEFAULT_MODCDP_EXTENSION_ID,
-    );
+    assert.equal(injector.options.injector_extension_id, DEFAULT_MODCDP_EXTENSION_ID);
   } finally {
     await injector.close();
   }

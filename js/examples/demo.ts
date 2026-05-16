@@ -46,7 +46,7 @@ const DEFAULT_REVERSE_TRANSPORT_WAIT_TIMEOUT_MS = 60_000;
 const DEFAULT_LIVE_CDP_POLL_INTERVAL_MS = 250;
 const DEFAULT_LIVE_CDP_ACTIVE_PORT_STALE_MS = 1_000;
 const DEFAULT_TARGET_EVENT_TIMEOUT_MS = 10_000;
-const DEFAULT_FOREGROUND_EVENT_TIMEOUT_MS = 10_000;
+const DEFAULT_PAGE_TARGET_EVENT_TIMEOUT_MS = 10_000;
 const DEFAULT_DEMO_EVENT_POLL_INTERVAL_MS = 20;
 
 const UPSTREAM_MODES = new Set(["ws", "pipe", "reversews", "nativemessaging", "nats"]);
@@ -257,7 +257,7 @@ async function main() {
   }
 
   const cdp = new ModCDPClient(clientOptionsFor(mode, upstream_mode, cdp_url, launch_options));
-  const foregroundEvents = [];
+  const pageTargetEvents = [];
   const targetCreatedEvents: TargetCreatedPayload[] = [];
 
   try {
@@ -473,35 +473,24 @@ async function main() {
     const demoEvent = assertObject(await demoEventPromise, "Custom.demoEvent");
     console.log("Custom.demoEvent ->", demoEvent);
 
-    const ForegroundTargetChanged = z
+    const PageTargetUpdated = z
       .object({
-        targetId: cdp.types.zod.Target.TargetID.nullable(),
-        tabId: z.number(),
+        targetId: cdp.types.zod.Target.TargetID,
+        tabId: z.number().optional(),
         url: z.string().nullable().optional(),
       })
       .passthrough()
-      .meta({ id: "Custom.foregroundTargetChanged" });
-    const foregroundEventRegistration = assertObject(
-      await cdp.Mod.addCustomEvent(ForegroundTargetChanged),
-      "Mod.addCustomEvent Custom.foregroundTargetChanged",
+      .meta({ id: "Custom.pageTargetUpdated" });
+    const pageTargetEventRegistration = assertObject(
+      await cdp.Mod.addCustomEvent(PageTargetUpdated),
+      "Mod.addCustomEvent Custom.pageTargetUpdated",
     );
-    if (foregroundEventRegistration.registered !== true) {
-      throw new Error(`unexpected foreground event registration ${JSON.stringify(foregroundEventRegistration)}`);
+    if (pageTargetEventRegistration.registered !== true) {
+      throw new Error(`unexpected page target event registration ${JSON.stringify(pageTargetEventRegistration)}`);
     }
-    cdp.on(ForegroundTargetChanged, (event) => {
-      console.log("Custom.foregroundTargetChanged ->", event);
-      foregroundEvents.push(event);
-    });
-    await cdp.Mod.evaluate({
-      expression: `async () => {
-        chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-          const targets = await chrome.debugger.getTargets();
-          const target = targets.find(target => target.type === "page" && target.tabId === tabId);
-          const tab = await chrome.tabs.get(tabId).catch(() => null);
-          await cdp.emit("Custom.foregroundTargetChanged", { tabId, targetId: target?.id ?? null, url: target?.url ?? tab?.url ?? null });
-        });
-        return true;
-      }`,
+    cdp.on(PageTargetUpdated, (event) => {
+      console.log("Custom.pageTargetUpdated ->", event);
+      pageTargetEvents.push(event);
     });
 
     await cdp.Target.setDiscoverTargets({ discover: true });
@@ -535,22 +524,38 @@ async function main() {
     console.log("Custom.TabIdFromTargetId ->", tabFromTarget);
 
     await cdp.Target.activateTarget({ targetId: createdTarget.targetId });
-    const foregroundDeadline = Date.now() + DEFAULT_FOREGROUND_EVENT_TIMEOUT_MS;
+    const pageTargetEmitResult = assertObject(
+      await cdp.Mod.evaluate({
+        params: { targetId: createdTarget.targetId },
+        expression: `async ({ targetId }) => {
+          const targets = await chrome.debugger.getTargets();
+          const target = targets.find(target => target.id === targetId);
+          if (!target?.id) throw new Error(\`target \${targetId} not found\`);
+          await cdp.emit("Custom.pageTargetUpdated", { targetId: target.id, url: target.url ?? null });
+          return { emitted: true, targetId: target.id };
+        }`,
+      }),
+      "Custom.pageTargetUpdated emit",
+    );
+    if (pageTargetEmitResult.emitted !== true || pageTargetEmitResult.targetId !== createdTarget.targetId) {
+      throw new Error(`unexpected Custom.pageTargetUpdated emit result ${JSON.stringify(pageTargetEmitResult)}`);
+    }
+    const pageTargetDeadline = Date.now() + DEFAULT_PAGE_TARGET_EVENT_TIMEOUT_MS;
     while (
-      !foregroundEvents.some((event) => event.targetId === createdTarget.targetId) &&
-      Date.now() < foregroundDeadline
+      !pageTargetEvents.some((event) => event.targetId === createdTarget.targetId) &&
+      Date.now() < pageTargetDeadline
     ) {
       await sleep(DEFAULT_DEMO_EVENT_POLL_INTERVAL_MS);
     }
-    const foreground = foregroundEvents.find((event) => event.targetId === createdTarget.targetId);
-    if (!foreground) throw new Error(`expected Custom.foregroundTargetChanged for ${createdTarget.targetId}`);
-    if (foreground.tabId !== tabFromTargetId)
-      throw new Error(`unexpected Custom.foregroundTargetChanged result ${JSON.stringify(foreground)}`);
+    const pageTarget = pageTargetEvents.find((event) => event.targetId === createdTarget.targetId);
+    if (!pageTarget) throw new Error(`expected Custom.pageTargetUpdated for ${createdTarget.targetId}`);
+    if (pageTarget.tabId !== tabFromTargetId)
+      throw new Error(`unexpected Custom.pageTargetUpdated result ${JSON.stringify(pageTarget)}`);
 
     const targetFromTab = await cdp.send("Custom.targetIdFromTabId", {
-      tabId: foreground.tabId,
+      tabId: pageTarget.tabId,
     });
-    if (targetFromTab.targetId !== createdTarget.targetId || targetFromTab.tabId !== foreground.tabId) {
+    if (targetFromTab.targetId !== createdTarget.targetId || targetFromTab.tabId !== pageTarget.tabId) {
       throw new Error(`unexpected Custom.targetIdFromTabId/middleware result ${JSON.stringify(targetFromTab)}`);
     }
     console.log("Custom.targetIdFromTabId ->", targetFromTab);
