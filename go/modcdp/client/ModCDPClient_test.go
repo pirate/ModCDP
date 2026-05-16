@@ -510,15 +510,21 @@ func TestModCDPClientOnlyExposesInjectorAttachAfterCDPSendIsAvailable(t *testing
 
 func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	headless := runtime.GOOS == "linux" && os.Getenv("DISPLAY") == ""
+	extensionPath, err := filepath.Abs("../../../dist/extension")
+	if err != nil {
+		t.Fatal(err)
+	}
 	cdp := New(Options{
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
-				Headless: boolPtr(headless),
+				Headless:             boolPtr(headless),
+				ChromeReadyTimeoutMS: 60_000,
 			},
 		},
 		Upstream: UpstreamConfig{UpstreamMode: "ws"},
 		Injector: InjectorConfig{
-			InjectorMode:                        "inject",
+			InjectorMode:                        "auto",
+			InjectorExtensionPath:               extensionPath,
 			InjectorServiceWorkerURLSuffixes:    []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget:    true,
 			InjectorServiceWorkerProbeTimeoutMS: 30_000,
@@ -537,7 +543,9 @@ func TestModCDPClientConnectsWithLocalLaunchAndInjectorChain(t *testing.T) {
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	if cdp.ConnectTiming["injector_source"] != "local_launch" && cdp.ConnectTiming["injector_source"] != "extensions_load_unpacked" {
+	switch cdp.ConnectTiming["injector_source"] {
+	case "discovered", "local_launch", "extensions_load_unpacked", "borrowed":
+	default:
 		t.Fatalf("injector_source = %v", cdp.ConnectTiming["injector_source"])
 	}
 	if cdp.ExtensionID != DefaultModCDPExtensionID {

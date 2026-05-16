@@ -28,6 +28,7 @@ from modcdp.types import JsonValue, ProtocolPayload
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 EXTENSION_PATH = ROOT / "dist" / "extension"
+REVERSE_TRANSPORT_WAIT_TIMEOUT_MS = 60_000
 LIVE_DEVTOOLS_ACTIVE_PORTS = [
     Path.home() / "Library" / "Application Support" / "Google" / "Chrome" / "DevToolsActivePort",
     Path.home() / "Library" / "Application Support" / "Google" / "Chrome Beta" / "DevToolsActivePort",
@@ -99,10 +100,17 @@ def parse_args(argv):
 
 
 def client_options_for(mode, upstream_mode, cdp_url, launch_options=None):
+    upstream: ProtocolPayload = {"upstream_mode": upstream_mode, "upstream_cdp_url": cdp_url}
+    if upstream_mode == "reversews":
+        upstream["upstream_reversews_wait_timeout_ms"] = REVERSE_TRANSPORT_WAIT_TIMEOUT_MS
+    if upstream_mode == "nativemessaging":
+        upstream["upstream_nativemessaging_wait_timeout_ms"] = REVERSE_TRANSPORT_WAIT_TIMEOUT_MS
+    if upstream_mode == "nats":
+        upstream["upstream_nats_wait_timeout_ms"] = REVERSE_TRANSPORT_WAIT_TIMEOUT_MS
     if mode == "direct":
         return {
             "launcher": {"launcher_mode": "remote" if cdp_url else "local", "launcher_options": launch_options or {}},
-            "upstream": {"upstream_mode": upstream_mode, "upstream_cdp_url": cdp_url},
+            "upstream": upstream,
             "injector": {"injector_mode": "auto", "injector_extension_path": str(EXTENSION_PATH)},
             "client": {"client_routes": client_routes_for(mode)},
         }
@@ -111,7 +119,7 @@ def client_options_for(mode, upstream_mode, cdp_url, launch_options=None):
     }
     return {
         "launcher": {"launcher_mode": "remote" if cdp_url else "local", "launcher_options": launch_options or {}},
-        "upstream": {"upstream_mode": upstream_mode, "upstream_cdp_url": cdp_url},
+        "upstream": upstream,
         "injector": {"injector_mode": "auto", "injector_extension_path": str(EXTENSION_PATH)},
         "client": {"client_routes": client_routes_for(mode)},
         "server": server,
