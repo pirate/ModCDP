@@ -288,7 +288,7 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     }
     await cdp.close();
   }
-}, 180_000);
+}, 60_000);
 
 test("ModCDPClient preserves explicit empty service worker suffix config", async () => {
   const cdp = new ModCDPClient({
@@ -300,7 +300,7 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
 
   assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, []);
   assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, []);
-}, 60_000);
+}, 180_000);
 
 function reversewsTestBrowserPath() {
   const explicit_candidates = [process.env.CHROME_PATH, platform() === "linux" ? "/usr/bin/chromium" : null].filter(
