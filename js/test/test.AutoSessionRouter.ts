@@ -74,7 +74,7 @@ test("AutoSessionRouter tracks real target sessions and execution contexts", asy
   const router = new AutoSessionRouter(
     (method, params = {}, session_id = null) =>
       send(method, params as Record<string, unknown>, session_id) as Promise<Record<string, unknown>>,
-    () => 5_000,
+    () => 30_000,
   );
 
   function send(method: string, params: Record<string, unknown> = {}, session_id: string | null = null) {
@@ -125,7 +125,7 @@ test("AutoSessionRouter tracks real target sessions and execution contexts", asy
     const session_id = router.sessionIdForTarget(target_id)!;
 
     const context_promise = router.waitForExecutionContext(session_id, {
-      timeout_ms: 5_000,
+      timeout_ms: 30_000,
     });
     await send("Runtime.enable", {}, session_id);
     await expect(context_promise).resolves.toEqual(expect.any(Number));

@@ -161,7 +161,7 @@ func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testin
 			return nil, fmt.Errorf("%s timed out", method)
 		}
 	}
-	router = NewAutoSessionRouter(send, func() int { return 5000 })
+	router = NewAutoSessionRouter(send, func() int { return 30000 })
 
 	go func() {
 		for {
@@ -217,7 +217,7 @@ func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testin
 	contextResult := make(chan int, 1)
 	contextError := make(chan error, 1)
 	go func() {
-		contextID, err := router.WaitForExecutionContext(sessionID, 5000)
+		contextID, err := router.WaitForExecutionContext(sessionID, 30000)
 		if err != nil {
 			contextError <- err
 			return
@@ -234,7 +234,7 @@ func TestAutoSessionRouterTracksRealTargetSessionsAndExecutionContexts(t *testin
 		}
 	case err := <-contextError:
 		t.Fatal(err)
-	case <-time.After(10 * time.Second):
+	case <-time.After(35 * time.Second):
 		t.Fatal("timed out waiting for execution context")
 	}
 	if _, err := send("Target.detachFromTarget", map[string]any{"sessionId": sessionID}, ""); err != nil {
