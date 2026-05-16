@@ -268,7 +268,6 @@ class ModCDPClientTests(unittest.TestCase):
             {
                 "headless": True,
                 "chrome_ready_timeout_ms": 60_000,
-                "extra_args": [f"--load-extension={EXTENSION_PATH}"],
             }
         ).launch()
         raw_ws = create_connection(cast(str, chrome["cdp_url"]), timeout=5)
@@ -276,7 +275,8 @@ class ModCDPClientTests(unittest.TestCase):
             launcher={"launcher_mode": "remote"},
             upstream={"upstream_mode": "ws", "upstream_cdp_url": chrome["cdp_url"]},
             injector={
-                "injector_mode": "discover",
+                "injector_mode": "auto",
+                "injector_extension_path": str(EXTENSION_PATH),
                 "injector_service_worker_url_suffixes": ["/modcdp/service_worker.js"],
                 "injector_trust_service_worker_target": True,
                 "injector_service_worker_ready_timeout_ms": 30_000,

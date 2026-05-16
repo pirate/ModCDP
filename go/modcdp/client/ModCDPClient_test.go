@@ -676,7 +676,6 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
 		ChromeReadyTimeoutMS: 60_000,
-		ExtraArgs:            []string{"--load-extension=" + extensionPath},
 	}).Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -694,7 +693,8 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 		Launcher: LauncherConfig{LauncherMode: "remote"},
 		Upstream: UpstreamConfig{UpstreamMode: "ws", UpstreamCDPURL: chrome.CDPURL},
 		Injector: InjectorConfig{
-			InjectorMode:                        "discover",
+			InjectorMode:                        "auto",
+			InjectorExtensionPath:               extensionPath,
 			InjectorServiceWorkerURLSuffixes:    []string{"/modcdp/service_worker.js"},
 			InjectorTrustServiceWorkerTarget:    true,
 			InjectorServiceWorkerReadyTimeoutMS: 30_000,
