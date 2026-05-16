@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
+import errno
 import glob
+import json
 import os
 import re
 import select
@@ -226,7 +227,15 @@ def _move_fd_if_needed(fd: int, reserved: set[int]) -> int:
 def _move_fd_to(fd: int, target: int) -> int:
     if fd == target:
         return fd
-    os.dup2(fd, target)
+    deadline = time.monotonic() + 1
+    while True:
+        try:
+            os.dup2(fd, target)
+            break
+        except OSError as error:
+            if error.errno != errno.EBUSY or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.001)
     os.close(fd)
     return target
 
