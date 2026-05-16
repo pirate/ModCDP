@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import errno
 import glob
 import json
 import os
@@ -87,8 +86,8 @@ class LocalBrowserLauncher(BrowserLauncher):
             child_read, parent_write = os.pipe()
             parent_read = _move_fd_if_needed(parent_read, {3, 4})
             parent_write = _move_fd_if_needed(parent_write, {3, 4})
-            child_read = _move_fd_to(child_read, 3)
-            child_write = _move_fd_to(child_write, 4)
+            child_read = _move_fd_if_needed(child_read, {3, 4})
+            child_write = _move_fd_if_needed(child_write, {3, 4})
             process = _spawn_chrome_with_pipe_fds(executable_path, args, child_read, child_write)
             os.close(child_read)
             os.close(child_write)
@@ -220,33 +219,28 @@ def _move_fd_if_needed(fd: int, reserved: set[int]) -> int:
     if fd not in reserved:
         return fd
     moved = os.dup(fd)
+    while moved in reserved:
+        next_fd = os.dup(fd)
+        os.close(moved)
+        moved = next_fd
     os.close(fd)
     return moved
 
 
-def _move_fd_to(fd: int, target: int) -> int:
-    if fd == target:
-        return fd
-    deadline = time.monotonic() + 1
-    while True:
-        try:
-            os.dup2(fd, target)
-            break
-        except OSError as error:
-            if error.errno != errno.EBUSY or time.monotonic() >= deadline:
-                raise
-            time.sleep(0.001)
-    os.close(fd)
-    return target
-
-
 def _spawn_chrome_with_pipe_fds(executable_path: str, args: list[str], child_read: int, child_write: int) -> _ChromeProcess:
+    def map_pipe_fds() -> None:
+        os.dup2(child_read, 3)
+        os.dup2(child_write, 4)
+        os.close(child_read)
+        os.close(child_write)
+
     return subprocess.Popen(
         [executable_path, *args],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        pass_fds=(child_read, child_write),
+        close_fds=sys.platform.startswith("win"),
+        preexec_fn=None if sys.platform.startswith("win") else map_pipe_fds,
         start_new_session=not sys.platform.startswith("win"),
     )
 
