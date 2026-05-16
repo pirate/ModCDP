@@ -72,9 +72,17 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(cdp._launcherOptions().user_data_dir, "/tmp/profile");
   assert.equal(cdp.upstream.upstream_nats_wait_timeout_ms, 345);
   assert.equal(cdp.upstream.upstream_reversews_wait_timeout_ms, 456);
-  assert.equal(cdp.upstream.upstream_nativemessaging_manifest, "/tmp/native-host.json");
-  assert.deepEqual(cdp.upstream.upstream_nativemessaging_manifests, ["/tmp/native-host-extra.json"]);
-  assert.equal(cdp.upstream.upstream_nativemessaging_host_name, "com.modcdp.custom");
+  assert.equal(
+    cdp.upstream.upstream_nativemessaging_manifest,
+    "/tmp/native-host.json",
+  );
+  assert.deepEqual(cdp.upstream.upstream_nativemessaging_manifests, [
+    "/tmp/native-host-extra.json",
+  ]);
+  assert.equal(
+    cdp.upstream.upstream_nativemessaging_host_name,
+    "com.modcdp.custom",
+  );
   assert.equal(cdp.upstream.upstream_nativemessaging_wait_timeout_ms, 567);
   assert.equal(cdp.upstream.upstream_ws_connect_error_settle_timeout_ms, 321);
   assert.equal(cdp.injector.injector_execution_context_timeout_ms, 4321);
@@ -95,16 +103,22 @@ test("ModCDPClient normalizes nested config owners", () => {
   assert.equal(params.client.client_routes["*.*"], "direct_cdp");
   assert.equal(params.server.server_browser_token, "token-1");
   assert.equal(params.server.server_cdp_send_timeout_ms, 9876);
-  assert.equal(params.server.server_loopback_execution_context_timeout_ms, 8765);
+  assert.equal(
+    params.server.server_loopback_execution_context_timeout_ms,
+    8765,
+  );
   assert.equal(params.server.server_ws_connect_error_settle_timeout_ms, 7654);
 });
 
 test("ModCDPClient dispatches root events before extension session is attached", () => {
   const cdp = new ModCDPClient();
   const seen: string[] = [];
-  cdp.on("Target.targetCreated", (payload: { targetInfo?: { targetId?: string } }) => {
-    seen.push(String(payload.targetInfo?.targetId));
-  });
+  cdp.on(
+    "Target.targetCreated",
+    (payload: { targetInfo?: { targetId?: string } }) => {
+      seen.push(String(payload.targetInfo?.targetId));
+    },
+  );
 
   cdp._onRecv({
     method: "Target.targetCreated",
@@ -228,9 +242,12 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(cdp.upstream.upstream_reversews_wait_timeout_ms, 10_000);
     assert.equal(cdp.injector.injector_mode, "auto");
     assert.equal(
-      ["discovered", "local_launch", "extensions_load_unpacked", "borrowed"].includes(
-        String(cdp.connect_timing?.injector_source),
-      ),
+      [
+        "discovered",
+        "local_launch",
+        "extensions_load_unpacked",
+        "borrowed",
+      ].includes(String(cdp.connect_timing?.injector_source)),
       true,
     );
     assert.equal(cdp.client.client_routes["*.*"], "direct_cdp");
@@ -239,7 +256,10 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     const service_worker_url = await cdp.Mod.evaluate({
       expression: "chrome.runtime.getURL('modcdp/service_worker.js')",
     });
-    assert.equal(service_worker_url, `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`);
+    assert.equal(
+      service_worker_url,
+      `chrome-extension://${cdp.extension_id}/modcdp/service_worker.js`,
+    );
     const contexts = (await cdp.Mod.evaluate({
       expression:
         "chrome.runtime.getContexts({}).then((contexts) => contexts.map((context) => ({ type: context.contextType, url: context.documentUrl || context.origin || '' })))",
@@ -248,7 +268,8 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       contexts.some(
         (context) =>
           context.type === "OFFSCREEN_DOCUMENT" &&
-          context.url === `chrome-extension://${cdp.extension_id}/offscreen/keepalive.html`,
+          context.url ===
+            `chrome-extension://${cdp.extension_id}/offscreen/keepalive.html`,
       ),
       true,
     );
@@ -276,7 +297,10 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
       };
       cdp.on("Mod.pong", listener);
     });
-    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<string, unknown>;
+    const ping_result = (await cdp.Mod.ping({ sent_at })) as Record<
+      string,
+      unknown
+    >;
     const pong_payload = await pong;
     assert.equal(ping_result.ok, true);
     assert.equal(pong_payload.sent_at, sent_at);
@@ -284,7 +308,9 @@ test("ModCDPClient connects with nested launch/upstream/extension/client/server 
     assert.equal(pong_payload.from, "extension-service-worker");
   } finally {
     if (direct_session_target_id) {
-      await cdp.send("Target.closeTarget", { targetId: direct_session_target_id }).catch(() => ({}));
+      await cdp
+        .send("Target.closeTarget", { targetId: direct_session_target_id })
+        .catch(() => ({}));
     }
     await cdp.close();
   }
@@ -299,13 +325,17 @@ test("ModCDPClient preserves explicit empty service worker suffix config", async
   });
 
   assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, []);
-  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, []);
+  assert.deepEqual(
+    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
+    [],
+  );
 }, 60_000);
 
 function reversewsTestBrowserPath() {
-  const explicit_candidates = [process.env.CHROME_PATH, platform() === "linux" ? "/usr/bin/chromium" : null].filter(
-    (candidate): candidate is string => Boolean(candidate),
-  );
+  const explicit_candidates = [
+    process.env.CHROME_PATH,
+    platform() === "linux" ? "/usr/bin/chromium" : null,
+  ].filter((candidate): candidate is string => Boolean(candidate));
   for (const candidate of explicit_candidates) {
     if (existsSync(candidate)) return candidate;
   }
@@ -317,7 +347,10 @@ function reversewsTestBrowserPath() {
             home,
             "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
           ),
-          path.join(home, "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium"),
+          path.join(
+            home,
+            "Library/Caches/ms-playwright/chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium",
+          ),
           path.join(
             home,
             "Library/Caches/puppeteer/chrome/mac*-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
@@ -329,16 +362,27 @@ function reversewsTestBrowserPath() {
               process.env.LOCALAPPDATA || path.join(home, "AppData/Local"),
               "ms-playwright/chromium-*/chrome-win*/chrome.exe",
             ),
-            path.join(home, ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe"),
+            path.join(
+              home,
+              ".cache/puppeteer/chrome/win*-*/chrome-win*/chrome.exe",
+            ),
           ]
         : [
-            path.join(home, ".cache/ms-playwright/chromium-*/chrome-linux*/chrome"),
+            path.join(
+              home,
+              ".cache/ms-playwright/chromium-*/chrome-linux*/chrome",
+            ),
             "/opt/pw-browsers/chromium-*/chrome-linux*/chrome",
-            path.join(home, ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome"),
+            path.join(
+              home,
+              ".cache/puppeteer/chrome/linux-*/chrome-linux*/chrome",
+            ),
           ];
   const candidates = newestFirst(patterns.flatMap(expandGlob));
   if (candidates[0]) return candidates[0];
-  throw new Error("Reversews tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.");
+  throw new Error(
+    "Reversews tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.",
+  );
 }
 
 function expandGlob(pattern: string) {
@@ -367,14 +411,20 @@ function expandGlob(pattern: string) {
 }
 
 function wildcardToRegExp(value: string) {
-  return new RegExp(`^${value.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+  return new RegExp(
+    `^${value.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`,
+  );
 }
 
 function newestFirst(candidates: string[]) {
   return [...new Set(candidates)].sort((a, b) => {
     const left = scorePath(a);
     const right = scorePath(b);
-    return right.version - left.version || right.mtime - left.mtime || a.localeCompare(b);
+    return (
+      right.version - left.version ||
+      right.mtime - left.mtime ||
+      a.localeCompare(b)
+    );
   });
 }
 
@@ -391,10 +441,13 @@ function scorePath(candidate: string) {
 test("ModCDPClient defaults service worker suffix config to the ModCDP worker", async () => {
   const cdp = new ModCDPClient();
 
-  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, ["/modcdp/service_worker.js"]);
-  assert.deepEqual((await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes, [
+  assert.deepEqual(cdp.injector.injector_service_worker_url_suffixes, [
     "/modcdp/service_worker.js",
   ]);
+  assert.deepEqual(
+    (await cdp._baseInjectorConfig()).injector_service_worker_url_suffixes,
+    ["/modcdp/service_worker.js"],
+  );
 });
 
 test("ModCDPClient preserves explicit null server config", () => {
@@ -431,6 +484,25 @@ test("ModCDPClient defaults launched ModCDP-server upstreams to extension auto",
   }
 });
 
+test("ModCDPClient orders local auto injection as launch flag then loadUnpacked fallback", async () => {
+  const cdp = new ModCDPClient({
+    launcher: { launcher_mode: "local" },
+    injector: { injector_mode: "auto" },
+  });
+
+  assert.deepEqual(
+    (await cdp._injectorsForConfig()).map(
+      (injector) => injector.constructor.name,
+    ),
+    [
+      "LocalBrowserLaunchExtensionInjector",
+      "ExtensionsLoadUnpackedInjector",
+      "DiscoveredExtensionInjector",
+      "BorrowedExtensionInjector",
+    ],
+  );
+});
+
 test("ModCDPClient rejects unknown component modes at their owning factory boundary", async () => {
   await assert.rejects(
     () =>
@@ -459,6 +531,9 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
   const chrome = await new LocalBrowserLauncher({
     headless: true,
     chrome_ready_timeout_ms: 60_000,
+    // This test manually supplies --load-extension, so it intentionally uses
+    // the launch-flag browser path instead of relying on the client fallback.
+    executable_path: REVERSEWS_TEST_BROWSER_PATH,
     extra_args: [`--load-extension=${EXTENSION_PATH}`],
   }).launch();
   const raw_cdp = await CdpSocket.connect(chrome.cdp_url!);
@@ -495,15 +570,14 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
       launcher_mode: "local",
       launcher_options: {
         headless: true,
-        // Reversews is browser -> client only. After explicit CHROME_PATH and
-        // CI /usr/bin/chromium, this test uses Chrome for Testing because
-        // Canary rejects --load-extension in this local test path.
+        // After explicit CHROME_PATH and CI /usr/bin/chromium, this test uses
+        // Chrome for Testing because Canary rejects --load-extension in this
+        // local launch injector path.
         executable_path: REVERSEWS_TEST_BROWSER_PATH,
       },
     },
     upstream: {
-      upstream_mode: "reversews",
-      upstream_reversews_wait_timeout_ms: 30_000,
+      upstream_mode: "ws",
     },
     injector: {
       injector_mode: "auto",
@@ -519,7 +593,8 @@ test("ModCDPClient.close keeps injector files until after launched browser shutd
   try {
     await cdp.connect();
     const injector = cdp._injectors.find(
-      (candidate) => candidate.constructor.name === "ExtensionsLoadUnpackedInjector",
+      (candidate) =>
+        candidate.constructor.name === "LocalBrowserLaunchExtensionInjector",
     ) as unknown as { unpacked_extension_path?: string | null } | undefined;
     const unpacked_extension_path = injector?.unpacked_extension_path;
     assert.equal(typeof unpacked_extension_path, "string");
@@ -568,5 +643,8 @@ test("ModCDPClient.close clears top-level connection state", async () => {
   await cdp.close();
 
   assert.equal(cdp.transport, null);
-  await assert.rejects(() => cdp.sendRaw("Browser.getVersion"), /ModCDP upstream is not connected/);
+  await assert.rejects(
+    () => cdp.sendRaw("Browser.getVersion"),
+    /ModCDP upstream is not connected/,
+  );
 }, 60_000);

@@ -3,7 +3,13 @@ from __future__ import annotations
 import tempfile
 
 from ..launcher.BrowserLauncher import BrowserLaunchOptions
-from ..injector.ExtensionInjector import ExtensionInjector, ExtensionInjectionResult, defaultModCDPExtensionPath, extensionIdFromManifestKey, prepareUnpackedExtension
+from ..injector.ExtensionInjector import (
+    ExtensionInjector,
+    ExtensionInjectionResult,
+    defaultModCDPExtensionPath,
+    extensionIdFromManifestKey,
+    prepareUnpackedExtension,
+)
 
 
 class LocalBrowserLaunchExtensionInjector(ExtensionInjector):

@@ -43,7 +43,8 @@ class LocalBrowserLauncher(BrowserLauncher):
         executable_path = self.findChromeBinary(merged.get("executable_path"))
         use_pipe = merged.get("remote_debugging") == "pipe"
         use_loopback_cdp = (not use_pipe) or bool(merged.get("loopback_cdp")) or merged.get("port") is not None
-        port = int(merged.get("port") or LocalBrowserLauncher.freePort()) if use_loopback_cdp else None
+        requested_port = merged.get("port")
+        port = int(requested_port) if use_loopback_cdp and requested_port is not None else (0 if use_loopback_cdp else None)
         temp_profile_dir: tempfile.TemporaryDirectory[str] | None = None
         profile_dir = merged.get("user_data_dir")
         if not profile_dir:
@@ -96,10 +97,19 @@ class LocalBrowserLauncher(BrowserLauncher):
             try:
                 _wait_for_pipe_ready(pipe_read, pipe_write, int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS))
                 loopback_cdp_url = (
-                    _wait_for_cdp_websocket_url(
-                        f"http://127.0.0.1:{port}",
-                        int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS),
-                        int(merged.get("chrome_ready_poll_interval_ms") or DEFAULT_CHROME_READY_POLL_INTERVAL_MS),
+                    (
+                        _wait_for_browser_selected_cdp_websocket_url(
+                            str(profile_dir),
+                            int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS),
+                            int(merged.get("chrome_ready_poll_interval_ms") or DEFAULT_CHROME_READY_POLL_INTERVAL_MS),
+                            process,
+                        )
+                        if port == 0
+                        else _wait_for_cdp_websocket_url(
+                            f"http://127.0.0.1:{port}",
+                            int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS),
+                            int(merged.get("chrome_ready_poll_interval_ms") or DEFAULT_CHROME_READY_POLL_INTERVAL_MS),
+                        )
                     )
                     if port is not None
                     else None
@@ -133,11 +143,22 @@ class LocalBrowserLauncher(BrowserLauncher):
             stderr=subprocess.DEVNULL,
             start_new_session=not sys.platform.startswith("win"),
         )
-        cdp_url = f"http://127.0.0.1:{port}"
         timeout_s = int(merged.get("chrome_ready_timeout_ms") or DEFAULT_CHROME_READY_TIMEOUT_MS) / 1000
         poll_s = int(merged.get("chrome_ready_poll_interval_ms") or DEFAULT_CHROME_READY_POLL_INTERVAL_MS) / 1000
         deadline = time.time() + timeout_s
         while time.time() < deadline:
+            exit_code = process.poll()
+            if exit_code is not None:
+                _close(process, temp_profile_dir, cleanup_profile_dir=cleanup_profile_dir)
+                raise RuntimeError(f"Chrome exited before CDP became ready (exit={exit_code}).")
+            if port == 0:
+                active_port = _read_devtools_active_port(str(profile_dir))
+                if active_port is None:
+                    time.sleep(poll_s)
+                    continue
+                cdp_url = f"http://127.0.0.1:{active_port}"
+            else:
+                cdp_url = f"http://127.0.0.1:{port}"
             try:
                 with urllib.request.urlopen(f"{cdp_url}/json/version", timeout=0.5) as response:
                     version = json.loads(response.read())
@@ -152,7 +173,7 @@ class LocalBrowserLauncher(BrowserLauncher):
             except Exception:
                 time.sleep(poll_s)
         _close(process, temp_profile_dir, cleanup_profile_dir=cleanup_profile_dir)
-        raise RuntimeError(f"Chrome at {cdp_url} did not become ready within {timeout_s}s")
+        raise RuntimeError(f"Chrome did not become ready within {timeout_s}s")
 
 
 def _newest_first(candidates: list[str]) -> list[str]:
@@ -254,6 +275,8 @@ class _ChromeProcess(Protocol):
 
     def wait(self, timeout: float | None = None) -> int | None: ...
 
+    def poll(self) -> int | None: ...
+
 
 def _wait_for_pipe_ready(pipe_read, pipe_write, timeout_ms: int) -> None:
     ready_id = 1
@@ -287,6 +310,7 @@ def _wait_for_pipe_ready(pipe_read, pipe_write, timeout_ms: int) -> None:
 def _wait_for_cdp_websocket_url(cdp_url: str, timeout_ms: int, poll_interval_ms: int) -> str:
     deadline = time.time() + timeout_ms / 1000
     poll_s = poll_interval_ms / 1000
+    last_error: Exception | None = None
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(f"{cdp_url}/json/version", timeout=0.5) as response:
@@ -294,10 +318,53 @@ def _wait_for_cdp_websocket_url(cdp_url: str, timeout_ms: int, poll_interval_ms:
                 websocket_url = version.get("webSocketDebuggerUrl")
                 if websocket_url:
                     return str(websocket_url)
-        except Exception:
-            pass
+        except Exception as err:
+            last_error = err
         time.sleep(poll_s)
+    if last_error is not None:
+        raise RuntimeError(f"Chrome at {cdp_url} did not expose a WebSocket CDP URL within {timeout_ms}ms: {last_error}")
     raise RuntimeError(f"Chrome at {cdp_url} did not expose a WebSocket CDP URL within {timeout_ms}ms")
+
+
+def _read_devtools_active_port(profile_dir: str) -> int | None:
+    active_port_path = Path(profile_dir) / "DevToolsActivePort"
+    try:
+        raw_port, websocket_path, *_ = active_port_path.read_text().strip().splitlines()
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        return None
+    if not websocket_path:
+        return None
+    port = int(raw_port)
+    if port <= 0:
+        raise RuntimeError(f"Invalid DevToolsActivePort port: {raw_port}")
+    return port
+
+
+def _wait_for_browser_selected_cdp_websocket_url(
+    profile_dir: str,
+    timeout_ms: int,
+    poll_interval_ms: int,
+    process: _ChromeProcess,
+) -> str:
+    deadline = time.time() + timeout_ms / 1000
+    poll_s = poll_interval_ms / 1000
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        exit_code = process.poll()
+        if exit_code is not None:
+            raise RuntimeError(f"Chrome exited before CDP became ready (exit={exit_code}).")
+        active_port = _read_devtools_active_port(profile_dir)
+        if active_port is not None:
+            try:
+                return _wait_for_cdp_websocket_url(f"http://127.0.0.1:{active_port}", poll_interval_ms, poll_interval_ms)
+            except Exception as err:
+                last_error = err
+        time.sleep(poll_s)
+    if last_error is not None:
+        raise RuntimeError(f"Chrome did not expose DevToolsActivePort from {profile_dir} within {timeout_ms}ms: {last_error}")
+    raise RuntimeError(f"Chrome did not expose DevToolsActivePort from {profile_dir} within {timeout_ms}ms")
 
 
 def _close(

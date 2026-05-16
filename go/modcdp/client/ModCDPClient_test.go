@@ -3,8 +3,10 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -454,6 +456,38 @@ func TestModCDPClientDefaultsLaunchedModCDPServerUpstreamsToExtensionAuto(t *tes
 	}
 }
 
+func TestModCDPClientOrdersLocalAutoInjectionAsLaunchFlagThenLoadUnpackedFallback(t *testing.T) {
+	cdp := New(Options{
+		Launcher: LauncherConfig{LauncherMode: "local"},
+		Injector: InjectorConfig{InjectorMode: "auto"},
+	})
+
+	got := []string{}
+	for _, injector := range cdp.extensionInjectorsForConfig() {
+		switch injector.(type) {
+		case *LocalBrowserLaunchExtensionInjector:
+			got = append(got, "LocalBrowserLaunchExtensionInjector")
+		case *ExtensionsLoadUnpackedInjector:
+			got = append(got, "ExtensionsLoadUnpackedInjector")
+		case *DiscoveredExtensionInjector:
+			got = append(got, "DiscoveredExtensionInjector")
+		case *BorrowedExtensionInjector:
+			got = append(got, "BorrowedExtensionInjector")
+		default:
+			got = append(got, fmt.Sprintf("%T", injector))
+		}
+	}
+	want := []string{
+		"LocalBrowserLaunchExtensionInjector",
+		"ExtensionsLoadUnpackedInjector",
+		"DiscoveredExtensionInjector",
+		"BorrowedExtensionInjector",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("injector order = %#v", got)
+	}
+}
+
 func TestModCDPClientRejectsUnknownComponentModesAtTheirOwningFactoryBoundary(t *testing.T) {
 	cases := []struct {
 		name string
@@ -679,7 +713,10 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
 		ChromeReadyTimeoutMS: 60_000,
-		ExtraArgs:            []string{"--load-extension=" + extensionPath},
+		// This test manually supplies --load-extension, so it intentionally uses
+		// the launch-flag browser path instead of relying on the client fallback.
+		ExecutablePath: reverseWSTestBrowserPath(t),
+		ExtraArgs:      []string{"--load-extension=" + extensionPath},
 	}).Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -745,15 +782,14 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
-				// Reversews is browser -> client only. After explicit CHROME_PATH and
-				// CI /usr/bin/chromium, this test uses Chrome for Testing because
-				// Canary rejects --load-extension in this local test path.
+				// After explicit CHROME_PATH and CI /usr/bin/chromium, this test uses
+				// Chrome for Testing because Canary rejects --load-extension in this
+				// local launch injector path.
 				ExecutablePath: reverseWSTestBrowserPath(t),
 			},
 		},
 		Upstream: UpstreamConfig{
-			UpstreamMode:                   "reversews",
-			UpstreamReverseWSWaitTimeoutMS: 30_000,
+			UpstreamMode: "ws",
 		},
 		Injector: InjectorConfig{
 			InjectorMode:                     "auto",
@@ -768,16 +804,16 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 	if err := cdp.Connect(); err != nil {
 		t.Fatal(err)
 	}
-	var loadUnpackedInjector *ExtensionsLoadUnpackedInjector
+	var localLaunchInjector *LocalBrowserLaunchExtensionInjector
 	for _, injector := range cdp.extensionInjectors {
-		if typed, ok := injector.(*ExtensionsLoadUnpackedInjector); ok {
-			loadUnpackedInjector = typed
+		if typed, ok := injector.(*LocalBrowserLaunchExtensionInjector); ok {
+			localLaunchInjector = typed
 		}
 	}
-	if loadUnpackedInjector == nil {
-		t.Fatal("expected ExtensionsLoadUnpackedInjector")
+	if localLaunchInjector == nil {
+		t.Fatal("expected LocalBrowserLaunchExtensionInjector")
 	}
-	unpackedExtensionPath := loadUnpackedInjector.UnpackedExtensionPath
+	unpackedExtensionPath := localLaunchInjector.UnpackedExtensionPath
 	if unpackedExtensionPath == extensionPath {
 		t.Fatalf("UnpackedExtensionPath = %q", unpackedExtensionPath)
 	}

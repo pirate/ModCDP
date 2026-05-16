@@ -827,7 +827,8 @@ class ModCDPClient(CDPSurfaceMixin):
         if mode == "none":
             return []
         injectors: list[ExtensionInjector] = []
-        if mode in ("auto", "discover"):
+        prefer_launch_injection = mode == "auto" and self.launcher.get("launcher_mode") == "local"
+        if mode in ("auto", "discover") and not prefer_launch_injection:
             injectors.append(DiscoveredExtensionInjector())
         if mode in ("auto", "inject"):
             if self.launcher.get("launcher_mode") == "bb":
@@ -835,6 +836,8 @@ class ModCDPClient(CDPSurfaceMixin):
             if self.launcher.get("launcher_mode") == "local":
                 injectors.append(LocalBrowserLaunchExtensionInjector())
             injectors.append(ExtensionsLoadUnpackedInjector())
+        if prefer_launch_injection:
+            injectors.append(DiscoveredExtensionInjector())
         if mode in ("auto", "borrow"):
             injectors.append(BorrowedExtensionInjector())
         if not injectors:

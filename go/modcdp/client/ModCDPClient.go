@@ -1469,7 +1469,8 @@ func (c *ModCDPClient) extensionInjectorsForConfig() []extensionInjector {
 		return nil
 	}
 	var injectors []extensionInjector
-	if c.Injector.InjectorMode == "auto" || c.Injector.InjectorMode == "discover" {
+	preferLaunchInjection := c.Injector.InjectorMode == "auto" && c.Launcher.LauncherMode == "local"
+	if (c.Injector.InjectorMode == "auto" || c.Injector.InjectorMode == "discover") && !preferLaunchInjection {
 		injector := NewDiscoveredExtensionInjector(ExtensionInjectorConfig{})
 		injectors = append(injectors, &injector)
 	}
@@ -1483,6 +1484,10 @@ func (c *ModCDPClient) extensionInjectorsForConfig() []extensionInjector {
 			injectors = append(injectors, &injector)
 		}
 		injector := NewExtensionsLoadUnpackedInjector(ExtensionInjectorConfig{})
+		injectors = append(injectors, &injector)
+	}
+	if preferLaunchInjection {
+		injector := NewDiscoveredExtensionInjector(ExtensionInjectorConfig{})
 		injectors = append(injectors, &injector)
 	}
 	if c.Injector.InjectorMode == "auto" || c.Injector.InjectorMode == "borrow" {

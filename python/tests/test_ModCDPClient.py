@@ -181,6 +181,22 @@ class ModCDPClientTests(unittest.TestCase):
             self.assertEqual(attach_only.upstream_endpoint_kind, "modcdp_server")
             self.assertEqual(attach_only.injector["injector_mode"], "none")
 
+    def test_orders_local_auto_injection_as_launch_flag_then_load_unpacked_fallback(self) -> None:
+        cdp = ModCDPClient(
+            launcher={"launcher_mode": "local"},
+            injector={"injector_mode": "auto"},
+        )
+
+        self.assertEqual(
+            [type(injector).__name__ for injector in cdp._extension_injectors_for_config()],
+            [
+                "LocalBrowserLaunchExtensionInjector",
+                "ExtensionsLoadUnpackedInjector",
+                "DiscoveredExtensionInjector",
+                "BorrowedExtensionInjector",
+            ],
+        )
+
     def test_rejects_unknown_component_modes_at_their_owning_factory_boundary(self) -> None:
         with self.assertRaisesRegex(RuntimeError, r"unknown upstream\.upstream_mode=bogus"):
             ModCDPClient(upstream={"upstream_mode": "bogus"})._upstream_transport()
@@ -269,6 +285,9 @@ class ModCDPClientTests(unittest.TestCase):
             {
                 "headless": True,
                 "chrome_ready_timeout_ms": 60_000,
+                # This test manually supplies --load-extension, so it intentionally uses
+                # the launch-flag browser path instead of relying on the client fallback.
+                "executable_path": reversews_test_browser_path(),
                 "extra_args": [f"--load-extension={EXTENSION_PATH}"],
             }
         ).launch()
@@ -306,16 +325,13 @@ class ModCDPClientTests(unittest.TestCase):
                 "launcher_mode": "local",
                 "launcher_options": {
                     "headless": True,
-                    # Reversews is browser -> client only. After explicit CHROME_PATH and
-                    # CI /usr/bin/chromium, this test uses Chrome for Testing because
-                    # Canary rejects --load-extension in this local test path.
+                    # After explicit CHROME_PATH and CI /usr/bin/chromium, this test uses
+                    # Chrome for Testing because Canary rejects --load-extension in this
+                    # local launch injector path.
                     "executable_path": reversews_test_browser_path(),
                 },
             },
-            upstream={
-                "upstream_mode": "reversews",
-                "upstream_reversews_wait_timeout_ms": 30_000,
-            },
+            upstream={"upstream_mode": "ws"},
             injector={
                 "injector_mode": "auto",
                 "injector_extension_path": str(EXTENSION_PATH),
@@ -330,7 +346,7 @@ class ModCDPClientTests(unittest.TestCase):
             injector = next(
                 candidate
                 for candidate in cdp._extension_injectors
-                if type(candidate).__name__ == "ExtensionsLoadUnpackedInjector"
+                if type(candidate).__name__ == "LocalBrowserLaunchExtensionInjector"
             )
             unpacked_extension_path = getattr(injector, "unpacked_extension_path")
             self.assertIsInstance(unpacked_extension_path, str)

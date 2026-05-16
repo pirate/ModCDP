@@ -12,7 +12,8 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
   private cleanup: (() => Promise<void>) | null = null;
 
   async prepare() {
-    const extension_path = this.options.injector_extension_path ?? defaultModCDPExtensionPath();
+    const extension_path =
+      this.options.injector_extension_path ?? defaultModCDPExtensionPath();
     if (this.unpacked_extension_path) {
       await super.prepare();
       return;
@@ -46,13 +47,17 @@ export class LocalBrowserLaunchExtensionInjector extends ExtensionInjector {
   private async resolveExtensionId() {
     if (this.extension_id) return this.extension_id;
     this.extension_id =
-      typeof this.options.injector_extension_id === "string" && this.options.injector_extension_id.trim()
+      typeof this.options.injector_extension_id === "string" &&
+      this.options.injector_extension_id.trim()
         ? this.options.injector_extension_id.trim()
         : null;
     if (!this.extension_id && this.unpacked_extension_path) {
-      this.extension_id = await extensionIdFromManifestKey(this.unpacked_extension_path);
+      this.extension_id = await extensionIdFromManifestKey(
+        this.unpacked_extension_path,
+      );
     }
-    if (this.extension_id) this.options.injector_extension_id = this.extension_id;
+    if (this.extension_id)
+      this.options.injector_extension_id = this.extension_id;
     return this.extension_id;
   }
 }

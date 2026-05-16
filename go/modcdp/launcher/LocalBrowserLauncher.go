@@ -52,12 +52,6 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 	usePipe := options.RemoteDebugging == "pipe"
 	useLoopbackCDP := !usePipe || options.Port != 0 || (options.LoopbackCDP != nil && *options.LoopbackCDP)
 	port := options.Port
-	if useLoopbackCDP && port == 0 {
-		port, err = l.FreePort()
-		if err != nil {
-			return nil, err
-		}
-	}
 	profileDir := options.UserDataDir
 	ownsProfileDir := false
 	if profileDir == "" {
@@ -153,6 +147,13 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		}
 		return nil, err
 	}
+	processDone := make(chan struct{})
+	var processState *os.ProcessState
+	var processWaitErr error
+	go func() {
+		processState, processWaitErr = cmd.Process.Wait()
+		close(processDone)
+	}()
 	close := func() {
 		if pipeRead != nil {
 			_ = pipeRead.Close()
@@ -161,39 +162,60 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 			_ = pipeWrite.Close()
 		}
 		if cmd.Process != nil {
-			if runtime.GOOS != "windows" {
-				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-			} else {
-				_ = cmd.Process.Kill()
-			}
-			done := make(chan struct{})
-			go func() {
-				_, _ = cmd.Process.Wait()
-				close(done)
-			}()
 			select {
-			case <-done:
-			case <-time.After(2 * time.Second):
+			case <-processDone:
+			default:
 				if runtime.GOOS != "windows" {
-					_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+					_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 				} else {
 					_ = cmd.Process.Kill()
 				}
-				<-done
+				select {
+				case <-processDone:
+				case <-time.After(2 * time.Second):
+					if runtime.GOOS != "windows" {
+						_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+					} else {
+						_ = cmd.Process.Kill()
+					}
+					<-processDone
+				}
 			}
 		}
 		if cleanupProfileDir {
 			removeProfileDir(profileDir)
 		}
 	}
+	processExitedError := func() error {
+		select {
+		case <-processDone:
+			if processWaitErr != nil {
+				return fmt.Errorf("Chrome exited before CDP became ready: %w", processWaitErr)
+			}
+			if processState != nil {
+				return fmt.Errorf("Chrome exited before CDP became ready (exit=%d)", processState.ExitCode())
+			}
+			return fmt.Errorf("Chrome exited before CDP became ready")
+		default:
+			return nil
+		}
+	}
 	if usePipe {
+		if err := processExitedError(); err != nil {
+			close()
+			return nil, err
+		}
 		if err := waitForPipeReady(pipeRead, pipeWrite, time.Duration(chromeReadyTimeoutMS)*time.Millisecond); err != nil {
 			close()
 			return nil, err
 		}
 		loopbackCDPURL := ""
 		if useLoopbackCDP {
-			loopbackCDPURL, err = waitForCdpWebSocketURL(fmt.Sprintf("http://127.0.0.1:%d", port), time.Duration(chromeReadyTimeoutMS)*time.Millisecond, time.Duration(chromeReadyPollIntervalMS)*time.Millisecond)
+			if port == 0 {
+				loopbackCDPURL, _, err = waitForBrowserSelectedCdpWebSocketURL(profileDir, time.Duration(chromeReadyTimeoutMS)*time.Millisecond, time.Duration(chromeReadyPollIntervalMS)*time.Millisecond)
+			} else {
+				loopbackCDPURL, err = waitForCdpWebSocketURL(fmt.Sprintf("http://127.0.0.1:%d", port), time.Duration(chromeReadyTimeoutMS)*time.Millisecond, time.Duration(chromeReadyPollIntervalMS)*time.Millisecond)
+			}
 			if err != nil {
 				close()
 				return nil, err
@@ -210,10 +232,28 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		l.Launched = launched
 		return launched, nil
 	}
-	cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	deadline := time.Now().Add(time.Duration(chromeReadyTimeoutMS) * time.Millisecond)
 	client := &http.Client{Timeout: 2 * time.Second}
 	for time.Now().Before(deadline) {
+		if err := processExitedError(); err != nil {
+			close()
+			return nil, err
+		}
+		cdpURL := ""
+		if port == 0 {
+			activePort, ready, err := readDevToolsActivePort(profileDir)
+			if err != nil {
+				close()
+				return nil, err
+			}
+			if !ready {
+				time.Sleep(time.Duration(chromeReadyPollIntervalMS) * time.Millisecond)
+				continue
+			}
+			cdpURL = fmt.Sprintf("http://127.0.0.1:%d", activePort)
+		} else {
+			cdpURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+		}
 		resp, err := client.Get(cdpURL + "/json/version")
 		if err == nil {
 			var version map[string]any
@@ -233,7 +273,7 @@ func (l *LocalBrowserLauncher) Launch(options LaunchOptions) (*LaunchedBrowser, 
 		time.Sleep(time.Duration(chromeReadyPollIntervalMS) * time.Millisecond)
 	}
 	close()
-	return nil, fmt.Errorf("Chrome at %s did not become ready within %dms", cdpURL, chromeReadyTimeoutMS)
+	return nil, fmt.Errorf("Chrome did not become ready within %dms", chromeReadyTimeoutMS)
 }
 
 func waitForPipeReady(pipeRead *os.File, pipeWrite *os.File, timeout time.Duration) error {
@@ -281,6 +321,49 @@ func waitForCdpWebSocketURL(cdpURL string, timeout time.Duration, pollInterval t
 		return "", fmt.Errorf("Chrome at %s did not expose a WebSocket CDP URL within %s: %w", cdpURL, timeout, lastErr)
 	}
 	return "", fmt.Errorf("Chrome at %s did not expose a WebSocket CDP URL within %s", cdpURL, timeout)
+}
+
+func readDevToolsActivePort(profileDir string) (int, bool, error) {
+	body, err := os.ReadFile(filepath.Join(profileDir, "DevToolsActivePort"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) == "" || strings.TrimSpace(lines[1]) == "" {
+		return 0, false, nil
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+	if err != nil || port <= 0 {
+		return 0, false, fmt.Errorf("invalid DevToolsActivePort port: %s", strings.TrimSpace(lines[0]))
+	}
+	return port, true, nil
+}
+
+func waitForBrowserSelectedCdpWebSocketURL(profileDir string, timeout time.Duration, pollInterval time.Duration) (string, int, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		port, ready, err := readDevToolsActivePort(profileDir)
+		if err != nil {
+			return "", 0, err
+		}
+		if ready {
+			cdpURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+			loopbackCDPURL, err := websocketURLFor(cdpURL)
+			if err == nil && loopbackCDPURL != "" {
+				return loopbackCDPURL, port, nil
+			}
+			lastErr = err
+		}
+		time.Sleep(pollInterval)
+	}
+	if lastErr != nil {
+		return "", 0, fmt.Errorf("Chrome did not expose DevToolsActivePort from %s within %s: %w", profileDir, timeout, lastErr)
+	}
+	return "", 0, fmt.Errorf("Chrome did not expose DevToolsActivePort from %s within %s", profileDir, timeout)
 }
 
 func removeProfileDir(profileDir string) {
