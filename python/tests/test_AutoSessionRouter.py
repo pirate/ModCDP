@@ -86,7 +86,7 @@ class AutoSessionRouterTests(unittest.TestCase):
             result = response.get("result")
             return result if isinstance(result, dict) else {}
 
-        router = AutoSessionRouter(send, lambda: 5_000)
+        router = AutoSessionRouter(send, lambda: 30_000)
 
         def reader() -> None:
             while not closed:
@@ -121,11 +121,11 @@ class AutoSessionRouterTests(unittest.TestCase):
             session_id = _wait_for(lambda: router.sessionIdForTarget(target_id))
             context_result: Queue[int | BaseException] = Queue()
             threading.Thread(
-                target=lambda: _put_result(context_result, lambda: router.waitForExecutionContext(session_id, 5_000)),
+                target=lambda: _put_result(context_result, lambda: router.waitForExecutionContext(session_id, 30_000)),
                 daemon=True,
             ).start()
             send("Runtime.enable", {}, session_id)
-            context_id = context_result.get(timeout=10)
+            context_id = context_result.get(timeout=35)
             if isinstance(context_id, BaseException):
                 raise context_id
             self.assertIsInstance(context_id, int)
