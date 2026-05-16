@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 import json
+from typing import cast
 
 from modcdp.translate import (
     CUSTOM_EVENT_BINDING_NAME,
@@ -46,7 +47,7 @@ class TranslateTests(unittest.TestCase):
         custom_step_params = custom["steps"][0].get("params", {})
         self.assertIn("JSON.parse(paramsJson)", str(custom_step_params.get("functionDeclaration")))
         self.assertNotIn("xxxxxxxxxx", str(custom_step_params.get("functionDeclaration")))
-        custom_arguments = custom_step_params.get("arguments", [])
+        custom_arguments = cast("list[dict[str, object]]", custom_step_params.get("arguments", []))
         self.assertEqual(custom_arguments[0].get("value"), "Custom.echo")
         self.assertEqual(json.loads(str(custom_arguments[1].get("value"))), {"secret": "x" * 100, "nested": {"ok": True}})
         self.assertEqual(custom_arguments[2].get("value"), "session-1")
