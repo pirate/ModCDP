@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -742,6 +745,10 @@ func TestModCDPClientCloseKeepsInjectorFilesUntilAfterLaunchedBrowserShutdown(t 
 		Launcher: LauncherConfig{LauncherMode: "local",
 			LauncherOptions: LaunchOptions{
 				Headless: boolPtr(true),
+				// Reversews is browser -> client only. After explicit CHROME_PATH and
+				// CI /usr/bin/chromium, this test uses Chrome for Testing because
+				// Canary rejects --load-extension in this local test path.
+				ExecutablePath: reverseWSTestBrowserPath(t),
 			},
 		},
 		Upstream: UpstreamConfig{
@@ -832,6 +839,108 @@ func TestModCDPClientCloseClearsTopLevelConnectionState(t *testing.T) {
 	if _, err := cdp.SendRaw("Browser.getVersion", map[string]any{}); err == nil || !strings.Contains(err.Error(), "ModCDP upstream is not connected") {
 		t.Fatalf("SendRaw after close error = %v", err)
 	}
+}
+
+func reverseWSTestBrowserPath(t *testing.T) string {
+	t.Helper()
+	explicitCandidates := []string{os.Getenv("CHROME_PATH")}
+	if runtime.GOOS == "linux" {
+		explicitCandidates = append(explicitCandidates, "/usr/bin/chromium")
+	}
+	for _, candidate := range explicitCandidates {
+		if candidate == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = "."
+	}
+	localAppData := os.Getenv("LOCALAPPDATA")
+	if localAppData == "" {
+		localAppData = filepath.Join(home, "AppData", "Local")
+	}
+	var patterns []string
+	switch runtime.GOOS {
+	case "darwin":
+		patterns = []string{
+			filepath.Join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac*", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+			filepath.Join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac*", "Chromium.app", "Contents", "MacOS", "Chromium"),
+			filepath.Join(home, "Library", "Caches", "puppeteer", "chrome", "mac*-*", "chrome-mac*", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+		}
+	case "windows":
+		patterns = []string{
+			filepath.Join(localAppData, "ms-playwright", "chromium-*", "chrome-win*", "chrome.exe"),
+			filepath.Join(home, ".cache", "puppeteer", "chrome", "win*-*", "chrome.exe"),
+		}
+	default:
+		patterns = []string{
+			filepath.Join(home, ".cache", "ms-playwright", "chromium-*", "chrome-linux*", "chrome"),
+			filepath.Join("/opt", "pw-browsers", "chromium-*", "chrome-linux*", "chrome"),
+			filepath.Join(home, ".cache", "puppeteer", "chrome", "linux-*", "chrome-linux*", "chrome"),
+		}
+	}
+	var candidates []string
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		candidates = append(candidates, matches...)
+	}
+	candidates = newestChromeForTestingFirst(candidates)
+	if len(candidates) > 0 {
+		return candidates[0]
+	}
+	t.Fatal("Reversews tests require CHROME_PATH, /usr/bin/chromium, or Chrome for Testing.")
+	return ""
+}
+
+func newestChromeForTestingFirst(candidates []string) []string {
+	seen := map[string]bool{}
+	deduped := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		deduped = append(deduped, candidate)
+	}
+	sort.SliceStable(deduped, func(i, j int) bool {
+		leftVersion := maxPathNumber(deduped[i])
+		rightVersion := maxPathNumber(deduped[j])
+		if leftVersion != rightVersion {
+			return leftVersion > rightVersion
+		}
+		leftStat, leftErr := os.Stat(deduped[i])
+		rightStat, rightErr := os.Stat(deduped[j])
+		var leftMtime, rightMtime time.Time
+		if leftErr == nil {
+			leftMtime = leftStat.ModTime()
+		}
+		if rightErr == nil {
+			rightMtime = rightStat.ModTime()
+		}
+		if !leftMtime.Equal(rightMtime) {
+			return leftMtime.After(rightMtime)
+		}
+		return deduped[i] < deduped[j]
+	})
+	return deduped
+}
+
+func maxPathNumber(value string) int {
+	maxValue := 0
+	for _, raw := range regexp.MustCompile(`\d+`).FindAllString(value, -1) {
+		number, err := strconv.Atoi(raw)
+		if err == nil && number > maxValue {
+			maxValue = number
+		}
+	}
+	return maxValue
 }
 
 func TestCustomCommandSchemasValidateParamsAndResults(t *testing.T) {
