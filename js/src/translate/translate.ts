@@ -173,9 +173,11 @@ export function wrapCustomCommand(
   method: string,
   params: ProtocolParams = {},
   cdpSessionId: string | null = null,
-): cdp.types.ts.Runtime.EvaluateParams {
+): cdp.types.ts.Runtime.CallFunctionOnParams {
   return {
-    functionDeclaration: `async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand(${JSON.stringify(method)}, ${JSON.stringify(params)}, ${JSON.stringify(cdpSessionId)})); }`,
+    functionDeclaration:
+      "async function(method, paramsJson, cdpSessionId) { return JSON.stringify(await globalThis.ModCDP.handleCommand(method, JSON.parse(paramsJson), cdpSessionId)); }",
+    arguments: [{ value: method }, { value: JSON.stringify(params) }, { value: cdpSessionId }],
     awaitPromise: true,
     returnByValue: true,
   };

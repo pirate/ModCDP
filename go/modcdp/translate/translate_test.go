@@ -52,6 +52,37 @@ func TestTranslateRoutesWrapsAndUnwrapsModCDPProtocolMessagesDeterministically(t
 		t.Fatalf("configure unwrap = %q", configured.Steps[0].Unwrap)
 	}
 
+	custom, err := wrapCommandIfNeeded(
+		"Custom.echo",
+		map[string]any{"secret": strings.Repeat("x", 100), "nested": map[string]any{"ok": true}},
+		DefaultClientRoutes(),
+		"session-1",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	customParams := custom.Steps[0].Params
+	if !strings.Contains(stringValue(customParams["functionDeclaration"]), "JSON.parse(paramsJson)") {
+		t.Fatalf("functionDeclaration = %s", customParams["functionDeclaration"])
+	}
+	if strings.Contains(stringValue(customParams["functionDeclaration"]), "xxxxxxxxxx") {
+		t.Fatalf("functionDeclaration includes custom params: %s", customParams["functionDeclaration"])
+	}
+	customArguments := customParams["arguments"].([]map[string]any)
+	if customArguments[0]["value"] != "Custom.echo" {
+		t.Fatalf("method argument = %#v", customArguments[0])
+	}
+	var customPayload map[string]any
+	if err := json.Unmarshal([]byte(customArguments[1]["value"].(string)), &customPayload); err != nil {
+		t.Fatal(err)
+	}
+	if customPayload["secret"] != strings.Repeat("x", 100) || customPayload["nested"].(map[string]any)["ok"] != true {
+		t.Fatalf("params argument = %#v", customPayload)
+	}
+	if customArguments[2]["value"] != "session-1" {
+		t.Fatalf("session argument = %#v", customArguments[2])
+	}
+
 	unwrapped, err := unwrapResponseIfNeeded(map[string]any{"result": map[string]any{"type": "object", "value": map[string]any{"ok": true}}}, "runtime")
 	if err != nil {
 		t.Fatal(err)

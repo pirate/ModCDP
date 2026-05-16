@@ -135,10 +135,10 @@ func wrapModCDPAddMiddleware(params map[string]any) map[string]any {
 }
 
 func wrapCustomCommand(method string, params map[string]any, sessionID string) map[string]any {
-	m, _ := json.Marshal(method)
 	p, _ := json.Marshal(params)
-	sid, _ := json.Marshal(sessionID)
-	return callFunctionParams(fmt.Sprintf(`async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand(%s, %s, %s)); }`, string(m), string(p), string(sid)))
+	runtimeParams := callFunctionParams(`async function(method, paramsJson, cdpSessionId) { return JSON.stringify(await globalThis.ModCDP.handleCommand(method, JSON.parse(paramsJson), cdpSessionId)); }`)
+	runtimeParams["arguments"] = []map[string]any{{"value": method}, {"value": string(p)}, {"value": sessionID}}
+	return runtimeParams
 }
 
 func wrapServiceWorkerCommand(method string, params map[string]any, sessionID string, targetSessionID string) []rawStep {

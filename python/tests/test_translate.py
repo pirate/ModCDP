@@ -38,6 +38,19 @@ class TranslateTests(unittest.TestCase):
         )
         self.assertEqual(configured["steps"][0].get("unwrap"), "runtime_json")
 
+        custom = wrap_command_if_needed(
+            "Custom.echo",
+            {"secret": "x" * 100, "nested": {"ok": True}},
+            cdp_session_id="session-1",
+        )
+        custom_step_params = custom["steps"][0].get("params", {})
+        self.assertIn("JSON.parse(paramsJson)", str(custom_step_params.get("functionDeclaration")))
+        self.assertNotIn("xxxxxxxxxx", str(custom_step_params.get("functionDeclaration")))
+        custom_arguments = custom_step_params.get("arguments", [])
+        self.assertEqual(custom_arguments[0].get("value"), "Custom.echo")
+        self.assertEqual(json.loads(str(custom_arguments[1].get("value"))), {"secret": "x" * 100, "nested": {"ok": True}})
+        self.assertEqual(custom_arguments[2].get("value"), "session-1")
+
         self.assertEqual(unwrap_response_if_needed({"result": {"type": "object", "value": {"ok": True}}}, "runtime"), {"ok": True})
         self.assertEqual(unwrap_response_if_needed({"product": "Chrome/1"}, None), {"product": "Chrome/1"})
 

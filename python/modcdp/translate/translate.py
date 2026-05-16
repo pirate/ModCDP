@@ -152,10 +152,13 @@ def _wrap_modcdp_add_middleware(params: ProtocolParams) -> RuntimeCallFunctionOn
 
 
 def _wrap_custom_command(method: str, params: ProtocolParams, session_id: str) -> RuntimeCallFunctionOnParams:
-    return _call_function_params(
-        "async function() { return JSON.stringify(await globalThis.ModCDP.handleCommand("
-        f"{json.dumps(method)}, {json.dumps(params)}, {json.dumps(session_id)})); }}"
+    runtime_params = _call_function_params(
+        "async function(method, paramsJson, cdpSessionId) { "
+        "return JSON.stringify(await globalThis.ModCDP.handleCommand(method, JSON.parse(paramsJson), cdpSessionId)); "
+        "}"
     )
+    runtime_params["arguments"] = [{"value": method}, {"value": json.dumps(params)}, {"value": session_id}]
+    return runtime_params
 
 
 def _wrap_service_worker_command(
