@@ -77,9 +77,7 @@ const configuredClient = (params: unknown, session_id?: string | null) => {
     client: configure?.client ?? {},
     server: configure?.server ?? {},
   };
-  if (client.downstream_transport === "reversews") {
-    bridge.stopNativeBridge?.("reverse downstream connected");
-  } else if (bridge.reverseBridgeActive?.() !== true) {
+  if (client.downstream_transport !== "reversews") {
     bridge.stopReverseBridge?.("non-reverse downstream connected");
   }
   return client;
@@ -180,7 +178,6 @@ if (bridge) {
     ["startReverseBridge", "reverse"],
     ["stopReverseBridge", "reverse"],
     ["startNativeBridge", "native"],
-    ["stopNativeBridge", "native"],
     ["startNatsBridge", "nats"],
   ]) {
     const start = bridge[method]?.bind(bridge);

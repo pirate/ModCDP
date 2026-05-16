@@ -147,7 +147,6 @@ class ReverseWebSocketUpstreamTransportTests(unittest.TestCase):
                 "launcher_mode": "local",
                 "launcher_options": {
                     "headless": sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-                    "sandbox": not sys.platform.startswith("linux"),
                     # Reversews is browser -> client only. After explicit CHROME_PATH and
                     # CI /usr/bin/chromium, these tests use Chrome for Testing because
                     # Canary rejects --load-extension in this local test path.

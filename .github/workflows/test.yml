@@ -42,7 +42,7 @@ jobs:
         run: |
           case "${{ matrix.client }}" in
             js)
-              xvfb-run -a pnpm exec vitest run \
+              pnpm exec vitest run \
                 $(find js/test -name 'test.*.ts' \
                   ! -name 'test.ModCDPClient.ts' \
                   ! -name 'test.NatsUpstreamTransport.ts' \
@@ -52,7 +52,7 @@ jobs:
               ;;
             python)
               cd python
-              xvfb-run -a uv run python -m unittest \
+              uv run python -m unittest \
                 $(find tests -name 'test_*.py' \
                   ! -name 'test_ModCDPClient.py' \
                   ! -name 'test_NatsUpstreamTransport.py' \
@@ -61,7 +61,7 @@ jobs:
               ;;
             go)
               cd go
-              xvfb-run -a go test -count=1 -p 1 \
+              go test -count=1 -p 1 \
                 ./modcdp \
                 ./modcdp/injector \
                 ./modcdp/launcher \
@@ -122,15 +122,15 @@ jobs:
         run: |
           case "${{ matrix.client }}" in
             js)
-              xvfb-run -a node dist/js/examples/demo.js --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              node dist/js/examples/demo.js --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
               ;;
             python)
               cd python
-              xvfb-run -a uv run python examples/demo.py --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              uv run python examples/demo.py --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
               ;;
             go)
               cd go
-              xvfb-run -a go run ./examples/demo --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
+              go run ./examples/demo --${{ matrix.mode }} --upstream=${{ matrix.upstream }}
               ;;
             *)
               echo "unknown client: ${{ matrix.client }}" >&2
@@ -164,25 +164,41 @@ jobs:
           cache-dependency-path: go/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - name: Run JS serialized connector tests
+      - name: Run JS serialized non-reverse connector tests
         run: |
-          xvfb-run -a pnpm exec vitest run \
+          pnpm exec vitest run \
             js/test/test.ModCDPClient.ts \
             js/test/test.NatsUpstreamTransport.ts \
+            js/test/test.proxy.ts \
+            --testNamePattern "^(?!.*reversews).*" \
+            --fileParallelism=false --maxWorkers=1
+      - name: Run JS serialized reversews tests
+        run: |
+          pnpm exec vitest run \
             js/test/test.ReverseWebSocketUpstreamTransport.ts \
             js/test/test.proxy.ts \
+            --testNamePattern "reversews" \
             --fileParallelism=false --maxWorkers=1
-      - name: Run Python serialized connector tests
+      - name: Run Python serialized non-reverse connector tests
         run: |
           cd python
-          xvfb-run -a uv run python -m unittest \
+          uv run python -m unittest \
             tests.test_ModCDPClient \
-            tests.test_NatsUpstreamTransport \
+            tests.test_NatsUpstreamTransport
+      - name: Run Python serialized reversews tests
+        run: |
+          cd python
+          uv run python -m unittest \
             tests.test_ReverseWebSocketUpstreamTransport
-      - name: Run Go serialized connector tests
+      - name: Run Go serialized non-reverse connector tests
         run: |
           cd go
-          xvfb-run -a go test -count=1 -p 1 ./modcdp/client ./modcdp/transport
+          go test -count=1 -p 1 ./modcdp/client
+          go test -count=1 -p 1 ./modcdp/transport -run 'Test(UpstreamTransport|WebSocketUpstreamTransport|PipeUpstreamTransport|NativeMessagingUpstreamTransport|NatsUpstreamTransport)'
+      - name: Run Go serialized reversews tests
+        run: |
+          cd go
+          go test -count=1 -p 1 ./modcdp/transport -run 'TestReverseWebSocketUpstreamTransport'
 
   serialized-reversews-demo:
     name: serialized reversews demos
@@ -213,12 +229,12 @@ jobs:
       - name: Run reversews demos serially
         run: |
           for mode in loopback debugger; do
-            xvfb-run -a node dist/js/examples/demo.js --"$mode" --upstream=reversews
+            node dist/js/examples/demo.js --"$mode" --upstream=reversews
             cd python
-            xvfb-run -a uv run python examples/demo.py --"$mode" --upstream=reversews
+            uv run python examples/demo.py --"$mode" --upstream=reversews
             cd ..
             cd go
-            xvfb-run -a go run ./examples/demo --"$mode" --upstream=reversews
+            go run ./examples/demo --"$mode" --upstream=reversews
             cd ..
           done
 
@@ -247,4 +263,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - run: xvfb-run -a ${{ matrix.command }}
+      - run: ${{ matrix.command }}

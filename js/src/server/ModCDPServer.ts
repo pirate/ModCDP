@@ -466,28 +466,6 @@ export function installModCDPServer(
     return { upstream_reversews_url, stopped: true, reason };
   }
 
-  function reverseBridgeActive() {
-    return (
-      reverseBridgeSocket?.readyState === WebSocket.OPEN ||
-      reverseBridgeSocket?.readyState === WebSocket.CONNECTING
-    );
-  }
-
-  function stopNativeBridge(reason = "stopped") {
-    const upstream_nativemessaging_host_name = nativeBridgeHostName;
-    nativeBridgeHostName = null;
-    if (nativeBridgeReconnectTimer) {
-      clearTimeout(nativeBridgeReconnectTimer);
-      nativeBridgeReconnectTimer = null;
-    }
-    const port = nativeBridgePort;
-    nativeBridgePort = null;
-    ModCDPServer.native_bridge_connected = false;
-    ModCDPServer.native_bridge_last_error = reason;
-    port?.disconnect?.();
-    return { upstream_nativemessaging_host_name, stopped: true, reason };
-  }
-
   function scheduleNativeBridgeReconnect(delayMs: number) {
     if (!nativeBridgeHostName) return;
     if (nativeBridgeReconnectTimer) return;
@@ -639,7 +617,6 @@ export function installModCDPServer(
     const ws = new WebSocket(endpoint);
     reverseBridgeSocket = ws;
     ws.addEventListener("open", () => {
-      stopNativeBridge("reverse bridge connected");
       startOffscreenKeepAlive();
       ws.send(
         JSON.stringify({
@@ -656,12 +633,10 @@ export function installModCDPServer(
     ws.addEventListener("error", () => {
       if (reverseBridgeSocket === ws) reverseBridgeSocket = null;
       scheduleReverseBridgeReconnect(reverseBridgeReconnectIntervalMs);
-      if (nativeBridgeHostName) connectNativeBridge(nativeBridgeHostName);
     });
     ws.addEventListener("close", () => {
       if (reverseBridgeSocket === ws) reverseBridgeSocket = null;
       scheduleReverseBridgeReconnect(reverseBridgeReconnectIntervalMs);
-      if (nativeBridgeHostName) connectNativeBridge(nativeBridgeHostName);
     });
     return { upstream_reversews_url: endpoint, connected: false };
   }
@@ -674,17 +649,6 @@ export function installModCDPServer(
         upstream_nativemessaging_host_name: hostName,
         connected: false,
         reason: "native_messaging_unavailable",
-      };
-    }
-    if (
-      reverseBridgeUrl &&
-      (reverseBridgeSocket?.readyState === WebSocket.OPEN ||
-        reverseBridgeSocket?.readyState === WebSocket.CONNECTING)
-    ) {
-      return {
-        upstream_nativemessaging_host_name: hostName,
-        connected: false,
-        reason: "reverse_bridge_active",
       };
     }
     if (nativeBridgePort)
@@ -1246,8 +1210,6 @@ export function installModCDPServer(
       };
     },
     stopReverseBridge,
-    reverseBridgeActive,
-    stopNativeBridge,
     startNativeBridge(
       hostName = DEFAULT_NATIVE_BRIDGE_HOST_NAME,
       {
