@@ -676,6 +676,7 @@ func TestModCDPClientCloseDoesNotCloseRemoteBrowserItDidNotLaunch(t *testing.T) 
 	chrome, err := NewLocalBrowserLauncher(LaunchOptions{
 		Headless:             &headless,
 		ChromeReadyTimeoutMS: 60_000,
+		ExtraArgs:            []string{"--load-extension=" + extensionPath},
 	}).Launch(LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)

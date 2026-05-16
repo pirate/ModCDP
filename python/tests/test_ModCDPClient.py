@@ -268,6 +268,7 @@ class ModCDPClientTests(unittest.TestCase):
             {
                 "headless": True,
                 "chrome_ready_timeout_ms": 60_000,
+                "extra_args": [f"--load-extension={EXTENSION_PATH}"],
             }
         ).launch()
         raw_ws = create_connection(cast(str, chrome["cdp_url"]), timeout=5)

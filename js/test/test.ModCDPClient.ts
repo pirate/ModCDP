@@ -459,6 +459,7 @@ test("ModCDPClient.close does not close a remote browser it did not launch", asy
   const chrome = await new LocalBrowserLauncher({
     headless: true,
     chrome_ready_timeout_ms: 60_000,
+    extra_args: [`--load-extension=${EXTENSION_PATH}`],
   }).launch();
   const raw_cdp = await CdpSocket.connect(chrome.cdp_url!);
   const cdp = new ModCDPClient({
