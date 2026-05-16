@@ -42,6 +42,7 @@ const EXTENSION_PATH =
     existsSync(path.join(candidate, "modcdp/service_worker.js")),
   ) ?? path.resolve(HERE, "..", "..", "extension");
 const DEFAULT_DEMO_EVENT_TIMEOUT_MS = 10_000;
+const DEFAULT_REVERSE_TRANSPORT_WAIT_TIMEOUT_MS = 60_000;
 const DEFAULT_LIVE_CDP_POLL_INTERVAL_MS = 250;
 const DEFAULT_LIVE_CDP_ACTIVE_PORT_STALE_MS = 1_000;
 const DEFAULT_TARGET_EVENT_TIMEOUT_MS = 10_000;
@@ -121,7 +122,17 @@ function clientOptionsFor(mode, upstream_mode, cdp_url, launch_options = {}) {
   const launcher = cdp_url
     ? ({ launcher_mode: "remote" } as const)
     : ({ launcher_mode: "local", launcher_options: launch_options } as const);
-  const upstream = { upstream_mode, upstream_cdp_url: cdp_url };
+  const upstream = {
+    upstream_mode,
+    upstream_cdp_url: cdp_url,
+    ...(upstream_mode === "reversews"
+      ? { upstream_reversews_wait_timeout_ms: DEFAULT_REVERSE_TRANSPORT_WAIT_TIMEOUT_MS }
+      : {}),
+    ...(upstream_mode === "nativemessaging"
+      ? { upstream_nativemessaging_wait_timeout_ms: DEFAULT_REVERSE_TRANSPORT_WAIT_TIMEOUT_MS }
+      : {}),
+    ...(upstream_mode === "nats" ? { upstream_nats_wait_timeout_ms: DEFAULT_REVERSE_TRANSPORT_WAIT_TIMEOUT_MS } : {}),
+  };
   const injector = {
     injector_mode: "auto" as const,
     injector_extension_path: EXTENSION_PATH,

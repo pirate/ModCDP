@@ -29,11 +29,23 @@ import (
 	"golang.org/x/term"
 )
 
+const reverseTransportWaitTimeoutMS = 60_000
+
 func optionsFor(mode, upstreamMode, cdpURL, extensionPath string, launchOptions modcdp.LaunchOptions) modcdp.Options {
+	upstream := modcdp.UpstreamConfig{UpstreamMode: upstreamMode, UpstreamCDPURL: cdpURL}
+	if upstreamMode == "reversews" {
+		upstream.UpstreamReverseWSWaitTimeoutMS = reverseTransportWaitTimeoutMS
+	}
+	if upstreamMode == "nativemessaging" {
+		upstream.UpstreamNativeMessagingWaitTimeoutMS = reverseTransportWaitTimeoutMS
+	}
+	if upstreamMode == "nats" {
+		upstream.UpstreamNATSWaitTimeoutMS = reverseTransportWaitTimeoutMS
+	}
 	if mode == "direct" {
 		return modcdp.Options{
 			Launcher: modcdp.LauncherConfig{LauncherMode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], LauncherOptions: launchOptions},
-			Upstream: modcdp.UpstreamConfig{UpstreamMode: upstreamMode, UpstreamCDPURL: cdpURL},
+			Upstream: upstream,
 			Injector: modcdp.InjectorConfig{InjectorMode: "auto", InjectorExtensionPath: extensionPath},
 			Client:   modcdp.ClientConfig{ClientRoutes: clientRoutesFor(mode)},
 		}
@@ -43,7 +55,7 @@ func optionsFor(mode, upstreamMode, cdpURL, extensionPath string, launchOptions 
 	}
 	return modcdp.Options{
 		Launcher: modcdp.LauncherConfig{LauncherMode: map[bool]string{true: "remote", false: "local"}[cdpURL != ""], LauncherOptions: launchOptions},
-		Upstream: modcdp.UpstreamConfig{UpstreamMode: upstreamMode, UpstreamCDPURL: cdpURL},
+		Upstream: upstream,
 		Injector: modcdp.InjectorConfig{InjectorMode: "auto", InjectorExtensionPath: extensionPath},
 		Client:   modcdp.ClientConfig{ClientRoutes: clientRoutesFor(mode)},
 		Server:   server,
