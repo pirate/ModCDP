@@ -15,6 +15,7 @@ from websocket import create_connection
 from modcdp import ModCDPClient
 from modcdp.launcher.LocalBrowserLauncher import LocalBrowserLauncher
 from modcdp.types import JsonValue
+from tests.test_ReverseWebSocketUpstreamTransport import reversews_test_browser_path
 
 
 HERE = Path(__file__).resolve().parent
@@ -301,7 +302,16 @@ class ModCDPClientTests(unittest.TestCase):
 
     def test_close_keeps_injector_files_until_after_launched_browser_shutdown(self) -> None:
         cdp = ModCDPClient(
-            launcher={"launcher_mode": "local", "launcher_options": {"headless": True}},
+            launcher={
+                "launcher_mode": "local",
+                "launcher_options": {
+                    "headless": True,
+                    # Reversews is browser -> client only. After explicit CHROME_PATH and
+                    # CI /usr/bin/chromium, this test uses Chrome for Testing because
+                    # Canary rejects --load-extension in this local test path.
+                    "executable_path": reversews_test_browser_path(),
+                },
+            },
             upstream={
                 "upstream_mode": "reversews",
                 "upstream_reversews_wait_timeout_ms": 30_000,
